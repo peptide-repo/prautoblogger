@@ -235,19 +235,19 @@ class PRAutoBlogger_Cost_Tracker {
 			);
 		}
 
-		$cutoff_time   = time() - ( $days * DAY_IN_SECONDS );
-		$stage_list    = implode( ',', array_map( array( $wpdb, 'prepare' ), array_fill( 0, count( $stages ), '%s' ), $stages ) );
-		$table_name    = $wpdb->prefix . 'prautoblogger_generation_log';
+		$cutoff_datetime = gmdate( 'Y-m-d H:i:s', time() - ( $days * DAY_IN_SECONDS ) );
+		$stage_list      = implode( ',', array_map( array( $wpdb, 'prepare' ), array_fill( 0, count( $stages ), '%s' ), $stages ) );
+		$table_name      = $wpdb->prefix . 'prautoblogger_generation_log';
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Prepared stage list via array_map + prepare
 		$query = $wpdb->prepare(
-			"SELECT AVG(input_tokens) as avg_input,
-                    AVG(output_tokens) as avg_output,
+			"SELECT AVG(prompt_tokens) as avg_prompt,
+                    AVG(completion_tokens) as avg_completion,
                     COUNT(*) as sample_count
              FROM $table_name
              WHERE stage IN ( $stage_list )
-             AND timestamp >= %d",
-			$cutoff_time
+             AND created_at >= %s",
+			$cutoff_datetime
 		);
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- phpcs pragma above
@@ -262,8 +262,8 @@ class PRAutoBlogger_Cost_Tracker {
 		}
 
 		return array(
-			'avg_prompt_tokens'      => (float) ( $result['avg_input'] ?? 0 ),
-			'avg_completion_tokens'  => (float) ( $result['avg_output'] ?? 0 ),
+			'avg_prompt_tokens'      => (float) ( $result['avg_prompt'] ?? 0 ),
+			'avg_completion_tokens'  => (float) ( $result['avg_completion'] ?? 0 ),
 			'sample_size'            => (int) ( $result['sample_count'] ?? 0 ),
 		);
 	}
