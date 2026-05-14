@@ -5,6 +5,13 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.15.1] - 2026-05-14
+
+### Fixed
+- Cost preview in AI Models settings tab no longer prints a WordPress database
+  error notice; query now uses canonical column names (`prompt_tokens`,
+  `completion_tokens`, `created_at`). Bug present since v0.11.0 (2026-04-23).
+
 ## [0.14.0] - 2026-04-26
 ## [0.15.0] - 2026-04-26
 
