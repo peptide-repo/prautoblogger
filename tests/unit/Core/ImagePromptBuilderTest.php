@@ -3,7 +3,7 @@
  * Tests for PRAutoBlogger_Image_Prompt_Builder.
  *
  * Validates prompt generation from article content and source data,
- * including style suffix appending and HTML stripping.
+ * including editorial-template substitution ({{ topic_summary }}) and HTML stripping.
  *
  * @package PRAutoBlogger\Tests\Core
  */
@@ -68,7 +68,9 @@ class ImagePromptBuilderTest extends BaseTestCase {
 		[ 'prompt' => $scene, 'caption' => $caption ] = $builder->build_article_prompt( $article_data );
 
 		$this->assertStringContainsString( 'How to Train Your Dragon', $scene );
-		// Style suffix should be appended.
+		// Editorial template wraps the topic summary; token must be substituted.
+		$this->assertStringNotContainsString( '{{ topic_summary }}', $scene );
+		$this->assertStringContainsString( 'Editorial scientific illustration', $scene );
 		$this->assertNotEmpty( $scene );
 		$this->assertGreaterThan( 50, strlen( $scene ) );
 		$this->assertIsString( $caption );

@@ -70,22 +70,25 @@ class PRAutoBlogger_Image_Scene_Parser {
 	/**
 	 * Rule-based fallback when LLM rewriting is unavailable.
 	 *
-	 * Kept deliberately simple — this only runs if OpenRouter is down.
+	 * Kept deliberately simple — this only runs if OpenRouter is down. Produces
+	 * a text-free editorial-illustration subject (not a comic) so the prompt
+	 * builder always has a non-empty topic summary to substitute into the
+	 * style template, never shipping a blank prompt to the provider (brief A6).
 	 *
 	 * @param string $title           Main heading / topic.
 	 * @param string $supporting_text Additional context.
 	 * @return array{scene: string, caption: string} Scene for image gen, caption for HTML.
 	 */
 	public static function synthesize_visual_concepts_fallback( string $title, string $supporting_text ): array {
-		// Fallback produces a simple comic concept when the LLM is unavailable.
+		// Fallback produces a simple editorial-illustration subject when the LLM is unavailable.
 		$scene = sprintf(
-			'A cartoon scientist in a lab coat looking bewildered while examining something related to: %s.',
+			'A clean, centered editorial science illustration representing the topic of %s, with a single clear focal subject and generous negative space.',
 			$title
 		);
 
 		return array(
 			'scene'   => trim( $scene ),
-			'caption' => 'Science is full of surprises.',
+			'caption' => '',
 		);
 	}
 }

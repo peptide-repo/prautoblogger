@@ -67,9 +67,18 @@ if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_IMAGE_PROVIDER' ) ) {
     define( 'PRAUTOBLOGGER_DEFAULT_IMAGE_PROVIDER', 'runware' );
 }
 
-// Default image style suffix used by ImagePromptBuilder and settings UI.
+// Default image style suffix used by legacy ImagePromptBuilder paths / settings UI.
 if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_SUFFIX' ) ) {
     define( 'PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_SUFFIX', 'Style: test infomercial style.' );
+}
+
+// Editorial style template (v0.16.0): default for prautoblogger_image_style_template.
+// Must contain exactly one {{ topic_summary }} token (brief A5).
+if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE' ) ) {
+    define(
+        'PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE',
+        "Editorial scientific illustration. Subject: {{ topic_summary }}. NO TEXT. NO PEOPLE. NO LOGOS. NO LABELS."
+    );
 }
 
 // WordPress database constants used in $wpdb queries.

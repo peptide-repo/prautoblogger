@@ -9,7 +9,7 @@
  * Plugin Name:       PRAutoBlogger
  * Plugin URI:        https://peptiderepo.com/prautoblogger
  * Description:       Monitors social media for trending topics, generates SEO-friendly blog posts using AI, and publishes them on a daily schedule with full cost tracking and self-improvement metrics.
- * Version:           0.15.1
+ * Version:           0.16.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            PeptideRepo
@@ -35,7 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 | Defined here so every file in the plugin can reference paths, versions,
 | and limits without magic strings.
 */
-define( 'PRAUTOBLOGGER_VERSION', '0.15.1' );
+define( 'PRAUTOBLOGGER_VERSION', '0.16.0' );
 define( 'PRAUTOBLOGGER_DB_VERSION', '1.1.0' );
 define( 'PRAUTOBLOGGER_PLUGIN_FILE', __FILE__ );
 define( 'PRAUTOBLOGGER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
@@ -65,6 +65,22 @@ define( 'PRAUTOBLOGGER_DEFAULT_IMAGE_MODEL', 'runware:100@1' );
 define(
 	'PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_SUFFIX',
 	'Style: a single-panel newspaper comic in classic black ink on white paper, simple clean linework like The Far Side or B.C., slightly yellowed newsprint texture, hand-drawn crosshatching for shading, bold panel border, warm and humorous tone, visible in a newspaper comics section. IMPORTANT: Do not render any text, captions, speech bubbles, or words inside the image.'
+);
+// Default editorial-illustration prompt template for the image generator.
+// Updated 2026-05-29 (v0.16.0): pivot from single-panel comic to text-free
+// editorial scientific illustration. The {{ topic_summary }} token is filled
+// at build time with a 1-2 sentence topic/mechanism description from the
+// rewriter LLM; the rest is brand-locked. Replaces the old Style Suffix.
+// Users may override via Settings -> Images -> Style Template. Per brief A5
+// the template must contain exactly one {{ topic_summary }} token.
+define(
+	'PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE',
+	"Editorial scientific illustration, flat vector aesthetic, limited palette of\n" .
+	"teal (#1B8A92) and cream (#FAF6EE) with ink (#0D0D0D) line work and accents\n" .
+	"of orange (#FF8A3D) and lime (#7FD600). Subject: {{ topic_summary }}.\n" .
+	"Style reference: Quanta Magazine, The Pudding, scientific editorial illustration.\n" .
+	"Composition: clear focal point, balanced negative space, subtle textural detail.\n" .
+	"Mood: authoritative, clinical, calm. NO TEXT. NO PEOPLE. NO LOGOS. NO LABELS."
 );
 // Opik observability (feature-flag gated).
 // API credentials must be defined in wp-config.php constants:

@@ -147,6 +147,7 @@ prautoblogger/
 │   │   ├── class-post-assembler.php   # Post-creation helpers: taxonomy, log linking, images, sanitization
 │   │   ├── class-image-pipeline.php   # Orchestrates A/B image generation (parallel via batch)
 │   │   ├── class-image-prompt-builder.php # Generates visual prompts from article/source data
+│   │   ├── class-image-template-filler.php # Fills the editorial style template's {{ topic_summary }} slot (v0.16.0)
 │   │   ├── class-image-media-sideloader.php # Imports images into WordPress media library
 │   │   ├── class-cost-tracker.php     # Logs all API costs, enforces budget limits
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)
@@ -437,13 +438,14 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_schedule_time`          | Daily generation time (HH:MM, default: '03:00')       |
 | `prautoblogger_image_model`            | Image model slug from `Image_Model_Registry::get_models()`; provider is derived from this on save |
 | `prautoblogger_image_provider`         | Derived from the chosen model on save (v0.8.0+); not editable in admin UI |
-| `prautoblogger_image_prompt_instructions` | System prompt given to the image rewriter LLM (v0.8.0+); falls back to `Image_Prompt_Builder::REWRITER_SYSTEM_PROMPT` when empty |
+| `prautoblogger_image_prompt_instructions` | System prompt given to the image rewriter LLM (v0.8.0+); falls back to `Image_Prompt_Builder::REWRITER_SYSTEM_PROMPT` when empty. v0.16.0: the default now instructs the LLM to emit a 1-2 sentence editorial topic/mechanism summary as the SCENE (was a comic gag) |
 | `prautoblogger_image_nsfw_retry`       | Toggle: retry NSFW-blocked image slots with a rule-based fallback prompt (default: '1') |
 | `prautoblogger_migrated_image_provider_v080` | One-shot migration flag — auto-heals mismatched provider/model pairs on first admin_init after v0.8.0 upgrade |
 | `prautoblogger_article_font_family`    | Font family key: 'default', 'inter', 'georgia', 'merriweather', 'lora', 'open_sans', 'roboto', 'system' |
 | `prautoblogger_article_font_size`     | Body font size in px (0 = theme default). Recommended: 16–18. |
 | `prautoblogger_table_borders`         | Toggle: add borders/padding/striping to tables (default: '1') |
-| `prautoblogger_image_style_suffix`     | Text appended to every image prompt (default: CEO-locked 90s infomercial prompt) |
+| `prautoblogger_image_style_template`   | Full image prompt template (v0.16.0+); contains exactly one `{{ topic_summary }}` token filled per-article with the rewriter scene. Default = `PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE` (editorial scientific illustration). Replaces the Style Suffix. Validated on save (single-token, brief A5) |
+| `prautoblogger_image_style_suffix`     | DEPRECATED (v0.16.0). Former comic style suffix appended to every image prompt; no longer read by the builder. Mirrored to `prautoblogger_image_style_suffix_deprecated` for one cycle and not deleted yet |
 | `prautoblogger_openrouter_model_registry` | Normalized OpenRouter model list (JSON array, daily refresh, serves as durable cache) |
 | `prautoblogger_openrouter_model_registry_fetched_at` | Unix timestamp of last successful model registry refresh |
 
@@ -574,6 +576,16 @@ Reddit rejected our OAuth API application (April 2026). We initially switched to
 ### #18: OpenRouter model registry — daily refresh, WP option + transient cache, zero-coupling
 
 The admin model picker (v1) needs to list OpenRouter models with pricing and capabilities. We fetch `https://openrouter.ai/api/v1/models` (free, unauthenticated) once daily and store the normalized payload in a WP option fronted by a 24h transient. On stale-and-fetch-fails, we serve last-good + surface a warning. The registry class (`class-open-router-model-registry.php`) takes all config via constructor (option name, transient name, endpoint URL) — no PRAUTOBLOGGER_* constants inside the class body. Phase 2 lifts it into a shared Composer package with zero internal edits. Phase 3 adds a parallel `Cloudflare_WorkersAI_Model_Registry` behind the same interface. Capability vocabulary: `text→text`, `text+image→text`, `text+audio→text`, `text→image`, `text→audio`, `text→video`, `text→embedding`. Cost: $0/month.
+
+### #20: Editorial illustration prompt + style-template setting (v0.16.0, May 2026)
+
+Commit 1 of the in-plugin editorial image pipeline (brief `docs/proposals/2026-05-29-image-pipeline-in-plugin-brief.md`). The image style pivots from a single-panel newspaper comic to a **text-free editorial scientific illustration**. Two changes ship here; the deterministic PHP composer is a later commit.
+
+1. **Prompt structure.** `Image_Prompt_Builder::REWRITER_SYSTEM_PROMPT` now asks the rewriter LLM for a concise 1-2 sentence topic/mechanism summary (one concrete centered focal subject, no text/people-as-gag/logos) as the SCENE, keeping the short CAPTION line for the unchanged HTML-caption-below-image path. The scene/caption parsing contract (`Image_Scene_Parser`) is unchanged.
+2. **Template substitution.** The old `trim($scene . ' ' . $style_suffix)` concat is replaced by `PRAutoBlogger_Image_Template_Filler::fill($scene)` in all three entry points (`build_article_prompt`, `build_source_prompt`, `build_fallback_prompt`). The filler resolves the active template (admin override → default), strips control chars and clamps the summary length (brief A5), then substitutes the single `{{ topic_summary }}` token. Degradation (brief A5/A6): if the template lacks exactly one token it appends the summary and logs a warning; if the summary is empty it emits the style-only prompt — a blank or token-only prompt is never sent to the provider.
+3. **Setting.** New textarea `prautoblogger_image_style_template` (default `PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE`) replaces the Style Suffix field. On save it is sanitised with `sanitize_textarea_field` and validated to contain exactly one token (`Image_Template_Filler::sanitize_for_save`). The old `prautoblogger_image_style_suffix` is mirrored to `..._deprecated` for one cycle and not deleted (one-time migration `prautoblogger_migrated_style_template_v0160`).
+
+Provider/model are unchanged — only the prompt text changes, so production keeps emitting via Runware FLUX.1 schnell but now produces text-free editorial base images.
 
 ### #17: Runware as default image backend (v0.9.0, Apr 2026)
 

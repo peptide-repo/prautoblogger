@@ -267,6 +267,24 @@ class PRAutoBlogger {
 			update_option( 'prautoblogger_migrated_style_suffix_v4', '1' );
 		}
 
+		// One-time migration (v0.16.0): editorial pivot. The comic Style Suffix
+		// is replaced by the editorial Style Template. Mirror the old suffix
+		// value into a deprecated-keyed option for one version cycle (so a
+		// customised value is recoverable / auditable) and seed the new
+		// template with its editorial default. The old option is intentionally
+		// NOT deleted this cycle. See docs/proposals/2026-05-29-image-pipeline-in-plugin-brief.md §8 Commit 1.
+		if ( ! get_option( 'prautoblogger_migrated_style_template_v0160' ) ) {
+			$old_suffix = get_option( 'prautoblogger_image_style_suffix', '' );
+			if ( '' !== $old_suffix && false === get_option( 'prautoblogger_image_style_suffix_deprecated', false ) ) {
+				update_option( 'prautoblogger_image_style_suffix_deprecated', $old_suffix );
+			}
+			// Only seed the new template if the admin has not already set one.
+			if ( '' === (string) get_option( 'prautoblogger_image_style_template', '' ) ) {
+				update_option( 'prautoblogger_image_style_template', PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE );
+			}
+			update_option( 'prautoblogger_migrated_style_template_v0160', '1' );
+		}
+
 		// v0.9.0 — Runware as default image model. v0.10.0 — remove CF Workers AI.
 		PRAutoBlogger_Activator::migrate_default_image_v090();
 		PRAutoBlogger_Migrate_Remove_Cloudflare_V0100::run();

@@ -330,6 +330,11 @@ class PRAutoBlogger_Admin_Page {
 		if ( 'prautoblogger_image_model' === $option_name ) {
 			return $this->sanitize_image_model( (string) $value );
 		}
+		if ( 'prautoblogger_image_style_template' === $option_name ) {
+			// Multi-line template: validation + textarea-safe sanitisation
+			// (incl. the single-token check, brief A5) lives in the filler.
+			return PRAutoBlogger_Image_Template_Filler::sanitize_for_save( (string) $value );
+		}
 		return sanitize_text_field( (string) $value );
 	}
 
