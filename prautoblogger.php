@@ -80,7 +80,7 @@ define(
 	"of orange (#FF8A3D) and lime (#7FD600). Subject: {{ topic_summary }}.\n" .
 	"Style reference: Quanta Magazine, The Pudding, scientific editorial illustration.\n" .
 	"Composition: clear focal point, balanced negative space, subtle textural detail.\n" .
-	"Mood: authoritative, clinical, calm. NO TEXT. NO PEOPLE. NO LOGOS. NO LABELS."
+	'Mood: authoritative, clinical, calm. NO TEXT. NO PEOPLE. NO LOGOS. NO LABELS.'
 );
 // Opik observability (feature-flag gated).
 // API credentials must be defined in wp-config.php constants:
