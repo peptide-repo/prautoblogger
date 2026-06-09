@@ -29,12 +29,22 @@ jobs:
         with:
           script: |
             const sha = context.sha;
-            const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: sha,
-            });
-            const merged = prs.find(p => p.merged_at);
+            // Squash-merge -> PR association is eventually-consistent; poll briefly
+            // before concluding this was a direct push (avoids false positives on merges).
+            async function findMergedPR() {
+              for (let attempt = 1; attempt <= 5; attempt++) {
+                const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  commit_sha: sha,
+                });
+                const m = prs.find(p => p.merged_at);
+                if (m) return m;
+                if (attempt < 5) await new Promise(r => setTimeout(r, 10000));
+              }
+              return null;
+            }
+            const merged = await findMergedPR();
             if (merged) {
               core.info(`OK: commit ${sha.substring(0,7)} came from PR #${merged.number}`);
               return;
