@@ -8,7 +8,7 @@ declare(strict_types=1);
  *
  * What: Declarative field definitions for operational settings sections.
  * Who calls it: PRAutoBlogger_Settings_Fields::get_fields() merges these in.
- * Dependencies: PRAUTOBLOGGER_DEFAULT_IMAGE_MODEL, PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_SUFFIX constants,
+ * Dependencies: PRAUTOBLOGGER_DEFAULT_IMAGE_MODEL, PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE constants,
  *               PRAutoBlogger_Article_Typography (font choices), PRAutoBlogger_Image_Model_Registry.
  *
  * @see admin/class-settings-fields.php       — Core fields and sections; calls get_extended_fields().
@@ -235,12 +235,12 @@ class PRAutoBlogger_Settings_Fields_Extended {
 				'icon'        => '🔑',
 			),
 			array(
-				'id'          => 'prautoblogger_image_style_suffix',
-				'label'       => __( 'Style Suffix', 'prautoblogger' ),
+				'id'          => 'prautoblogger_image_style_template',
+				'label'       => __( 'Style Template', 'prautoblogger' ),
 				'type'        => 'textarea',
 				'section'     => 'prautoblogger_images',
-				'default'     => PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_SUFFIX,
-				'description' => __( 'Appended to every image prompt. Controls visual look. Changing mid-run causes visible style drift.', 'prautoblogger' ),
+				'default'     => PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE,
+				'description' => __( 'The full image prompt template. Must contain exactly one {{ topic_summary }} token, which is filled with a 1-2 sentence topic/mechanism summary per article. The rest is brand-locked editorial style. Replaces the old Style Suffix (now deprecated). Changing mid-run causes visible style drift.', 'prautoblogger' ),
 			),
 			array(
 				'id'          => 'prautoblogger_image_prompt_instructions',
@@ -248,7 +248,7 @@ class PRAutoBlogger_Settings_Fields_Extended {
 				'type'        => 'textarea',
 				'section'     => 'prautoblogger_images',
 				'default'     => PRAutoBlogger_Image_Prompt_Builder::REWRITER_SYSTEM_PROMPT,
-				'description' => __( 'System prompt given to the rewriter LLM that turns each article into a SCENE + CAPTION for the image generator. Changing this reshapes the look of all future images. Leave blank to use the default.', 'prautoblogger' ),
+				'description' => __( 'System prompt given to the rewriter LLM that turns each article into a SCENE (a 1-2 sentence editorial topic/mechanism summary, substituted into the Style Template) plus a CAPTION (HTML text shown below the image). Changing this reshapes the look of all future images. Leave blank to use the default.', 'prautoblogger' ),
 			),
 			array(
 				'id'          => 'prautoblogger_image_nsfw_retry',

@@ -5,6 +5,43 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-05-29
+
+### Changed
+- **Editorial image prompt (Commit 1 of the in-plugin editorial image pipeline).**
+  The image style pivots from a single-panel newspaper comic to a text-free
+  editorial scientific illustration. The rewriter LLM now emits a concise
+  1-2 sentence topic/mechanism summary as the SCENE (one centered focal
+  subject, no text/people-as-gag/logos), keeping the short CAPTION line for the
+  unchanged HTML-caption-below-image behavior. The scene/caption parsing
+  contract is unchanged. Provider/model are unchanged — production keeps
+  generating via Runware FLUX.1 schnell but now produces text-free editorial
+  base images. See `docs/proposals/2026-05-29-image-pipeline-in-plugin-brief.md`.
+- The prompt builder now substitutes the rewriter scene into an editable style
+  template's `{{ topic_summary }}` slot via the new
+  `PRAutoBlogger_Image_Template_Filler`, replacing the old
+  `scene + style suffix` concatenation, across all three entry points
+  (`build_article_prompt`, `build_source_prompt`, `build_fallback_prompt`).
+  Before substitution the scene is stripped of control characters and
+  length-clamped (brief A5). If the template lacks exactly one token the
+  summary is appended and a warning logged; if the summary is empty the
+  style-only prompt is emitted — a blank or token-only prompt is never sent to
+  the provider (brief A5/A6).
+
+### Added
+- New setting **Style Template** (`prautoblogger_image_style_template`,
+  textarea) replacing the Style Suffix field. Default =
+  `PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE` (the editorial template). On save
+  it is validated to contain exactly one `{{ topic_summary }}` token; an invalid
+  template keeps the previous value and surfaces a settings error.
+
+### Deprecated
+- `prautoblogger_image_style_suffix` is deprecated and no longer read by the
+  prompt builder. A one-time migration (`prautoblogger_migrated_style_template_v0160`)
+  mirrors its value to `prautoblogger_image_style_suffix_deprecated` for one
+  version cycle and seeds the new template default. The old option is NOT
+  deleted this cycle.
+
 ## [0.15.1] - 2026-05-14
 
 ### Fixed

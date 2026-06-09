@@ -6,13 +6,16 @@ declare(strict_types=1);
  *
  * Builds image prompts from article content or source data.
  *
- * Uses a cheap LLM (via OpenRouter) to distill article content into concise
- * visual scene descriptions optimised for image generation. Falls back to rule-based
+ * Uses a cheap LLM (via OpenRouter) to distill article content into a concise
+ * 1-2 sentence editorial topic/mechanism summary, then substitutes that summary
+ * into the admin-editable editorial style template (the {{ topic_summary }}
+ * slot) to produce a text-free image-gen prompt. Falls back to rule-based
  * synthesis if the LLM call fails, so image generation never blocks on a
  * prompt-rewriting outage.
  *
  * Triggered by: PRAutoBlogger_Image_Pipeline during content generation run.
  * Dependencies: PRAutoBlogger_OpenRouter_Provider (LLM call),
+ *               PRAutoBlogger_Image_Template_Filler (template substitution),
  *               PRAutoBlogger_Cost_Tracker (logs prompt-rewrite cost),
  *               PRAutoBlogger_Logger (diagnostics).
  *
@@ -27,34 +30,39 @@ class PRAutoBlogger_Image_Prompt_Builder {
 	 * prompts. Exposed as a `public const` so the admin-settings layer can
 	 * use it as the default value for `prautoblogger_image_prompt_instructions`.
 	 * The option, when non-empty, wins at call time (see rewrite_via_llm).
+	 *
+	 * Editorial pivot (v0.16.0): the model emits a concise topic/mechanism
+	 * summary as the SCENE — concrete, single centered focal subject, no text,
+	 * no people-as-gag, no logos — which the prompt builder substitutes into
+	 * the editorial style template's {{ topic_summary }} slot. The CAPTION line
+	 * is preserved unchanged for the existing HTML-caption-below-image path.
 	 */
 	public const REWRITER_SYSTEM_PROMPT = <<<'PROMPT'
-You are a comedy writer and single-panel cartoon creator, like Gary Larson (The Far Side) meets science humor.
+You write subject descriptions for a text-free editorial science illustration about peptides, supplements, or biohacking.
 
-Given an article title and summary about peptides, supplements, or biohacking, create a SINGLE-PANEL COMIC concept. Output TWO parts separated by a blank line:
+Given an article title and summary, output TWO parts separated by a blank line:
 
-SCENE: One sentence describing the visual gag — a funny, absurd, or ironic situation related to the article's topic. Favor CONCRETE, HUMAN-SCALE scenes: people reacting to things, doctors and patients, scientists in a lab, gym bros with peptide vials, partners at a kitchen table, ordinary objects in ordinary rooms. Keep it simple — one clear visual joke, 1-3 characters max.
+SCENE: A concise 1-2 sentence description of the article's core topic or mechanism, written as the SUBJECT of a single editorial illustration. Name ONE concrete, centered focal subject and the few supporting visual elements around it (e.g. a labelled-free vial and dropper, a stylised receptor on a cell membrane, a molecular chain, a dosing syringe, an organ cross-section). Favor a clear central focal point with margin around it so the image crops well. This is image-gen direction, not prose.
 
-CAPTION: A short, punchy caption or speech bubble line (under 15 words) that delivers the punchline. The humor should be dry, nerdy, and accessible — the reader should chuckle even if they only half-understand the science.
+CAPTION: A short, informative caption line (under 15 words) for display as HTML text below the image. Plain and editorial, not a joke.
 
 Rules:
-- The joke MUST relate to the article's actual subject matter, not generic science humor
-- DO NOT personify molecules, peptides, hormones, proteins, or other chemical structures (no "anthropomorphic molecule", no "cartoon hormone"). Image models render anthropomorphized chemistry as incoherent blobs. If the article is about a substance, show a PERSON reacting to or using the substance; if the article is abstract (a mechanism, a process, a concept), fall back on a human observer reacting to its effect.
-- Characters can have simple cartoon faces (round heads, dot eyes, expressive eyebrows)
-- Keep the scene physically simple — few objects, clear staging, easy to read at thumbnail size
-- The caption should work as a standalone joke even without the image
-- No logos, watermarks, or branding
+- The SCENE must depict the article's actual subject/mechanism, not a generic science scene.
+- NO text, words, captions, speech bubbles, labels, or logos described in the SCENE — the illustration is text-free; text is rendered separately.
+- NO people used as a visual gag and NO cartoon/comic framing. A human anatomical element (a cell, an organ, a hand holding a vial) is fine if it is the legitimate subject.
+- Do NOT personify molecules, peptides, hormones, or proteins (no "smiling molecule"); depict them as clean stylised diagrams or structures.
+- Keep the staging simple with one clear focal subject, readable at small sizes.
 - Output ONLY the scene and caption. No preamble, no explanation.
 
 Example output format:
-A muscular gym bro stares, deflated, at a tiny glass vial in his hand while his friend squats a barbell effortlessly in the background.
+A single glass peptide vial on a clean surface with a fine dropper above it, a faint stylised molecular chain arcing behind as a backdrop, centered with generous negative space.
 
-"They told me the peptide did the work, not the squats."
+A concentrated look at how the compound is prepared before use.
 PROMPT;
 
 	/**
-	 * Max tokens for the rewriter response. Comic concepts need more room
-	 * for the scene description plus the caption punchline.
+	 * Max tokens for the rewriter response. Enough room for the 1-2 sentence
+	 * topic/mechanism summary plus the short editorial caption line.
 	 */
 	private const REWRITER_MAX_TOKENS = 180;
 
@@ -85,8 +93,9 @@ PROMPT;
 	 * Build a visual prompt from finished article content.
 	 *
 	 * Tries LLM rewriting first; falls back to rule-based synthesis on
-	 * failure. Splits scene (for image gen) from caption (HTML below the
-	 * image) and appends the style suffix.
+	 * failure. Splits scene (the topic summary, for image gen) from caption
+	 * (HTML below the image) and substitutes the scene into the editorial
+	 * style template's {{ topic_summary }} slot.
 	 *
 	 * @param array{post_title?: string, post_content?: string, suggested_title?: string} $article_data
 	 * @return array{prompt: string, caption: string}
@@ -98,10 +107,8 @@ PROMPT;
 
 		$parsed = $this->rewrite_via_llm( $title, $first_para );
 
-		$style_suffix = $this->get_style_suffix();
-
 		return array(
-			'prompt'  => trim( $parsed['scene'] . ' ' . $style_suffix ),
+			'prompt'  => PRAutoBlogger_Image_Template_Filler::fill( $parsed['scene'] ),
 			'caption' => $parsed['caption'],
 		);
 	}
@@ -120,10 +127,8 @@ PROMPT;
 
 		$parsed = $this->rewrite_via_llm( $title, $context );
 
-		$style_suffix = $this->get_style_suffix();
-
 		return array(
-			'prompt'  => trim( $parsed['scene'] . ' ' . $style_suffix ),
+			'prompt'  => PRAutoBlogger_Image_Template_Filler::fill( $parsed['scene'] ),
 			'caption' => $parsed['caption'],
 		);
 	}
@@ -260,10 +265,9 @@ PROMPT;
 	 * @return array{prompt: string, caption: string}
 	 */
 	public function build_fallback_prompt( string $title ): array {
-		$parsed       = PRAutoBlogger_Image_Scene_Parser::synthesize_visual_concepts_fallback( $title, '' );
-		$style_suffix = $this->get_style_suffix();
+		$parsed = PRAutoBlogger_Image_Scene_Parser::synthesize_visual_concepts_fallback( $title, '' );
 		return array(
-			'prompt'  => trim( $parsed['scene'] . ' ' . $style_suffix ),
+			'prompt'  => PRAutoBlogger_Image_Template_Filler::fill( $parsed['scene'] ),
 			'caption' => $parsed['caption'],
 		);
 	}
@@ -280,21 +284,5 @@ PROMPT;
 	private function resolve_system_prompt(): string {
 		$override = (string) get_option( 'prautoblogger_image_prompt_instructions', '' );
 		return '' !== trim( $override ) ? $override : self::REWRITER_SYSTEM_PROMPT;
-	}
-
-	/**
-	 * Get image style suffix with empty-string safeguard.
-	 *
-	 * Treats both absent and empty string as "use default" to prevent
-	 * silent style loss if the admin settings field is saved empty.
-	 *
-	 * @return string The style suffix with safe fallback.
-	 */
-	private function get_style_suffix(): string {
-		$style_suffix = (string) get_option( 'prautoblogger_image_style_suffix', '' );
-		if ( '' === trim( $style_suffix ) ) {
-			$style_suffix = PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_SUFFIX;
-		}
-		return $style_suffix;
 	}
 }
