@@ -123,17 +123,18 @@ jobs:
           git fetch origin ${{ github.event.pull_request.base.ref }} --depth=50
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          DIFF=$(git diff --no-color "$BASE_SHA" "$HEAD_SHA" | head -c 400000)
+          # Write the diff to a file, not a step output / env var. Passing a
+          # ~400KB diff through the process env (execve argv+envp) exceeds the
+          # runner ARG_MAX and fails the next step with "Argument list too long"
+          # (issue #110). File transport also sidesteps the ~1MB step-output cap.
+          git diff --no-color "$BASE_SHA" "$HEAD_SHA" | head -c 400000 > /tmp/cto-review-diff.txt
           FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
-          SIZE=$(echo -n "$DIFF" | wc -c)
+          SIZE=$(wc -c < /tmp/cto-review-diff.txt)
           {
             echo "size=$SIZE"
             echo "files<<EOF_FILES"
             echo "$FILES"
             echo "EOF_FILES"
-            echo "diff<<EOF_DIFF"
-            echo "$DIFF"
-            echo "EOF_DIFF"
           } >> "$GITHUB_OUTPUT"
 
       - name: Load repo conventions
@@ -161,7 +162,7 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_NAME: ${{ github.event.repository.name }}
-          DIFF: ${{ steps.diff.outputs.diff }}
+          DIFF_PATH: /tmp/cto-review-diff.txt
           DIFF_SIZE: ${{ steps.diff.outputs.size }}
           CHANGED_FILES: ${{ steps.diff.outputs.files }}
           CONVENTIONS: ${{ steps.conventions.outputs.content }}
@@ -229,7 +230,9 @@ jobs:
           user_blocks.append(f"**Changed files:**\n```\n{os.environ['CHANGED_FILES']}\n```\n")
           if os.environ.get("CONVENTIONS", "").strip():
               user_blocks.append(f"# Repo CONVENTIONS.md\n{os.environ['CONVENTIONS']}\n")
-          user_blocks.append(f"# Diff\n```diff\n{os.environ['DIFF']}\n```\n")
+          with open(os.environ["DIFF_PATH"], encoding="utf-8", errors="replace") as _df:
+              _diff_text = _df.read()
+          user_blocks.append(f"# Diff\n```diff\n{_diff_text}\n```\n")
           user_message = "\n\n".join(user_blocks)
 
           tools = [{
