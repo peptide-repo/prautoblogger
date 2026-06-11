@@ -53,7 +53,22 @@ class PRAutoBlogger_Executor {
 				sprintf( 'Daily generation %s: %s', get_class( $e ), $e->getMessage() ),
 				'scheduler'
 			);
+			$this->mark_current_run_failed();
 			PRAutoBlogger_Generation_Lock::release();
+		}
+	}
+
+	/**
+	 * Mark this process's run failed after a fatal pipeline error
+	 * (no-op outside a run; a governor-halted run stays halted — final
+	 * states are sticky).
+	 *
+	 * @return void
+	 */
+	private function mark_current_run_failed(): void {
+		$run_id = PRAutoBlogger_Run_Context::current_run_id();
+		if ( null !== $run_id ) {
+			PRAutoBlogger_Run_State::mark_status( $run_id, 'failed' );
 		}
 	}
 
@@ -209,6 +224,7 @@ class PRAutoBlogger_Executor {
 				),
 				self::STATUS_TTL
 			);
+			$this->mark_current_run_failed();
 			PRAutoBlogger_Generation_Lock::release();
 		}
 	}
@@ -286,6 +302,12 @@ class PRAutoBlogger_Executor {
 
 	/** Clean up an orphaned generation run and report error. */
 	private function abort_orphaned_run( string $message ): void {
+		// v0.18.0: the dead run renders as failed/"incomplete" in audit
+		// queries instead of silently lingering as 'running'.
+		$queue = get_option( 'prautoblogger_article_queue' );
+		if ( is_array( $queue ) && ! empty( $queue['run_id'] ) ) {
+			PRAutoBlogger_Run_State::mark_status( (string) $queue['run_id'], 'failed' );
+		}
 		delete_transient( self::STATUS_TRANSIENT );
 		delete_option( 'prautoblogger_article_queue' );
 		PRAutoBlogger_Generation_Lock::release();

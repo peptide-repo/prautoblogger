@@ -65,6 +65,7 @@ class PRAutoBlogger_Pipeline_Runner {
 
 		$ideas = $this->orchestrate( $cost_tracker );
 		if ( empty( $ideas ) ) {
+			PRAutoBlogger_Run_State::mark_status( (string) $cost_tracker->get_run_id(), 'done' );
 			return array(
 				'generated' => 0,
 				'published' => 0,
@@ -84,7 +85,8 @@ class PRAutoBlogger_Pipeline_Runner {
 		} else {
 			// Single-article run — amortize research costs now (1 article = full cost).
 			PRAutoBlogger_Post_Assembler::amortize_research_costs( $cost_tracker->get_run_id() );
-			$this->log_summary( $result );
+			PRAutoBlogger_Pipeline_Status::log_summary( $result );
+			PRAutoBlogger_Run_State::mark_status( (string) $cost_tracker->get_run_id(), 'done' );
 		}
 
 		return $result;
@@ -115,6 +117,7 @@ class PRAutoBlogger_Pipeline_Runner {
 				'Budget limit reached. Aborting remaining queued articles.',
 				'pipeline'
 			);
+			PRAutoBlogger_Run_State::mark_status( (string) $queue['run_id'], 'failed' );
 			$this->finish_queue();
 			return;
 		}
@@ -152,15 +155,16 @@ class PRAutoBlogger_Pipeline_Runner {
 
 		if ( ! empty( $queue['ideas'] ) ) {
 			update_option( self::QUEUE_KEY, $queue, false );
-			$this->update_queue_status( $queue );
+			PRAutoBlogger_Pipeline_Status::update_queue_progress( $queue );
 			$this->schedule_next();
 		} else {
 			// All articles done — amortize shared research costs across them.
 			PRAutoBlogger_Post_Assembler::amortize_research_costs( $queue['run_id'] );
-			$this->write_final_status( $queue['results'] );
+			PRAutoBlogger_Pipeline_Status::write_final( $queue['results'] );
 			delete_option( self::QUEUE_KEY );
 			PRAutoBlogger_Generation_Lock::release();
-			$this->log_summary( $queue['results'] );
+			PRAutoBlogger_Pipeline_Status::log_summary( $queue['results'] );
+			PRAutoBlogger_Run_State::mark_status( (string) $queue['run_id'], 'done' );
 		}
 	}
 
@@ -175,20 +179,26 @@ class PRAutoBlogger_Pipeline_Runner {
 	private function orchestrate( PRAutoBlogger_Cost_Tracker $cost_tracker ): array {
 		$target = absint( get_option( 'prautoblogger_daily_article_target', 1 ) );
 
+		$run_id = (string) $cost_tracker->get_run_id();
+
 		$enabled       = json_decode( get_option( 'prautoblogger_enabled_sources', '["reddit"]' ), true );
 		$source_labels = is_array( $enabled ) ? implode( ', ', $enabled ) : 'reddit';
 		/* translators: %s is a comma-separated list of enabled source names, e.g. "reddit, llm_research". */
-		$this->broadcast_stage( sprintf( __( 'Collecting sources from %s…', 'prautoblogger' ), $source_labels ) );
+		PRAutoBlogger_Pipeline_Status::broadcast( sprintf( __( 'Collecting sources from %s…', 'prautoblogger' ), $source_labels ) );
+		PRAutoBlogger_Run_Stage_State::start( $run_id, 'research' );
 		( new PRAutoBlogger_Source_Collector() )
 			->set_cost_tracker( $cost_tracker )
 			->collect_from_all_sources();
+		PRAutoBlogger_Run_Stage_State::done( $run_id, 'research' );
 
-		$this->broadcast_stage( __( 'Analyzing topics and scoring…', 'prautoblogger' ) );
+		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Analyzing topics and scoring…', 'prautoblogger' ) );
+		PRAutoBlogger_Run_Stage_State::start( $run_id, 'analysis' );
 		$llm      = new PRAutoBlogger_OpenRouter_Provider();
 		$analyzer = new PRAutoBlogger_Content_Analyzer( $llm, $cost_tracker );
 		$analysis = $analyzer->analyze_recent_data( max( $target * 2, 6 ) );
+		PRAutoBlogger_Run_Stage_State::done( $run_id, 'analysis' );
 
-		$this->broadcast_stage( __( 'Selecting best topic…', 'prautoblogger' ) );
+		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Selecting best topic…', 'prautoblogger' ) );
 		$scorer = new PRAutoBlogger_Idea_Scorer();
 		$scorer->set_skip_dedup( $this->skip_dedup );
 		$ideas = $scorer->score_and_rank( $analysis, $target );
@@ -223,7 +233,7 @@ class PRAutoBlogger_Pipeline_Runner {
 		);
 
 		update_option( self::QUEUE_KEY, $queue, false );
-		$this->update_queue_status( $queue );
+		PRAutoBlogger_Pipeline_Status::update_queue_progress( $queue );
 		$this->schedule_next();
 
 		PRAutoBlogger_Logger::instance()->info(
@@ -248,71 +258,13 @@ class PRAutoBlogger_Pipeline_Runner {
 		);
 	}
 
-	/** Update the frontend status transient with queue progress. */
-	private function update_queue_status( array $queue ): void {
-		$done  = $queue['results']['generated'] + $queue['results']['rejected'];
-		$total = $done + count( $queue['ideas'] );
-
-		$current = get_transient( 'prautoblogger_generation_status' );
-		set_transient(
-			'prautoblogger_generation_status',
-			array(
-				'status'       => 'running',
-				'stage'        => sprintf( __( 'Generating article %1$d of %2$d…', 'prautoblogger' ), $done + 1, $total ),
-				'started'      => is_array( $current ) ? ( $current['started'] ?? time() ) : time(),
-				'last_updated' => time(),
-			),
-			600
-		);
-	}
-
-	/** Write the final "complete" status transient. */
-	private function write_final_status( array $r ): void {
-		set_transient(
-			'prautoblogger_generation_status',
-			array(
-				'status'    => 'complete',
-				'generated' => $r['generated'],
-				'published' => $r['published'],
-				'rejected'  => $r['rejected'],
-				'cost'      => $r['cost'],
-			),
-			600
-		);
-	}
-
 	/** Clean up a stale or empty queue. */
 	private function finish_queue(): void {
 		$queue = get_option( self::QUEUE_KEY );
 		if ( is_array( $queue ) && isset( $queue['results'] ) ) {
-			$this->write_final_status( $queue['results'] );
+			PRAutoBlogger_Pipeline_Status::write_final( $queue['results'] );
 		}
 		delete_option( self::QUEUE_KEY );
 		PRAutoBlogger_Generation_Lock::release();
-	}
-
-	/** Log the pipeline summary. */
-	private function log_summary( array $r ): void {
-		PRAutoBlogger_Logger::instance()->info(
-			sprintf(
-				'Pipeline complete: %d generated, %d published, %d rejected. Cost: $%.4f',
-				$r['generated'],
-				$r['published'],
-				$r['rejected'],
-				$r['cost']
-			),
-			'pipeline'
-		);
-	}
-
-	/** Update the generation status transient with the current stage. */
-	private function broadcast_stage( string $stage ): void {
-		$key     = 'prautoblogger_generation_status';
-		$current = get_transient( $key );
-		if ( is_array( $current ) && 'running' === ( $current['status'] ?? '' ) ) {
-			$current['stage']        = $stage;
-			$current['last_updated'] = time();
-			set_transient( $key, $current, 600 );
-		}
 	}
 }

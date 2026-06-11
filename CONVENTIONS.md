@@ -204,13 +204,18 @@ the uninstall prefix-sweep effective), then cover it in the unit ladder tests.
 
 ## How To: Add a New Pipeline Stage
 
-The writing pipeline is an ordered array of stages. Each stage is a class method on `Content_Generator`.
+Writing stages are methods on `Content_Generator` that delegate to its `execute_stage()`
+helper (Opik span + LLM dispatch + cost log + run-stage state in one place).
 
-1. Add the stage method to `class-content-generator.php`: `protected function stage_{name}(PRAutoBlogger_Content_Request $request): string`
-2. Register the stage in the `get_pipeline_stages()` method for the appropriate mode (single_pass or multi_step)
-3. Each stage receives the accumulated context and returns its output
-4. Each stage logs its cost via `Cost_Tracker::log_api_call()`
-5. If a stage fails after retries, the entire pipeline fails (no partial publishes)
+1. Add the stage method to `class-content-generator.php` and call
+   `$this->execute_stage( $stage, $span_name, $user_prompt, $request, $model, $options )`
+2. Wire it into `generate_multi_step()` (or the relevant mode path)
+3. Add the stage to `PRAutoBlogger_Stage_Display_Map` (label, default agent role, prompt key)
+   and — if it has registry-managed copy — a prompt key in the defaults classes
+4. Cost logging and per-run stage state (idempotent resume, output snapshot) come free from
+   `execute_stage()`; the per-run cost governor guards the call inside the provider
+5. If a stage fails after retries, the entire pipeline fails (no partial publishes); the
+   stage row is failed by the worker's catch-all and the run is swept by Run_Reaper
 
 ---
 

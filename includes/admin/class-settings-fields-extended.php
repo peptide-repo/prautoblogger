@@ -114,6 +114,16 @@ class PRAutoBlogger_Settings_Fields_Extended {
 				'description' => __( 'Hard stop when reached. 0 = unlimited.', 'prautoblogger' ),
 			),
 			array(
+				'id'          => 'prautoblogger_request_json_retention_days',
+				'label'       => __( 'Audit Payload Retention (days)', 'prautoblogger' ),
+				'type'        => 'number',
+				'section'     => 'prautoblogger_schedule',
+				'default'     => PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS,
+				'min'         => 0,
+				'step'        => '1',
+				'description' => __( 'Heavy audit payloads (request_json on the generation log, stage output snapshots) are emptied after this many days by the daily cleanup cron. Cost/token rows are kept forever. 0 = keep payloads forever.', 'prautoblogger' ),
+			),
+			array(
 				'id'          => 'prautoblogger_per_run_cost_ceiling_usd',
 				'label'       => __( 'Per-Run Cost Ceiling (USD)', 'prautoblogger' ),
 				'type'        => 'number',
