@@ -43,12 +43,27 @@ behavior change** to the Economy (single-pass) and multi-step publish paths.
   sticky lifecycle states) and `PRAutoBlogger_Run_Context` (per-process run id, mirrors the
   Opik trace-context pattern).
 
+- **Per-run cost governor** (`PRAutoBlogger_Cost_Governor`, net-new enforcement — previously
+  only the monthly cap was enforced): every `send_chat_completion()` reserves its worst-case
+  estimate (prompt chars/4 + max_tokens, priced via the #18 chain) against the run ledger
+  with a single atomic conditional UPDATE (the #10 lock discipline) BEFORE dispatch; the
+  image `curl_multi` batch reserves its summed estimate before dispatch; reservations settle
+  to actuals after each response (a failed call releases its hold). Breach → run `halted`
+  (sticky), overage recorded, `Cost_Ceiling_Exception` aborts the call, remaining queued
+  articles abort, and the run is surfaced in a "Halted runs" notice on the Review Queue.
+  New setting **Per-Run Cost Ceiling (USD)** (`prautoblogger_per_run_cost_ceiling_usd`,
+  default `PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD` = $0.50, snapshotted at run start,
+  0 = disabled). Calls outside a run, the monthly budget, and the Cloudflare AI Gateway
+  path behave exactly as before.
+
 ### Changed
 - `Content_Generator`'s four stage methods now share one `execute_stage()` helper (the Opik
   span + dispatch + cost-log boilerplate was identical); file drops from 301 to ~220 lines.
   No behavior change: same prompts, models, params, span names, stage values.
 - `Cost_Tracker::get_avg_tokens_for_stages()` body moved to `Cost_Reporter` (read-only
   reporting query); the Cost_Tracker method remains as a delegating wrapper.
+- `OpenRouter_Provider`'s API-key fetch + format validation moved to
+  `OpenRouter_Request_Builder::resolve_api_key()` (300-line cap); identical messages/behavior.
 
 ### Fixed
 - ARCHITECTURE.md documented the multi-step edit stage as `edit`; the code has always

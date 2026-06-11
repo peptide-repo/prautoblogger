@@ -51,7 +51,20 @@ class PRAutoBlogger_Review_Queue {
 		$paged = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1;
 		$query = $this->get_pending_posts( $paged );
 
+		// v0.18.0 — runs halted by the per-run cost governor are routed
+		// here for human attention (they may have no draft post to list).
+		$halted_runs = $this->get_halted_runs();
+
 		include PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/review-queue.php';
+	}
+
+	/**
+	 * Runs halted by the per-run cost governor, newest first.
+	 *
+	 * @return array<int, array<string, mixed>> Halted run rows (max 10).
+	 */
+	public function get_halted_runs(): array {
+		return PRAutoBlogger_Run_State::halted_runs( 10 );
 	}
 
 	/**

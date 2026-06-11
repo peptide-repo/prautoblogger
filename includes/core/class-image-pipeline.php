@@ -125,6 +125,16 @@ class PRAutoBlogger_Image_Pipeline {
 			return $result;
 		}
 
+		// v0.18.0 — per-run governor: reserve the curl_multi batch's SUMMED
+		// worst-case estimate before dispatch (no-op outside a governed
+		// run). A breach halts the run and skips the whole batch.
+		try {
+			$batch_reservation = PRAutoBlogger_Cost_Governor::open_amount_reservation( $estimated_cost, 'image_batch' );
+		} catch ( PRAutoBlogger_Cost_Ceiling_Exception $e ) {
+			$result['errors'][] = $e->getMessage();
+			return $result;
+		}
+
 		// Build all prompts upfront (LLM calls happen here, sequentially).
 		$article_prompt = $this->prompt_builder->build_article_prompt( $article_data );
 		$batch_requests = array(
@@ -151,10 +161,18 @@ class PRAutoBlogger_Image_Pipeline {
 		try {
 			$batch_results = $this->provider->generate_image_batch( $batch_requests );
 		} catch ( \Throwable $e ) {
+			PRAutoBlogger_Cost_Governor::release( $batch_reservation );
 			PRAutoBlogger_Logger::instance()->error( 'Batch generation failed: ' . $e->getMessage(), 'image_pipeline' );
 			$result['errors'][] = $e->getMessage();
 			return $result;
 		}
+
+		// Settle the batch reservation to the actual per-image costs.
+		$actual_batch_cost = 0.0;
+		foreach ( $batch_results as $batch_entry ) {
+			$actual_batch_cost += (float) ( $batch_entry['cost_usd'] ?? 0 );
+		}
+		PRAutoBlogger_Cost_Governor::settle( $batch_reservation, $actual_batch_cost );
 
 		// Single-shot retry for any slot the provider flagged as NSFW-blocked.
 		if ( PRAutoBlogger_Image_NSFW_Retry::is_enabled() ) {

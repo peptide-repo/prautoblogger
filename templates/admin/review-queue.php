@@ -18,6 +18,37 @@ $bulk_type = isset( $_GET['prautoblogger_bulk_type'] ) ? sanitize_text_field( wp
 <div class="wrap prautoblogger-review-queue">
 	<h1><?php esc_html_e( 'PRAutoBlogger — Review Queue', 'prautoblogger' ); ?></h1>
 
+	<?php if ( ! empty( $halted_runs ) ) : ?>
+		<div class="notice notice-error">
+			<p>
+				<strong><?php esc_html_e( 'Runs halted by the per-run cost ceiling', 'prautoblogger' ); ?></strong>
+				<?php esc_html_e( '— these runs were stopped before exceeding their budget and need human review. Raise the ceiling in Settings or discard the run.', 'prautoblogger' ); ?>
+			</p>
+			<table class="widefat striped" style="margin-bottom: 8px;">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Run ID', 'prautoblogger' ); ?></th>
+						<th><?php esc_html_e( 'Halted at', 'prautoblogger' ); ?></th>
+						<th><?php esc_html_e( 'Spent + held (USD)', 'prautoblogger' ); ?></th>
+						<th><?php esc_html_e( 'Ceiling (USD)', 'prautoblogger' ); ?></th>
+						<th><?php esc_html_e( 'Blocked overage (USD)', 'prautoblogger' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $halted_runs as $halted_run ) : ?>
+						<tr>
+							<td><code><?php echo esc_html( (string) $halted_run['run_id'] ); ?></code></td>
+							<td><?php echo esc_html( (string) ( $halted_run['finished_at'] ?? $halted_run['updated_at'] ) ); ?></td>
+							<td><?php echo esc_html( number_format( (float) $halted_run['settled_usd'] + (float) $halted_run['reserved_usd'], 4 ) ); ?></td>
+							<td><?php echo esc_html( number_format( (float) $halted_run['ceiling_usd'], 2 ) ); ?></td>
+							<td><?php echo esc_html( number_format( (float) $halted_run['overage_usd'], 4 ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+	<?php endif; ?>
+
 	<?php if ( $bulk_done > 0 && '' !== $bulk_type ) : ?>
 		<div class="notice notice-success is-dismissible">
 			<p>
@@ -86,7 +117,10 @@ $bulk_type = isset( $_GET['prautoblogger_bulk_type'] ) ? sanitize_text_field( wp
 					</tr>
 				</thead>
 				<tbody>
-					<?php while ( $query->have_posts() ) : $query->the_post(); ?>
+					<?php
+					while ( $query->have_posts() ) :
+						$query->the_post();
+						?>
 						<?php
 						$post_id       = get_the_ID();
 						$verdict       = get_post_meta( $post_id, '_prautoblogger_editor_verdict', true );
@@ -139,14 +173,18 @@ $bulk_type = isset( $_GET['prautoblogger_bulk_type'] ) ? sanitize_text_field( wp
 		if ( $total_pages > 1 ) :
 			$current_page = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1;
 			echo '<div class="prautoblogger-pagination">';
-			echo wp_kses_post( paginate_links( [
-				'base'      => add_query_arg( 'paged', '%#%' ),
-				'format'    => '',
-				'current'   => $current_page,
-				'total'     => $total_pages,
-				'prev_text' => '&laquo;',
-				'next_text' => '&raquo;',
-			] ) );
+			echo wp_kses_post(
+				paginate_links(
+					array(
+						'base'      => add_query_arg( 'paged', '%#%' ),
+						'format'    => '',
+						'current'   => $current_page,
+						'total'     => $total_pages,
+						'prev_text' => '&laquo;',
+						'next_text' => '&raquo;',
+					)
+				)
+			);
 			echo '</div>';
 		endif;
 		?>

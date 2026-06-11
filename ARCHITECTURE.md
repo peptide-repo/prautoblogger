@@ -180,6 +180,8 @@ prautoblogger/
 │   │   ├── class-prompt-defaults-editorial.php # Canonical v1 bodies: editor.* / research.system / image.* (composer seam)
 │   │   ├── class-run-context.php      # Per-process active run id (set by Cost_Tracker::set_run_id)
 │   │   ├── class-run-state.php        # runs-table ledger + lifecycle row (ceiling/reserved/settled, pins, status)
+│   │   ├── class-cost-governor.php    # Per-run reserve-before-call enforcement (atomic conditional UPDATE)
+│   │   ├── class-cost-ceiling-exception.php # Thrown on ceiling breach (run already halted)
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)
 │   │   ├── class-article-worker.php   # Single-article generation (content + edit + publish)
 │   │   ├── class-pipeline-runner.php  # Orchestrates pipeline; chains per-article cron jobs
@@ -560,6 +562,7 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_niche_description`      | Text description of the site's niche                  |
 | `prautoblogger_target_subreddits`      | JSON array of subreddits to monitor                   |
 | `prautoblogger_monthly_budget_usd`     | Monthly API spend limit in USD                        |
+| `prautoblogger_per_run_cost_ceiling_usd` | v0.18.0 — per-run hard cost ceiling (USD); reserve-before-call enforced; snapshotted onto the runs row at run start; 0 = disabled. Default `PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD` ($0.50) |
 | `prautoblogger_tone`                   | Content tone (informational, conversational, etc.)    |
 | `prautoblogger_min_word_count`         | Minimum article word count (default: 800)             |
 | `prautoblogger_max_word_count`         | Maximum article word count (default: 2000)            |
