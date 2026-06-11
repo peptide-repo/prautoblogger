@@ -31,6 +31,12 @@ $tables = array(
 	$prefix . 'generation_log',
 	$prefix . 'content_scores',
 	$prefix . 'event_log',
+	// Pipeline v2 substrate (v0.18.0 / db 1.2.0).
+	$prefix . 'prompts',
+	$prefix . 'run_sources',
+	$prefix . 'run_decisions',
+	$prefix . 'runs',
+	$prefix . 'run_stages',
 );
 
 foreach ( $tables as $table ) {
@@ -81,11 +87,14 @@ $wpdb->query(
 $hooks = array(
 	'prautoblogger_daily_generation',
 	'prautoblogger_collect_metrics',
+	'prautoblogger_reap_orphan_research_rows',
+	'prautoblogger_sync_runware_models',
+	'prautoblogger_manual_generation',
+	'prautoblogger_generate_queued_article',
+	'prautoblogger_generate_from_idea',
+	'prautoblogger_opik_dispatch',
 );
 
 foreach ( $hooks as $hook ) {
-	$timestamp = wp_next_scheduled( $hook );
-	if ( false !== $timestamp ) {
-		wp_unschedule_event( $timestamp, $hook );
-	}
+	wp_clear_scheduled_hook( $hook );
 }

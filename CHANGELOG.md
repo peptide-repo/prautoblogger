@@ -5,6 +5,33 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-06-12
+
+Pipeline v2 — Phase 1 substrate (plan of record: CPO thread
+`2026-06-prautoblogger-pipeline-redesign`, seq 3). Built on the current pipeline with **no
+behavior change** to the Economy (single-pass) and multi-step publish paths.
+
+### Added
+- **Schema v1.2.0** (`prautoblogger_db_version` 1.1.0 → 1.2.0, idempotent dbDelta
+  migrations, self-healing on version mismatch): new tables
+  `wp_prautoblogger_prompts` (versioned prompt registry),
+  `wp_prautoblogger_run_sources` + `wp_prautoblogger_run_decisions` (audit child tables),
+  `wp_prautoblogger_runs` (per-run cost ledger + lifecycle) and
+  `wp_prautoblogger_run_stages` (per-run per-stage state machine, idempotency key
+  `run_id + stage + agent_role + item_key`); additive nullable columns `agent_role` and
+  `prompt_version` on `wp_prautoblogger_generation_log` (historical rows stay valid).
+- `PRAutoBlogger_Stage_Display_Map`: single PHP vocabulary for historical stages
+  (`analysis`, `outline`, `draft`, `polish`, `review`, `llm_research`, `image_a`, `image_b`,
+  `image_prompt_rewrite`, `opik_eval_judge`), Pipeline v2 stages (`research`, `curate`,
+  `draft`, `editorial`, `seo`, `publish`) and a humanizing fallback for unknown values, plus
+  per-stage default agent role and primary prompt-registry key.
+- Uninstall now drops the five substrate tables and clears every plugin cron hook
+  (previously only two of eight were cleared).
+
+### Fixed
+- ARCHITECTURE.md documented the multi-step edit stage as `edit`; the code has always
+  written `polish`. Canonicalized to **`polish`** everywhere.
+
 ## [0.17.0] - 2026-06-11
 
 ### Added

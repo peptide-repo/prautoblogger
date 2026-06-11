@@ -77,6 +77,9 @@ class PRAutoBlogger_Schema_Installer {
 		// Generation log — every API call with cost tracking. `run_id`
 		// groups all entries from a single pipeline execution so
 		// `link_generation_logs()` can accurately attribute costs to a post.
+		// v0.18.0 adds the nullable audit columns `agent_role` and
+		// `prompt_version` (dbDelta adds them additively on upgrade;
+		// historical rows stay valid with NULL).
 		$sql_generation_log = "CREATE TABLE {$prefix}generation_log (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			post_id BIGINT UNSIGNED DEFAULT NULL,
@@ -90,6 +93,8 @@ class PRAutoBlogger_Schema_Installer {
 			request_json LONGTEXT DEFAULT NULL,
 			response_status VARCHAR(20) NOT NULL DEFAULT 'success',
 			error_message TEXT DEFAULT NULL,
+			agent_role VARCHAR(50) DEFAULT NULL,
+			prompt_version VARCHAR(20) DEFAULT NULL,
 			created_at DATETIME NOT NULL,
 			PRIMARY KEY (id),
 			KEY post_id (post_id),
