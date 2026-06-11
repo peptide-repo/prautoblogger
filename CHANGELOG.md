@@ -5,6 +5,54 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-06-11
+
+### Added
+- **Deterministic PHP image composer (Commit 2 of the in-plugin editorial image
+  pipeline).** Every generated image now passes through a local, $0,
+  deterministic composer between the provider's bytes and the media sideloader.
+  Image A yields a corner-marked featured image (1200×632) plus a branded
+  **OG/social variant** (1200×630, teal band, brand mark, baked editorial
+  caption in Poppins SemiBold) and a **square card variant** (1080×1080, image
+  slice + cream caption panel in Poppins Bold + teal footer with the horizontal
+  lockup). Image B gets the corner mark only. Variants are sideloaded with a
+  role filename suffix and meta-linked: attachment meta
+  `_prautoblogger_image_role` + `_prautoblogger_base_attachment_id`, post meta
+  `_prautoblogger_og_image_id` + `_prautoblogger_square_image_id` (the rebuilt
+  SEO stage will emit `og:image` from the frozen og key).
+- **Capability ladder with cached probe.** Imagick (full compositing) →
+  `wp_get_image_editor()` GD path (resize-only, unbranded, single WARNING) →
+  pass-through (single WARNING). The probe result is cached in
+  `prautoblogger_image_compose_capability`, fingerprinted by PHP version +
+  imagick/gd presence so it auto-invalidates when the host changes. Override
+  filter: `prautoblogger_image_compose_capability`. Composition failure can
+  never block a publish (per-render try/catch + pipeline safety net).
+- New Images settings: `prautoblogger_image_compose_enabled` (default on),
+  `prautoblogger_image_compose_variants` (default `og,square`),
+  `prautoblogger_image_featured_mark_enabled` (default on). Geometry ships as
+  layout-class constants behind the `prautoblogger_image_compose_layout`
+  filter. All keys keep the `prautoblogger_`/`_prautoblogger_` prefixes, so
+  the existing uninstall prefix-sweep purges them (no uninstall.php changes).
+- Vendored brand rasters (`assets/brand/`, from peptide-repo-brand SVG masters)
+  and bundled OFL fonts (`assets/fonts/`: Poppins Bold + Poppins SemiBold +
+  OFL.txt) — no system-font or runtime-SVG dependency, byte-stable output per
+  environment (metadata stripped, PNG date/time chunks excluded).
+
+### Fixed
+- Featured/Image B **alt text is now the editorial caption** instead of the
+  generation model name (`sideload_and_log()` passed the model as `$alt_text`,
+  contradicting the sideloader docblock). The model keeps persisting in
+  `_prautoblogger_image_model`.
+
+### Changed
+- `PRAutoBlogger_Image_Media_Sideloader::sideload_image()` /
+  `generate_filename()` accept an optional filename role suffix
+  (back-compat default `''`).
+- `PRAutoBlogger_Image_Pipeline` delegates sideload/cost-log, caption
+  prepending, and variant persistence to the new
+  `PRAutoBlogger_Image_Attacher` (300-line compliance); also declares the
+  previously-dynamic `$trace_context` property (PHP 8.2 deprecation).
+
 ## [0.16.0] - 2026-05-29
 
 ### Changed

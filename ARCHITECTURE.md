@@ -75,6 +75,11 @@ PRAutoBlogger is a WordPress plugin that monitors social media (starting with Re
 │                         │  retried once with a rule-based fallback
 │                         │  prompt via Image_NSFW_Retry; a second block
 │                         │  logs WARNING and publishes without that image.
+│                         │  v0.17.0: results then pass through the local
+│                         │  deterministic Image_Composer (corner mark +
+│                         │  branded OG/square variants for Image A; mark
+│                         │  only for Image B) with a capability ladder
+│                         │  (imagick → GD resize-only → pass-through).
 │                         │  Sideloads to media library, logs costs.
 └────────────┬────────────┘
              │
@@ -103,6 +108,15 @@ prautoblogger/
 ├── CHANGELOG.md                       # Semantic versioning changelog
 │
 ├── assets/
+│   ├── brand/                         # Vendored brand PNGs rasterized from peptide-repo-brand SVGs (composer overlays)
+│   │   ├── logo-mark-small-56.png     # Corner mark, 1x
+│   │   ├── logo-mark-small-112.png    # Corner mark / OG band logo, 2x
+│   │   ├── logo-horizontal-reverse-128.png # Square footer lockup, 1x
+│   │   └── logo-horizontal-reverse-256.png # Square footer lockup, 2x
+│   ├── fonts/                         # Bundled OFL faces for deterministic text rendering
+│   │   ├── Poppins-Bold.ttf           # Square-card caption face
+│   │   ├── Poppins-SemiBold.ttf       # OG band caption face
+│   │   └── OFL.txt                    # SIL Open Font License
 │   ├── css/
 │   │   ├── admin.css                  # Admin page styles (wp-admin conventions)
 │   │   └── posts-widget.css           # Frontend posts widget styles (uses theme CSS vars)
@@ -148,6 +162,13 @@ prautoblogger/
 │   │   ├── class-image-pipeline.php   # Orchestrates A/B image generation (parallel via batch)
 │   │   ├── class-image-prompt-builder.php # Generates visual prompts from article/source data
 │   │   ├── class-image-template-filler.php # Fills the editorial style template's {{ topic_summary }} slot (v0.16.0)
+│   │   ├── interface-image-composer.php    # Contract: provider bytes → featured-first variant list (v0.17.0)
+│   │   ├── class-image-composer.php        # Composer orchestrator: cached capability probe + degradation ladder
+│   │   ├── class-image-composer-imagick.php # Imagick renderer: corner mark, OG band, square card (WP-free)
+│   │   ├── class-image-composer-canvas.php # Imagick primitives: smoke test, cover-crop, logo, deterministic PNG (WP-free)
+│   │   ├── class-image-composer-editor.php # Resize-only rung via wp_get_image_editor (GD path)
+│   │   ├── class-image-composer-layout.php # Geometry defaults + caption clamp (pure, WP-free)
+│   │   ├── class-image-attacher.php        # Sideload + cost log + variant meta-linking + caption prepend
 │   │   ├── class-image-media-sideloader.php # Imports images into WordPress media library
 │   │   ├── class-cost-tracker.php     # Logs all API costs, enforces budget limits
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)
@@ -448,6 +469,10 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_image_style_suffix`     | DEPRECATED (v0.16.0). Former comic style suffix appended to every image prompt; no longer read by the builder. Mirrored to `prautoblogger_image_style_suffix_deprecated` for one cycle and not deleted yet |
 | `prautoblogger_openrouter_model_registry` | Normalized OpenRouter model list (JSON array, daily refresh, serves as durable cache) |
 | `prautoblogger_openrouter_model_registry_fetched_at` | Unix timestamp of last successful model registry refresh |
+| `prautoblogger_image_compose_enabled`  | Toggle: run the deterministic image composer (default '1'; auto-degrades, never blocks publishing) |
+| `prautoblogger_image_compose_variants` | Comma list of composed variants for Image A (default 'og,square'; whitelisted at point of use) |
+| `prautoblogger_image_featured_mark_enabled` | Toggle: subtle corner mark on featured images (default '1') |
+| `prautoblogger_image_compose_capability` | Cached capability probe `{fingerprint, capability}`; fingerprint = PHP version + imagick/gd presence, so it auto-invalidates on host changes |
 
 ### Post Meta
 
@@ -466,6 +491,14 @@ Stored on every PRAutoBlogger-generated post:
 | `_prautoblogger_editor_notes`         | Chief editor's review notes                   |
 | `_prautoblogger_generated_at`         | ISO 8601 timestamp of generation              |
 | `_prautoblogger_research_sources`     | JSON array of source URLs used                |
+| `_prautoblogger_og_image_id`          | Attachment ID of the composed 1200×630 OG variant (v0.17.0; the rebuilt SEO stage emits `og:image` from this — key name frozen) |
+| `_prautoblogger_square_image_id`      | Attachment ID of the composed 1080×1080 square variant (v0.17.0; stored now, no consumer yet) |
+
+Composed-variant **attachment** meta (v0.17.0): every pipeline attachment gets
+`_prautoblogger_image_role` (`featured`/`og`/`square`); OG/square variants also
+get `_prautoblogger_base_attachment_id` pointing at the featured attachment
+they derive from. All keys keep the `_prautoblogger_` prefix, so the uninstall
+prefix-sweep purges them.
 
 ---
 
@@ -586,6 +619,42 @@ Commit 1 of the in-plugin editorial image pipeline (brief `docs/proposals/2026-0
 3. **Setting.** New textarea `prautoblogger_image_style_template` (default `PRAUTOBLOGGER_DEFAULT_IMAGE_STYLE_TEMPLATE`) replaces the Style Suffix field. On save it is sanitised with `sanitize_textarea_field` and validated to contain exactly one token (`Image_Template_Filler::sanitize_for_save`). The old `prautoblogger_image_style_suffix` is mirrored to `..._deprecated` for one cycle and not deleted (one-time migration `prautoblogger_migrated_style_template_v0160`).
 
 Provider/model are unchanged — only the prompt text changes, so production keeps emitting via Runware FLUX.1 schnell but now produces text-free editorial base images.
+
+### #21: Deterministic PHP image composer with capability ladder (v0.17.0, Jun 2026)
+
+Commit 2 (and final scope) of the in-plugin editorial image pipeline (#20). Small diffusion
+models cannot render clean text (2026-04-21 A/B finding), so base images are text-free —
+but the one image that travels *without* its HTML caption is the social/OG share image.
+A **deterministic local composer** (`PRAutoBlogger_Image_Composer` behind
+`PRAutoBlogger_Image_Composer_Interface`) now runs between provider bytes and sideload:
+
+1. **Variants.** Image A → corner-marked featured (1200×632) + branded OG (1200×630, teal
+   band, brand mark, baked caption in Poppins SemiBold) + square card (1080×1080: full base
+   downscaled into a 1080×569 top slice — no upscaling — cream caption panel in Poppins
+   Bold, teal footer with the horizontal reverse lockup). Image B → corner mark only. The
+   variant set is config-driven (`prautoblogger_image_compose_variants`, default `og,square`;
+   square has no consumer yet — CEO wants it rendered + stored now). Variants are
+   meta-linked via `_prautoblogger_image_role`, `_prautoblogger_base_attachment_id`,
+   `_prautoblogger_og_image_id`, `_prautoblogger_square_image_id`. The og key is **frozen**:
+   the rebuilt SEO stage (pipeline-redesign §4.8) emits `og:image` from it.
+2. **Capability ladder, never fatal.** Imagick is probed once (PNG format + TTF annotate
+   smoke test) and cached in `prautoblogger_image_compose_capability`, fingerprinted by
+   PHP version + imagick/gd presence so host flips (hPanel/cagefs — it has happened)
+   auto-invalidate the cache. Rungs: imagick → `wp_get_image_editor()` resize-only
+   (unbranded, square skipped because it would upscale) → pass-through. Every render is
+   try/caught; degradation logs one WARNING per run; the publish always proceeds with the
+   editable HTML caption intact. Test/ops override: `prautoblogger_image_compose_capability`
+   filter.
+3. **Determinism.** Bundled OFL fonts (no system-font queries), vendored brand PNGs (no
+   runtime SVG delegate variance), `stripImage()` + PNG date/time chunks excluded + fixed
+   compression → byte-stable output **per environment** (not across ImageMagick versions).
+   Composition is local CPU, $0, logged as a duration-only stage on the `image_composer`
+   channel — no cost-tracker rows.
+4. **Layout tuning.** Geometry/opacity are constants in
+   `PRAutoBlogger_Image_Composer_Layout::defaults()` behind the
+   `prautoblogger_image_compose_layout` filter — deliberately not settings; promote only if
+   the CEO asks to tune them. The caption is hard-clamped (word-boundary wrap + ellipsis,
+   multibyte-safe) even though the rewriter LLM is already constrained to <15 words.
 
 ### #17: Runware as default image backend (v0.9.0, Apr 2026)
 

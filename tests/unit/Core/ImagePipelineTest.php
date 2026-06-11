@@ -18,6 +18,11 @@ class ImagePipelineTest extends BaseTestCase {
 	protected function setUp(): void {
 		parent::setUp();
 
+		// v0.17.0: the composer caches its capability probe via update_option
+		// and keeps a once-per-run warning flag that must not leak between tests.
+		\PRAutoBlogger_Image_Composer::reset_run_state();
+		Functions\when( 'update_option' )->justReturn( true );
+
 		// Mock WordPress functions used by the pipeline and its dependencies.
 		Functions\when( 'is_wp_error' )->alias( function ( $thing ) {
 			return $thing instanceof \WP_Error;
@@ -344,6 +349,67 @@ class ImagePipelineTest extends BaseTestCase {
 
 		$this->assertArrayNotHasKey( 'image_a_id', $result );
 		$this->assertNotEmpty( $result['errors'] );
+	}
+
+	/**
+	 * v0.17.0: composed OG/square variants are sideloaded and meta-linked —
+	 * role + base-attachment meta on the variant attachments, role-specific
+	 * image ID meta on the post, and the featured attachment tagged with its
+	 * role. Composition adds no cost-tracker rows beyond the primary image.
+	 */
+	public function test_composed_variants_are_sideloaded_and_meta_linked(): void {
+		$image_result = [
+			'bytes'      => 'fake_image_data',
+			'mime_type'  => 'image/png',
+			'width'      => 1200,
+			'height'     => 632,
+			'model'      => 'test-model',
+			'cost_usd'   => 0.05,
+			'latency_ms' => 2000,
+		];
+
+		$provider = $this->createMock( \PRAutoBlogger_Image_Provider_Interface::class );
+		$provider->method( 'estimate_cost' )->willReturn( 0.05 );
+		$provider->method( 'generate_image_batch' )->willReturn( [ 'image_a' => $image_result ] );
+
+		$cost_tracker = $this->createMock( \PRAutoBlogger_Cost_Tracker::class );
+		$cost_tracker->method( 'would_exceed_budget' )->willReturn( false );
+		// Exactly one cost row: the primary image. Variants are $0 local renders.
+		$cost_tracker->expects( $this->exactly( 1 ) )->method( 'log_image_generation' );
+
+		$composer = new class() implements \PRAutoBlogger_Image_Composer_Interface {
+			public function compose( array $image_data, array $context ): array {
+				return [
+					[ 'bytes' => 'marked', 'mime_type' => 'image/png', 'width' => 1200, 'height' => 632, 'role' => 'featured' ],
+					[ 'bytes' => 'og_png', 'mime_type' => 'image/png', 'width' => 1200, 'height' => 630, 'role' => 'og' ],
+					[ 'bytes' => 'sq_png', 'mime_type' => 'image/png', 'width' => 1080, 'height' => 1080, 'role' => 'square' ],
+				];
+			}
+		};
+
+		Functions\when( 'get_temp_dir' )->justReturn( '/tmp/' );
+		$next_id = 41;
+		Functions\when( 'media_handle_sideload' )->alias( function () use ( &$next_id ) {
+			return ++$next_id; // 42 featured, 43 og, 44 square.
+		} );
+
+		$meta_calls = [];
+		Functions\when( 'update_post_meta' )->alias( function ( $object_id, $key, $value ) use ( &$meta_calls ) {
+			$meta_calls[] = [ $object_id, $key, $value ];
+			return true;
+		} );
+
+		$pipeline = new \PRAutoBlogger_Image_Pipeline( $provider, $cost_tracker, null, $composer );
+		$result   = $pipeline->generate_and_attach_images( 1, [ 'post_title' => 'Test' ], null );
+
+		$this->assertSame( 42, $result['image_a_id'] );
+		$this->assertContains( [ 42, '_prautoblogger_image_role', 'featured' ], $meta_calls );
+		$this->assertContains( [ 43, '_prautoblogger_image_role', 'og' ], $meta_calls );
+		$this->assertContains( [ 43, '_prautoblogger_base_attachment_id', 42 ], $meta_calls );
+		$this->assertContains( [ 1, '_prautoblogger_og_image_id', 43 ], $meta_calls );
+		$this->assertContains( [ 44, '_prautoblogger_image_role', 'square' ], $meta_calls );
+		$this->assertContains( [ 44, '_prautoblogger_base_attachment_id', 42 ], $meta_calls );
+		$this->assertContains( [ 1, '_prautoblogger_square_image_id', 44 ], $meta_calls );
 	}
 
 	/**

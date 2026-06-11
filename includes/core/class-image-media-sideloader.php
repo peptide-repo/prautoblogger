@@ -36,11 +36,13 @@ class PRAutoBlogger_Image_Media_Sideloader {
 	 *     latency_ms: int,
 	 * } $image_data Raw image bytes + metadata from PRAutoBlogger_Image_Provider_Interface.
 	 * @param int    $post_id Target post ID to attach the image to.
-	 * @param string $alt_text Alt text for the image (from the generation prompt).
+	 * @param string $alt_text Alt text for the image (the editorial caption).
+	 * @param string $filename_suffix Optional role hint appended to the filename
+	 *                                (e.g. 'og', 'square' for composed variants).
 	 *
 	 * @return int|\WP_Error Attachment ID on success, WP_Error on failure.
 	 */
-	public function sideload_image( array $image_data, int $post_id, string $alt_text = '' ) {
+	public function sideload_image( array $image_data, int $post_id, string $alt_text = '', string $filename_suffix = '' ) {
 		// WordPress media functions live in wp-admin/includes/ and are NOT
 		// loaded automatically in cron or REST contexts. Load them if missing.
 		// Why: WP-Cron runs as a frontend request, so admin-only files like
@@ -64,7 +66,7 @@ class PRAutoBlogger_Image_Media_Sideloader {
 
 		// Prepare file array for media_handle_sideload().
 		$file_array = array(
-			'name'     => $this->generate_filename( $image_data['model'], $image_data['width'], $image_data['height'] ),
+			'name'     => $this->generate_filename( $image_data['model'], $image_data['width'], $image_data['height'], $filename_suffix ),
 			'tmp_name' => $temp_file,
 		);
 
@@ -135,16 +137,18 @@ class PRAutoBlogger_Image_Media_Sideloader {
 	 * @param string $model Model name (e.g., 'flux-1-schnell').
 	 * @param int    $width Image width.
 	 * @param int    $height Image height.
+	 * @param string $suffix Optional role hint (e.g. 'og', 'square'); back-compat default ''.
 	 *
 	 * @return string Sanitized filename.
 	 */
-	private function generate_filename( string $model, int $width, int $height ): string {
+	private function generate_filename( string $model, int $width, int $height, string $suffix = '' ): string {
 		$base = sprintf(
-			'prautoblogger_%s_%dx%d_%s',
+			'prautoblogger_%s_%dx%d_%s%s',
 			sanitize_title( $model ),
 			$width,
 			$height,
-			gmdate( 'Y-m-d_H-i-s' )
+			gmdate( 'Y-m-d_H-i-s' ),
+			'' !== $suffix ? '_' . sanitize_title( $suffix ) : ''
 		);
 
 		return $base . '.png'; // Default to PNG — most image models output PNG.
