@@ -38,7 +38,8 @@ missing") → empty draft post in the Review Queue, with the cost booked as `suc
   `max_tokens` is **raised** by the same amount, so no reasoning effort (incl. `xhigh`) can
   consume the visible-content budget. New setting `prautoblogger_reasoning_max_tokens`
   (Settings → AI Models, default `PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS` = 2048; 0
-  restores the previous uncapped effort mode). When the cap is active it replaces `effort`
+  restores the previous uncapped effort mode; the option is sanitized server-side as
+  numeric). When the cap is active it replaces `effort`
   (OpenRouter treats them as alternative budget controls); the `xhigh`/`high` effort options
   stay available but are bounded by default. Cost-governor reservations use the effective
   (raised) ceiling.

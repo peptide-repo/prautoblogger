@@ -323,7 +323,7 @@ class PRAutoBlogger_Admin_Page {
 			return wp_json_encode( array_values( array_map( 'sanitize_text_field', $items ) ) );
 		}
 
-		$numeric = array( 'prautoblogger_daily_article_target', 'prautoblogger_monthly_budget_usd', 'prautoblogger_min_word_count', 'prautoblogger_max_word_count', 'prautoblogger_default_author', 'prautoblogger_default_category', 'prautoblogger_pullpush_cache_ttl', 'prautoblogger_reddit_posts_per_subreddit' );
+		$numeric = array( 'prautoblogger_daily_article_target', 'prautoblogger_monthly_budget_usd', 'prautoblogger_min_word_count', 'prautoblogger_max_word_count', 'prautoblogger_default_author', 'prautoblogger_default_category', 'prautoblogger_pullpush_cache_ttl', 'prautoblogger_reddit_posts_per_subreddit', 'prautoblogger_reasoning_max_tokens' );
 		if ( in_array( $option_name, $numeric, true ) ) {
 			return is_numeric( $value ) ? $value : 0;
 		}
