@@ -95,6 +95,10 @@ behavior change** to the Economy (single-pass) and multi-step publish paths.
 ### Fixed
 - ARCHITECTURE.md documented the multi-step edit stage as `edit`; the code has always
   written `polish`. Canonicalized to **`polish`** everywhere.
+- Half-migrated-schema hardening: generation_log inserts retry without the new audit
+  columns when the columns are missing (a cron run right after deploy no longer loses cost
+  rows), and the db-version self-heal now also runs on cron requests (`init` +
+  `wp_doing_cron()`), not only on `admin_init`.
 
 ## [0.17.0] - 2026-06-11
 

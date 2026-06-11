@@ -46,6 +46,10 @@ class PRAutoBlogger {
 		$this->ajax_handlers = new PRAutoBlogger_Ajax_Handlers( $this->executor->get_model_registry() );
 
 		add_action( 'admin_init', array( $this, 'on_check_db_version' ) );
+		// v0.18.0: cron requests must also self-heal the schema — after a
+		// deploy, scheduled generation can run before any admin page load,
+		// and new-column inserts would silently fail on the old schema.
+		add_action( 'init', array( $this, 'on_check_db_version_for_cron' ) );
 		add_filter( 'cron_schedules', array( $this, 'filter_add_cron_schedules' ) );
 
 		if ( is_admin() ) {
@@ -303,6 +307,21 @@ class PRAutoBlogger {
 				}
 			}
 			update_option( 'prautoblogger_migrated_enc_prefix', '1' );
+		}
+	}
+
+	/**
+	 * Run the db-version check on cron requests (admin_init never fires
+	 * there). Gated to wp_doing_cron() so normal frontend requests pay
+	 * nothing beyond one autoloaded option read.
+	 *
+	 * Side effects: may run the same migrations as on_check_db_version().
+	 *
+	 * @return void
+	 */
+	public function on_check_db_version_for_cron(): void {
+		if ( function_exists( 'wp_doing_cron' ) && wp_doing_cron() ) {
+			$this->on_check_db_version();
 		}
 	}
 
