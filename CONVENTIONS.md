@@ -150,6 +150,38 @@ interface PRAutoBlogger_Image_Provider_Interface {
 
 ---
 
+## How To: Tune the Image Composer (v0.17.0+)
+
+The deterministic composer (ARCHITECTURE.md #21) renders branded variants between
+provider bytes and sideload. Three rules when touching it:
+
+1. **Geometry lives in code, not settings.** All sizes/colors/opacities come from
+   `PRAutoBlogger_Image_Composer_Layout::defaults()` and can be overridden via the
+   `prautoblogger_image_compose_layout` filter:
+   ```php
+   add_filter( 'prautoblogger_image_compose_layout', function ( array $layout ): array {
+       $layout['featured']['mark_opacity'] = 0.40;
+       return $layout;
+   } );
+   ```
+   Promote a value to a settings field only on explicit CEO request.
+2. **Keep renderer classes WP-free.** `Image_Composer_Imagick`, `Image_Composer_Canvas`,
+   and `Image_Composer_Layout` must not call WordPress functions — they are exercised by
+   a standalone render harness (and the determinism test) without a WP bootstrap. Only
+   the orchestrator (`Image_Composer`) and the GD rung (`Image_Composer_Editor`) may
+   touch WP APIs.
+3. **Never fatal a publish.** Any new render path needs a try/catch that degrades to
+   pass-through and logs at most one WARNING per run (`warn_once()`). Capability checks
+   go through the cached probe (`prautoblogger_image_compose_capability` option +
+   same-named override filter) — never re-probe per image.
+
+Adding a new variant role: extend `Layout::defaults()` + the renderer, whitelist the
+role in `Image_Composer::configured_variants()` and in
+`Image_Attacher::ROLE_POST_META` (new `_prautoblogger_{role}_image_id` post meta keeps
+the uninstall prefix-sweep effective), then cover it in the unit ladder tests.
+
+---
+
 ## How To: Add a New Admin Setting
 
 1. Define the option key in the settings array in `admin/class-admin-page.php` → `get_settings_fields()` method
