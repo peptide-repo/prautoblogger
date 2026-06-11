@@ -36,9 +36,16 @@ class PRAutoBlogger_Activator {
 		update_option( 'prautoblogger_db_version', PRAUTOBLOGGER_DB_VERSION, false );
 	}
 
-	/** Delegate to `PRAutoBlogger_Schema_Installer::install()` — see that class. */
+	/**
+	 * Delegate to the schema installers — see those classes.
+	 *
+	 * `Schema_Installer` owns the v1.1.0 tables; `Pipeline_Schema_Installer`
+	 * owns the v0.18.0 / db-1.2.0 Pipeline v2 substrate tables. Both are
+	 * dbDelta-idempotent and safe to re-run on any version mismatch.
+	 */
 	private static function create_tables(): void {
 		PRAutoBlogger_Schema_Installer::install();
+		PRAutoBlogger_Pipeline_Schema_Installer::install();
 	}
 
 	/**
