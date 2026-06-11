@@ -195,6 +195,7 @@ prautoblogger/
 │   ├── providers/
 │   │   ├── interface-llm-provider.php    # Contract for any LLM provider
 │   │   ├── class-open-router-provider.php # OpenRouter API implementation (chat completions)
+│   │   ├── class-open-router-completion-guard.php # Empty-completion guard: warn on finish_reason=length, one reasoning-off retry, audited failure (v0.18.1)
 │   │   ├── class-open-router-embedding-provider.php # Text embeddings for semantic dedup
 │   │   ├── class-open-router-pricing.php  # Model pricing lookup and cost estimation
 │   │   ├── interface-source-provider.php # Contract for any social media source
@@ -207,7 +208,7 @@ prautoblogger/
 │   │   ├── class-open-router-image-support.php   # API key, response parsing, retry/backoff helpers
 │   │   ├── class-open-router-image-pricing.php   # Model resolution + per-image cost estimation
 │   │   ├── class-open-router-config.php          # API base URL (direct vs AI Gateway)
-│   │   ├── class-open-router-request-builder.php # Header building + Hostinger cURL auth workaround
+│   │   ├── class-open-router-request-builder.php # Request body assembly + reasoning token cap/headroom (v0.18.1) + headers + Hostinger cURL auth workaround
 │   │   ├── class-runware-image-provider.php     # Runware FLUX.1 (default v0.9.0+)
 │   │   ├── class-runware-image-pricing.php      # FLUX schnell/dev cost table + resolver
 │   │   ├── class-runware-image-support.php      # Key, response parsing, retry, dimension snap
@@ -561,6 +562,7 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_analysis_model`         | OpenRouter model for analysis (default: cheap)        |
 | `prautoblogger_writing_model`          | OpenRouter model for writing (default: quality)       |
 | `prautoblogger_editor_model`           | OpenRouter model for chief editor (default: quality)  |
+| `prautoblogger_reasoning_max_tokens`   | v0.18.1 — hard cap on thinking tokens per call when reasoning is enabled; sent as OpenRouter `reasoning.max_tokens` (replaces `effort` when active) and the request `max_tokens` is raised by the cap so reasoning can never consume the visible-content budget; 0 = legacy uncapped effort mode. Default `PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS` (2048) |
 | `prautoblogger_daily_article_target`   | Number of articles per day (1-10, default: 1)         |
 | `prautoblogger_writing_pipeline`       | 'single_pass' or 'multi_step' (default: multi_step)  |
 | `prautoblogger_niche_description`      | Text description of the site's niche                  |
