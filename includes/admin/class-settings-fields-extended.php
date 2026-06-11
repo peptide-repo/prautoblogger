@@ -113,6 +113,16 @@ class PRAutoBlogger_Settings_Fields_Extended {
 				'step'        => '0.01',
 				'description' => __( 'Hard stop when reached. 0 = unlimited.', 'prautoblogger' ),
 			),
+			array(
+				'id'          => 'prautoblogger_per_run_cost_ceiling_usd',
+				'label'       => __( 'Per-Run Cost Ceiling (USD)', 'prautoblogger' ),
+				'type'        => 'number',
+				'section'     => 'prautoblogger_schedule',
+				'default'     => PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD,
+				'min'         => 0,
+				'step'        => '0.01',
+				'description' => __( 'Hard per-run stop: every API call reserves its worst-case cost against this ceiling before dispatch; a breach halts the run and routes it to the Review Queue. Snapshotted at run start. 0 = disabled.', 'prautoblogger' ),
+			),
 
 			// ── Publishing ──────────────────────────────────────────────
 			array(

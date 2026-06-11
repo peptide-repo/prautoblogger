@@ -68,6 +68,7 @@ class PRAutoBlogger_Activator {
 			'prautoblogger_niche_description'    => '',
 			'prautoblogger_target_subreddits'    => '[]',
 			'prautoblogger_monthly_budget_usd'   => 50.00,
+			'prautoblogger_per_run_cost_ceiling_usd' => PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD,
 			'prautoblogger_tone'                 => 'informational',
 			'prautoblogger_min_word_count'       => 800,
 			'prautoblogger_max_word_count'       => 2000,

@@ -11,7 +11,9 @@ declare(strict_types=1);
  * separate provider integrations.
  *
  * Triggered by: Content_Analyzer, Content_Generator, Chief_Editor, Metrics_Collector.
- * Dependencies: PRAutoBlogger_Encryption (for API key decryption), wp_remote_post(), PRAutoBlogger_OpenRouter_Pricing.
+ * Dependencies: PRAutoBlogger_Encryption (for API key decryption), wp_remote_post(),
+ *               PRAutoBlogger_OpenRouter_Pricing, PRAutoBlogger_Cost_Governor (per-run
+ *               reserve-before-call guard around every chat completion).
  *
  * @see interface-llm-provider.php            — Interface this class implements.
  * @see class-open-router-config.php          — Config helpers (base URL, cache TTL).
@@ -51,30 +53,14 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 	 * }
 	 *
 	 * @throws \RuntimeException On API error after retries exhausted.
+	 * @throws PRAutoBlogger_Cost_Ceiling_Exception When the per-run cost governor blocks
+	 *                                              the call (run already halted).
 	 */
 	public function send_chat_completion( array $messages, string $model, array $options = array() ): array {
-		$api_key = $this->get_api_key();
-		if ( '' === $api_key ) {
-			throw new \RuntimeException(
-				__( 'OpenRouter API key is not configured. Go to PRAutoBlogger → Settings.', 'prautoblogger' )
-			);
-		}
-
-		// Validate key format — OpenRouter keys start with "sk-or-".
-		// A key that decrypts to garbage (e.g. after a salt change) won't match.
-		if ( 0 !== strpos( $api_key, 'sk-or-' ) ) {
-			PRAutoBlogger_Logger::instance()->error(
-				sprintf(
-					'Decrypted API key has unexpected format (prefix="%s", len=%d). Re-enter your key in settings.',
-					substr( $api_key, 0, 6 ),
-					strlen( $api_key )
-				),
-				'openrouter'
-			);
-			throw new \RuntimeException(
-				__( 'OpenRouter API key appears corrupted (unexpected format). Please re-enter your key in PRAutoBlogger → Settings.', 'prautoblogger' )
-			);
-		}
+		// Fetch + format-validate the key (moved to Request_Builder in
+		// v0.18.0 for the 300-line cap; behavior unchanged — throws the
+		// same messages on missing/corrupted keys).
+		$api_key = ( new PRAutoBlogger_OpenRouter_Request_Builder() )->resolve_api_key();
 
 		$body = array(
 			'model'    => $model,
@@ -100,6 +86,12 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 				'effort'  => get_option( 'prautoblogger_reasoning_effort', 'medium' ),
 			);
 		}
+
+		// v0.18.0 — per-run cost governor: reserve the worst-case estimate
+		// BEFORE any dispatch. Throws (and the run is already halted) when
+		// the reservation would breach the run ceiling; returns null when
+		// this process is not inside a governed run (historical behavior).
+		$reservation = PRAutoBlogger_Cost_Governor::open_chat_reservation( $model, $messages, $options );
 
 		$last_error = '';
 
@@ -191,8 +183,14 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 					);
 				}
 
-				// Success — parse response.
-				return $parser->parse_success( $data, $model );
+				// Success — parse response, settle the reservation to actuals.
+				$parsed = $parser->parse_success( $data, $model );
+				PRAutoBlogger_Cost_Governor::settle(
+					$reservation,
+					$this->estimate_cost( $model, (int) $parsed['prompt_tokens'], (int) $parsed['completion_tokens'] )
+				);
+				$reservation = null;
+				return $parsed;
 			}
 
 			// All retries exhausted.
@@ -207,6 +205,9 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 		} finally {
 			// Always clean up the cURL filter to avoid leaking into other requests.
 			remove_action( 'http_api_curl', $curl_auth_filter, 99 );
+			// Release any reservation still open (failure/exception path) so
+			// a failed call does not permanently hold its worst-case estimate.
+			PRAutoBlogger_Cost_Governor::release( $reservation );
 		}
 	}
 
@@ -274,18 +275,5 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 	 */
 	public function validate_credentials_detailed(): array {
 		return ( new PRAutoBlogger_OpenRouter_Validator() )->run();
-	}
-
-	/**
-	 * Get the decrypted API key from options.
-	 *
-	 * @return string Decrypted API key, or empty string if not set.
-	 */
-	private function get_api_key(): string {
-		$encrypted = get_option( 'prautoblogger_openrouter_api_key', '' );
-		if ( '' === $encrypted ) {
-			return '';
-		}
-		return PRAutoBlogger_Encryption::decrypt( $encrypted );
 	}
 }

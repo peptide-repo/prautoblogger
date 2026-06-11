@@ -78,4 +78,43 @@ class PRAutoBlogger_OpenRouter_Request_Builder {
 		add_action( 'http_api_curl', $curl_auth_filter, 99, 3 );
 		return $curl_auth_filter;
 	}
+
+	/**
+	 * Fetch, decrypt, and format-validate the OpenRouter API key.
+	 *
+	 * Moved from OpenRouter_Provider in v0.18.0 (300-line cap); the
+	 * messages and behavior are unchanged.
+	 *
+	 * @return string Validated plaintext API key.
+	 * @throws \RuntimeException When the key is missing or has an
+	 *                           unexpected format (corrupted decryption).
+	 */
+	public function resolve_api_key(): string {
+		$encrypted = get_option( 'prautoblogger_openrouter_api_key', '' );
+		$api_key   = '' === $encrypted ? '' : PRAutoBlogger_Encryption::decrypt( $encrypted );
+
+		if ( '' === $api_key ) {
+			throw new \RuntimeException(
+				__( 'OpenRouter API key is not configured. Go to PRAutoBlogger → Settings.', 'prautoblogger' )
+			);
+		}
+
+		// Validate key format — OpenRouter keys start with "sk-or-".
+		// A key that decrypts to garbage (e.g. after a salt change) won't match.
+		if ( 0 !== strpos( $api_key, 'sk-or-' ) ) {
+			PRAutoBlogger_Logger::instance()->error(
+				sprintf(
+					'Decrypted API key has unexpected format (prefix="%s", len=%d). Re-enter your key in settings.',
+					substr( $api_key, 0, 6 ),
+					strlen( $api_key )
+				),
+				'openrouter'
+			);
+			throw new \RuntimeException(
+				__( 'OpenRouter API key appears corrupted (unexpected format). Please re-enter your key in PRAutoBlogger → Settings.', 'prautoblogger' )
+			);
+		}
+
+		return $api_key;
+	}
 }
