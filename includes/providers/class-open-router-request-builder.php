@@ -19,6 +19,100 @@ declare(strict_types=1);
 class PRAutoBlogger_OpenRouter_Request_Builder {
 
 	/**
+	 * Build the JSON request body for a chat-completion call.
+	 *
+	 * Centralizes option handling (v0.18.1, moved from the provider for
+	 * the 300-line cap): temperature, max_tokens, response_format, and
+	 * the reasoning block — an explicit caller override takes priority
+	 * over the global setting (that per-call override is how the
+	 * empty-completion retry disables reasoning for its second attempt).
+	 *
+	 * Caller-metadata keys ('stage', 'prompt_key', 'empty_retry') are
+	 * deliberately NOT copied into the HTTP body.
+	 *
+	 * @param array<int, array{role: string, content: string}> $messages Chat messages.
+	 * @param string                                           $model    Model identifier.
+	 * @param array<string, mixed>                             $options  Call options.
+	 *
+	 * @return array<string, mixed> Request body ready for wp_json_encode().
+	 */
+	public function build_body( array $messages, string $model, array $options ): array {
+		$body = array(
+			'model'    => $model,
+			'messages' => $messages,
+		);
+
+		if ( isset( $options['temperature'] ) ) {
+			$body['temperature'] = $options['temperature'];
+		}
+		if ( isset( $options['max_tokens'] ) ) {
+			$body['max_tokens'] = $options['max_tokens'];
+		}
+		if ( isset( $options['response_format'] ) ) {
+			$body['response_format'] = $options['response_format'];
+		}
+
+		// Reasoning mode: explicit caller override takes priority, then global setting.
+		if ( isset( $options['reasoning'] ) ) {
+			$body['reasoning'] = $options['reasoning'];
+		} elseif ( '1' === get_option( 'prautoblogger_reasoning_enabled', '0' ) ) {
+			$body['reasoning'] = array(
+				'enabled' => true,
+				'effort'  => get_option( 'prautoblogger_reasoning_effort', 'medium' ),
+			);
+		}
+
+		return $this->apply_reasoning_budget( $body );
+	}
+
+	/**
+	 * Reasoning budget sanity (v0.18.1): cap thinking, protect content.
+	 *
+	 * When the outgoing request enables reasoning and carries a completion
+	 * ceiling, the thinking budget is capped via OpenRouter's
+	 * `reasoning.max_tokens` and the completion ceiling is raised by the
+	 * same amount — so no reasoning effort (incl. xhigh) can consume the
+	 * entire completion budget and emit an empty message (the 2026-06-11
+	 * empty-draft incident, prod run acf24029). The cap is SETTINGS-backed
+	 * (`prautoblogger_reasoning_max_tokens`, default
+	 * PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS, 0 = pure effort mode:
+	 * no cap, no headroom — the historical behavior). When the cap is
+	 * active it replaces `effort` — OpenRouter treats the two as
+	 * alternative budget controls and normalizes max_tokens per model.
+	 *
+	 * No-op when reasoning is absent/disabled on the request, when the
+	 * request has no completion ceiling, or when the cap setting is 0.
+	 *
+	 * @param array<string, mixed> $body Assembled request body.
+	 *
+	 * @return array<string, mixed> Body with the reasoning budget applied.
+	 */
+	private function apply_reasoning_budget( array $body ): array {
+		if ( ! isset( $body['reasoning'] ) || false === ( $body['reasoning']['enabled'] ?? true ) ) {
+			return $body;
+		}
+		if ( ! isset( $body['max_tokens'] ) ) {
+			return $body; // No completion ceiling to protect.
+		}
+
+		if ( ! isset( $body['reasoning']['max_tokens'] ) ) {
+			$cap = absint( get_option( 'prautoblogger_reasoning_max_tokens', PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS ) );
+			if ( $cap < 1 ) {
+				return $body; // Cap disabled — pure effort mode.
+			}
+			$body['reasoning']['max_tokens'] = $cap;
+			unset( $body['reasoning']['effort'] );
+		}
+
+		// Headroom: models that spend reasoning from the completion budget
+		// (e.g. deepseek/deepseek-v4-flash) must still have the caller's
+		// full max_tokens available for visible content.
+		$body['max_tokens'] = (int) $body['max_tokens'] + (int) $body['reasoning']['max_tokens'];
+
+		return $body;
+	}
+
+	/**
 	 * Build request headers for OpenRouter API call.
 	 *
 	 * Includes Authorization, Content-Type, HTTP-Referer, and optional

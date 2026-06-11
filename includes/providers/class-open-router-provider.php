@@ -19,8 +19,9 @@ declare(strict_types=1);
  * @see class-open-router-config.php          — Config helpers (base URL, cache TTL).
  * @see class-open-router-pricing.php         — Pricing and model list lookups.
  * @see class-open-router-validator.php       — Credential validation (delegated).
- * @see class-open-router-request-builder.php — Request header building + cURL filter.
+ * @see class-open-router-request-builder.php — Request body/header building + cURL filter.
  * @see class-open-router-response-parser.php — Response parsing + error classification.
+ * @see class-open-router-completion-guard.php — Empty-completion guard + reasoning-off retry (v0.18.1).
  * @see class-cost-tracker.php                — Called after every request to log token usage.
  * @see ARCHITECTURE.md                       — Data flow diagram showing where this fits.
  */
@@ -40,8 +41,15 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 	 *     temperature?: float,
 	 *     max_tokens?: int,
 	 *     response_format?: array{type: string},
-	 *     reasoning?: array{enabled: bool, effort?: string},
-	 * } $options Optional parameters. Pass 'reasoning' to override the global setting.
+	 *     reasoning?: array{enabled: bool, effort?: string, max_tokens?: int},
+	 *     stage?: string,
+	 *     prompt_key?: string,
+	 *     empty_retry?: bool,
+	 * } $options Optional parameters. Pass 'reasoning' to override the global
+	 *            setting. 'stage'/'prompt_key' are caller metadata for the
+	 *            empty-completion guard's logging + audit rows (never sent
+	 *            upstream); 'empty_retry' is set internally by the guard's
+	 *            single reasoning-disabled retry.
 	 *
 	 * @return array{
 	 *     content: string,
@@ -52,46 +60,39 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 	 *     finish_reason: string,
 	 * }
 	 *
-	 * @throws \RuntimeException On API error after retries exhausted.
+	 * @throws \RuntimeException On API error after retries exhausted, or when the
+	 *                           completion's visible content is empty/whitespace
+	 *                           (v0.18.1 guard — after at most one reasoning-disabled retry).
 	 * @throws PRAutoBlogger_Cost_Ceiling_Exception When the per-run cost governor blocks
 	 *                                              the call (run already halted).
 	 */
 	public function send_chat_completion( array $messages, string $model, array $options = array() ): array {
+		$builder = new PRAutoBlogger_OpenRouter_Request_Builder();
+
 		// Fetch + format-validate the key (moved to Request_Builder in
 		// v0.18.0 for the 300-line cap; behavior unchanged — throws the
 		// same messages on missing/corrupted keys).
-		$api_key = ( new PRAutoBlogger_OpenRouter_Request_Builder() )->resolve_api_key();
+		$api_key = $builder->resolve_api_key();
 
-		$body = array(
-			'model'    => $model,
-			'messages' => $messages,
-		);
+		// Body assembly — incl. global/per-call reasoning and the v0.18.1
+		// reasoning token cap + completion headroom — lives in the builder.
+		$body = $builder->build_body( $messages, $model, $options );
 
-		if ( isset( $options['temperature'] ) ) {
-			$body['temperature'] = $options['temperature'];
-		}
-		if ( isset( $options['max_tokens'] ) ) {
-			$body['max_tokens'] = $options['max_tokens'];
-		}
-		if ( isset( $options['response_format'] ) ) {
-			$body['response_format'] = $options['response_format'];
-		}
-
-		// Reasoning mode: explicit caller override takes priority, then global setting.
-		if ( isset( $options['reasoning'] ) ) {
-			$body['reasoning'] = $options['reasoning'];
-		} elseif ( '1' === get_option( 'prautoblogger_reasoning_enabled', '0' ) ) {
-			$body['reasoning'] = array(
-				'enabled' => true,
-				'effort'  => get_option( 'prautoblogger_reasoning_effort', 'medium' ),
-			);
-		}
+		// Whether the outgoing request has reasoning enabled — drives the
+		// empty-completion retry decision after parse.
+		$reasoning_active = isset( $body['reasoning'] ) && false !== ( $body['reasoning']['enabled'] ?? true );
 
 		// v0.18.0 — per-run cost governor: reserve the worst-case estimate
 		// BEFORE any dispatch. Throws (and the run is already halted) when
 		// the reservation would breach the run ceiling; returns null when
 		// this process is not inside a governed run (historical behavior).
-		$reservation = PRAutoBlogger_Cost_Governor::open_chat_reservation( $model, $messages, $options );
+		// v0.18.1: the estimate uses the EFFECTIVE completion ceiling from
+		// the built body (incl. reasoning headroom), not the raw option.
+		$govern_options = $options;
+		if ( isset( $body['max_tokens'] ) ) {
+			$govern_options['max_tokens'] = $body['max_tokens'];
+		}
+		$reservation = PRAutoBlogger_Cost_Governor::open_chat_reservation( $model, $messages, $govern_options );
 
 		$last_error = '';
 
@@ -101,7 +102,6 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 		$cache_ttl   = $config->get_cache_ttl_seconds();
 		$via_gateway = $config->is_via_gateway();
 
-		$builder          = new PRAutoBlogger_OpenRouter_Request_Builder();
 		$request_headers  = $builder->build_headers( $api_key, $via_gateway, $cache_ttl );
 		$curl_auth_filter = $builder->register_curl_auth_filter( $request_headers, $base_host );
 
@@ -190,7 +190,21 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 					$this->estimate_cost( $model, (int) $parsed['prompt_tokens'], (int) $parsed['completion_tokens'] )
 				);
 				$reservation = null;
-				return $parsed;
+
+				// v0.18.1 — empty-completion guard: empty visible content
+				// is a FAILURE, never a success. Warns on finish_reason=
+				// length, retries ONCE with reasoning disabled when that
+				// can plausibly help, books failed attempts with their
+				// real status, and otherwise throws. The recursive retry
+				// manages its own reservation and cURL filter.
+				return ( new PRAutoBlogger_OpenRouter_Completion_Guard() )->finalize(
+					$parsed,
+					$options,
+					$reasoning_active,
+					function ( array $retry_options ) use ( $messages, $model ): array {
+						return $this->send_chat_completion( $messages, $model, $retry_options );
+					}
+				);
 			}
 
 			// All retries exhausted.

@@ -197,6 +197,12 @@ class PRAutoBlogger_Content_Generator {
 			PRAutoBlogger_Run_Stage_State::start( $this->run_id, $stage, '', $this->item_key );
 		}
 
+		// v0.18.1: stage metadata for the provider's empty-completion
+		// guard — warning logs and failed-attempt audit rows carry the
+		// real stage + registry key (never sent upstream).
+		$options['stage']      = $stage;
+		$options['prompt_key'] = $prompt_key;
+
 		$ctx = PRAutoBlogger_Opik_Trace_Context::current();
 
 		$span_id = $ctx->start_span(
@@ -222,6 +228,21 @@ class PRAutoBlogger_Content_Generator {
 			$model,
 			$options
 		);
+
+		// v0.18.1 writer-path guard (belt over the provider seam, which
+		// already throws for OpenRouter): no empty article may ever leave
+		// a writing stage — it would flow to the editor, be rejected as
+		// "draft text is missing", and land as an empty draft post.
+		if ( '' === trim( (string) $response['content'] ) ) {
+			throw new \RuntimeException(
+				sprintf(
+					/* translators: 1: writing stage name, 2: model identifier. */
+					__( 'Writing stage "%1$s" produced empty content (model %2$s) — failing the stage instead of passing an empty article downstream.', 'prautoblogger' ),
+					$stage,
+					(string) $response['model']
+				)
+			);
+		}
 
 		$ctx->end_span(
 			$span_id,

@@ -82,6 +82,7 @@ class PRAutoBlogger_Opik_Eval_Scorer {
 				array(
 					'temperature' => 0.1,
 					'max_tokens'  => 200,
+					'stage'       => 'opik_eval_judge',
 				)
 			);
 
