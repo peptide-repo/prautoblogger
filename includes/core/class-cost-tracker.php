@@ -47,6 +47,14 @@ class PRAutoBlogger_Cost_Tracker {
 	 */
 	public function set_run_id( string $run_id ): void {
 		$this->run_id = $run_id;
+		// v0.18.0: declaring a run id makes this PHP process part of that
+		// run — record the context (cost-governor guard, prompt-version
+		// stamping for components without a run reference), make sure the
+		// run ledger row exists, and pin the active prompt versions once.
+		// All three are self-healing no-ops on a half-migrated schema.
+		PRAutoBlogger_Run_Context::set_run_id( $run_id );
+		PRAutoBlogger_Run_State::ensure_run( $run_id );
+		PRAutoBlogger_Prompt_Registry::pin_for_run( $run_id );
 	}
 
 	/**
@@ -63,14 +71,20 @@ class PRAutoBlogger_Cost_Tracker {
 	 *
 	 * Side effects: database insert into prab_generation_log.
 	 *
-	 * @param int|null $post_id           WordPress post ID (null during generation, set later).
-	 * @param string   $stage             Pipeline stage: 'analysis', 'outline', 'draft', 'polish', 'review'.
-	 * @param string   $provider          Provider name: 'OpenRouter'.
-	 * @param string   $model             Model identifier used.
-	 * @param int      $prompt_tokens     Input tokens consumed.
-	 * @param int      $completion_tokens Output tokens generated.
-	 * @param string   $response_status   'success', 'error', or 'timeout'.
-	 * @param string   $error_message     Error details if status is not 'success'.
+	 * @param int|null    $post_id           WordPress post ID (null during generation, set later).
+	 * @param string      $stage             Pipeline stage (see PRAutoBlogger_Stage_Display_Map).
+	 * @param string      $provider          Provider name: 'OpenRouter'.
+	 * @param string      $model             Model identifier used.
+	 * @param int         $prompt_tokens     Input tokens consumed.
+	 * @param int         $completion_tokens Output tokens generated.
+	 * @param string      $response_status   'success', 'error', or 'timeout'.
+	 * @param string      $error_message     Error details if status is not 'success'.
+	 * @param string|null $agent_role        v0.18.0 — role that made the call; derived
+	 *                                       from the stage map when null.
+	 * @param string|null $prompt_key        v0.18.0 — registry key the call rendered
+	 *                                       with (e.g. 'content.single_pass'); derived
+	 *                                       from the stage map when null. Resolves the
+	 *                                       run-pinned prompt_version stamped on the row.
 	 *
 	 * @return void
 	 */
@@ -82,7 +96,9 @@ class PRAutoBlogger_Cost_Tracker {
 		int $prompt_tokens,
 		int $completion_tokens,
 		string $response_status = 'success',
-		string $error_message = ''
+		string $error_message = '',
+		?string $agent_role = null,
+		?string $prompt_key = null
 	): void {
 		$llm  = new PRAutoBlogger_OpenRouter_Provider();
 		$cost = $llm->estimate_cost( $model, $prompt_tokens, $completion_tokens );
@@ -101,6 +117,8 @@ class PRAutoBlogger_Cost_Tracker {
 				'estimated_cost'    => $cost,
 				'response_status'   => $response_status,
 				'error_message'     => $error_message,
+				'agent_role'        => $agent_role ?? PRAutoBlogger_Stage_Display_Map::default_agent_role( $stage ),
+				'prompt_version'    => $this->resolve_prompt_version( $stage, $prompt_key ),
 				'created_at'        => current_time( 'mysql' ),
 			)
 		);
@@ -175,9 +193,35 @@ class PRAutoBlogger_Cost_Tracker {
 				'estimated_cost'    => $cost_usd,
 				'response_status'   => 'success',
 				'error_message'     => '',
+				'agent_role'        => PRAutoBlogger_Stage_Display_Map::default_agent_role( $stage ),
+				'prompt_version'    => $this->resolve_prompt_version( $stage, null ),
 				'created_at'        => current_time( 'mysql' ),
 			)
 		);
+	}
+
+	/**
+	 * Resolve the pinned prompt version to stamp on a log row.
+	 *
+	 * Uses the explicit registry key when the call site passed one,
+	 * otherwise the stage's primary key from the display map. The version
+	 * comes from the run's pins; the run is this tracker's run_id or —
+	 * for standalone trackers inside a pipeline process (e.g. the image
+	 * prompt rewriter's) — the process-level run context. Null when there
+	 * is no run, no pins, or no key (historical behavior preserved).
+	 *
+	 * @param string      $stage      Stage being logged.
+	 * @param string|null $prompt_key Explicit registry key, or null to derive.
+	 * @return string|null Pinned version as string, or null.
+	 */
+	private function resolve_prompt_version( string $stage, ?string $prompt_key ): ?string {
+		$key = $prompt_key ?? PRAutoBlogger_Stage_Display_Map::default_prompt_key( $stage );
+		if ( null === $key ) {
+			return null;
+		}
+		$run_id = $this->run_id ?? PRAutoBlogger_Run_Context::current_run_id();
+		$pins   = PRAutoBlogger_Prompt_Registry::pins_for_run( $run_id );
+		return isset( $pins[ $key ] ) ? (string) $pins[ $key ] : null;
 	}
 
 	/**
@@ -214,9 +258,9 @@ class PRAutoBlogger_Cost_Tracker {
 	/**
 	 * Get average input/output token counts for given stages over a time period.
 	 *
-	 * Used by the model picker field renderer to calculate estimated costs
-	 * per generation based on historical token usage. Maps setting IDs to their
-	 * constituting stages (e.g., writing model controls outline + draft + polish).
+	 * Thin delegate to PRAutoBlogger_Cost_Reporter (the read-only reporting
+	 * class) — kept here for API compatibility with the model-picker field
+	 * and existing tests. See Cost_Reporter for the query.
 	 *
 	 * @param array<string> $stages Stage names ('analysis', 'outline', 'draft', 'polish', 'review').
 	 * @param int           $days   Historical window (default 30 days).
@@ -225,46 +269,6 @@ class PRAutoBlogger_Cost_Tracker {
 	 *         Returns empty counters if no history. Never throws.
 	 */
 	public function get_avg_tokens_for_stages( array $stages, int $days = 30 ): array {
-		global $wpdb;
-
-		if ( empty( $stages ) ) {
-			return array(
-				'avg_prompt_tokens'      => 0.0,
-				'avg_completion_tokens'  => 0.0,
-				'sample_size'            => 0,
-			);
-		}
-
-		$cutoff_datetime = gmdate( 'Y-m-d H:i:s', time() - ( $days * DAY_IN_SECONDS ) );
-		$stage_list      = implode( ',', array_map( array( $wpdb, 'prepare' ), array_fill( 0, count( $stages ), '%s' ), $stages ) );
-		$table_name      = $wpdb->prefix . 'prautoblogger_generation_log';
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Prepared stage list via array_map + prepare
-		$query = $wpdb->prepare(
-			"SELECT AVG(prompt_tokens) as avg_prompt,
-                    AVG(completion_tokens) as avg_completion,
-                    COUNT(*) as sample_count
-             FROM $table_name
-             WHERE stage IN ( $stage_list )
-             AND created_at >= %s",
-			$cutoff_datetime
-		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- phpcs pragma above
-		$result = $wpdb->get_row( $query, ARRAY_A );
-
-		if ( ! $result || 0 === (int) ( $result['sample_count'] ?? 0 ) ) {
-			return array(
-				'avg_prompt_tokens'      => 0.0,
-				'avg_completion_tokens'  => 0.0,
-				'sample_size'            => 0,
-			);
-		}
-
-		return array(
-			'avg_prompt_tokens'      => (float) ( $result['avg_prompt'] ?? 0 ),
-			'avg_completion_tokens'  => (float) ( $result['avg_completion'] ?? 0 ),
-			'sample_size'            => (int) ( $result['sample_count'] ?? 0 ),
-		);
+		return ( new PRAutoBlogger_Cost_Reporter() )->get_avg_tokens_for_stages( $stages, $days );
 	}
 }

@@ -140,4 +140,62 @@ class PRAutoBlogger_Cost_Reporter {
 		}
 		return ( $this->get_monthly_spend() / $budget ) * 100.0;
 	}
+	/**
+	 * Get average input/output token counts for given stages over a time period.
+	 *
+	 * Used by the model picker field renderer to calculate estimated costs
+	 * per generation based on historical token usage. Maps setting IDs to their
+	 * constituting stages (e.g., writing model controls outline + draft + polish).
+	 * Moved here from Cost_Tracker in v0.18.0 (read-only reporting query;
+	 * Cost_Tracker keeps a delegating wrapper for API compatibility).
+	 *
+	 * @param array<string> $stages Stage names ('analysis', 'outline', 'draft', 'polish', 'review').
+	 * @param int           $days   Historical window (default 30 days).
+	 *
+	 * @return array{avg_prompt_tokens: float, avg_completion_tokens: float, sample_size: int}
+	 *         Returns empty counters if no history. Never throws.
+	 */
+	public function get_avg_tokens_for_stages( array $stages, int $days = 30 ): array {
+		global $wpdb;
+
+		if ( empty( $stages ) ) {
+			return array(
+				'avg_prompt_tokens'      => 0.0,
+				'avg_completion_tokens'  => 0.0,
+				'sample_size'            => 0,
+			);
+		}
+
+		$cutoff_datetime = gmdate( 'Y-m-d H:i:s', time() - ( $days * DAY_IN_SECONDS ) );
+		$stage_list      = implode( ',', array_map( array( $wpdb, 'prepare' ), array_fill( 0, count( $stages ), '%s' ), $stages ) );
+		$table_name      = $wpdb->prefix . 'prautoblogger_generation_log';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Prepared stage list via array_map + prepare
+		$query = $wpdb->prepare(
+			"SELECT AVG(prompt_tokens) as avg_prompt,
+                    AVG(completion_tokens) as avg_completion,
+                    COUNT(*) as sample_count
+             FROM $table_name
+             WHERE stage IN ( $stage_list )
+             AND created_at >= %s",
+			$cutoff_datetime
+		);
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- phpcs pragma above
+		$result = $wpdb->get_row( $query, ARRAY_A );
+
+		if ( ! $result || 0 === (int) ( $result['sample_count'] ?? 0 ) ) {
+			return array(
+				'avg_prompt_tokens'      => 0.0,
+				'avg_completion_tokens'  => 0.0,
+				'sample_size'            => 0,
+			);
+		}
+
+		return array(
+			'avg_prompt_tokens'      => (float) ( $result['avg_prompt'] ?? 0 ),
+			'avg_completion_tokens'  => (float) ( $result['avg_completion'] ?? 0 ),
+			'sample_size'            => (int) ( $result['sample_count'] ?? 0 ),
+		);
+	}
 }

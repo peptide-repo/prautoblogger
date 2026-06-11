@@ -127,6 +127,7 @@ prautoblogger/
 ├── includes/
 │   ├── class-prautoblogger.php        # Main orchestrator — registers all hooks, delegates execution
 │   ├── class-pipeline-schema-installer.php # v0.18.0 substrate tables (prompts, run_sources, run_decisions, runs, run_stages)
+│   ├── class-migrate-prompt-seed-v0180.php # One-shot v0.18.0 prompt-registry seed migration
 │   ├── class-executor.php             # Cron handlers, generation AJAX (start + status), model registry
 │   ├── class-ajax-handlers.php        # Non-generation AJAX: images, models, test connections
 │   ├── class-generation-lock.php      # DB-level atomic mutex for single-writer generation
@@ -173,6 +174,12 @@ prautoblogger/
 │   │   ├── class-image-media-sideloader.php # Imports images into WordPress media library
 │   │   ├── class-cost-tracker.php     # Logs all API costs, enforces budget limits
 │   │   ├── class-stage-display-map.php # Stage vocabulary: labels + default roles + prompt keys (old + new + image stages)
+│   │   ├── class-prompt-registry.php  # Versioned prompt registry, read side (render, pins, self-healing fallback)
+│   │   ├── class-prompt-registry-writer.php # Registry write side (create version, activate, seed) — versions immutable
+│   │   ├── class-prompt-defaults.php  # Canonical v1 bodies: content.* + analysis.* (seed + fallback single source)
+│   │   ├── class-prompt-defaults-editorial.php # Canonical v1 bodies: editor.* / research.system / image.* (composer seam)
+│   │   ├── class-run-context.php      # Per-process active run id (set by Cost_Tracker::set_run_id)
+│   │   ├── class-run-state.php        # runs-table ledger + lifecycle row (ceiling/reserved/settled, pins, status)
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)
 │   │   ├── class-article-worker.php   # Single-article generation (content + edit + publish)
 │   │   ├── class-pipeline-runner.php  # Orchestrates pipeline; chains per-article cron jobs

@@ -320,6 +320,38 @@ The field renderer, AJAX refresh, model picker JS, and capability filtering are 
 
 Phase 3 will add provider selection; v0.11.0 is OpenRouter-only.
 
+## How To: Change a Pipeline Prompt (v0.18.0+)
+
+Prompt copy is **versioned data**, not code. The bodies live in
+`wp_prautoblogger_prompts` (one ACTIVE version per key); the hardcoded texts in
+`class-prompt-defaults.php` / `class-prompt-defaults-editorial.php` are the canonical v1 seed
+AND the fallback when the table is unavailable — never edit a stored version in place.
+
+1. **Never `UPDATE` a body.** Create a new version and activate it:
+   ```php
+   $v = PRAutoBlogger_Prompt_Registry_Writer::create_version(
+       'content.polish', $new_body, $model, $params, 'your-name', true
+   );
+   ```
+2. **Keys** are dot-namespaced: `content.system`, `content.single_pass`, `content.outline`,
+   `content.draft`, `content.polish`, `analysis.system`, `analysis.user`, `editor.system`,
+   `editor.review`, `research.system`, `image.rewriter_system`, `image.style_template`.
+   The two `image.*` keys are the image-composer seam — coordinate on the convo thread
+   before touching them.
+3. **Tokens** use the `{{ name }}` syntax (exactly one space each side — same convention as
+   the Style Template's `{{ topic_summary }}`). Token VALUES are computed by code
+   (`Content_Prompts`, `Analysis_Prompts`, `Chief_Editor`); a new prompt version may reorder
+   or drop tokens but must not invent new ones without adding the value at the call site.
+4. **Pinning.** A run pins the active version of every key at start
+   (`runs.pinned_prompts_json`, written by `Cost_Tracker::set_run_id()`); every
+   generation_log row is stamped with the pinned `prompt_version`. Activating a new version
+   affects the NEXT run, never a run in flight.
+5. **Call sites** render via `PRAutoBlogger_Prompt_Registry::render( $key, $tokens )` and
+   must keep working when the table is absent (the registry falls back to the defaults
+   automatically — do not add your own fallback).
+6. If you add a key: define the body in the appropriate defaults class, add it to `defs()`,
+   map its stage in `Stage_Display_Map`, and it will seed on the next migration pass.
+
 ## Git Workflow — PR-Gated, Soft-Enforced
 
 This repo is private on GitHub's free plan, which does not support branch protection or rulesets. The review gate is enforced at the agent layer, not server-side. Every agent and human contributor follows these rules; the `.github/workflows/main-push-audit.yml` tripwire opens an audit issue on any direct push to `main` that did not come from a merged PR.
