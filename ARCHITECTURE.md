@@ -182,6 +182,10 @@ prautoblogger/
 │   │   ├── class-run-state.php        # runs-table ledger + lifecycle row (ceiling/reserved/settled, pins, status)
 │   │   ├── class-cost-governor.php    # Per-run reserve-before-call enforcement (atomic conditional UPDATE)
 │   │   ├── class-cost-ceiling-exception.php # Thrown on ceiling breach (run already halted)
+│   │   ├── class-run-stage-state.php  # Per-run per-stage state machine (idempotent resume, output snapshots)
+│   │   ├── class-run-reaper.php       # Stuck-run sweep + audit-payload retention (rides the #19 cron)
+│   │   ├── class-audit-writer.php     # run_sources / run_decisions insert layer
+│   │   ├── class-pipeline-status.php  # Status-transient + summary helpers (extracted from runner/worker)
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)
 │   │   ├── class-article-worker.php   # Single-article generation (content + edit + publish)
 │   │   ├── class-pipeline-runner.php  # Orchestrates pipeline; chains per-article cron jobs
@@ -563,6 +567,7 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_target_subreddits`      | JSON array of subreddits to monitor                   |
 | `prautoblogger_monthly_budget_usd`     | Monthly API spend limit in USD                        |
 | `prautoblogger_per_run_cost_ceiling_usd` | v0.18.0 — per-run hard cost ceiling (USD); reserve-before-call enforced; snapshotted onto the runs row at run start; 0 = disabled. Default `PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD` ($0.50) |
+| `prautoblogger_request_json_retention_days` | v0.18.0 — days before heavy audit payloads (generation_log.request_json, run_stages.meta_json) are NULLed by the daily cleanup cron; 0 = keep forever. Default `PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS` (14) |
 | `prautoblogger_tone`                   | Content tone (informational, conversational, etc.)    |
 | `prautoblogger_min_word_count`         | Minimum article word count (default: 800)             |
 | `prautoblogger_max_word_count`         | Maximum article word count (default: 2000)            |
@@ -608,6 +613,7 @@ Stored on every PRAutoBlogger-generated post:
 | `_prautoblogger_editor_notes`         | Chief editor's review notes                   |
 | `_prautoblogger_generated_at`         | ISO 8601 timestamp of generation              |
 | `_prautoblogger_research_sources`     | JSON array of source URLs used                |
+| `_prautoblogger_idea_hash`            | v0.18.0 — stable hash of the idea (title|topic); with `_prautoblogger_run_id` forms the post-creation idempotency key |
 | `_prautoblogger_og_image_id`          | Attachment ID of the composed 1200×630 OG variant (v0.17.0; the rebuilt SEO stage emits `og:image` from this — key name frozen) |
 | `_prautoblogger_square_image_id`      | Attachment ID of the composed 1080×1080 square variant (v0.17.0; stored now, no consumer yet) |
 

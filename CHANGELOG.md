@@ -56,6 +56,30 @@ behavior change** to the Economy (single-pass) and multi-step publish paths.
   0 = disabled). Calls outside a run, the monthly budget, and the Cloudflare AI Gateway
   path behave exactly as before.
 
+- **Run state machine + idempotent resume** (`PRAutoBlogger_Run_Stage_State`): per-run
+  per-stage rows keyed `run_id + stage + agent_role + item_key` (item_key scopes
+  article-level stages — one run_id spans all N articles of a batch; agent_role is the
+  Phase-2 quorum dimension, schema-only for now). Done stages snapshot their output and are
+  REUSED on re-entry — never re-run, never re-charged (writer stages via
+  `Content_Generator::set_run_item()`, the editorial review via its stored verdict, a fully
+  published item is skipped outright). **Post creation is keyed by `_prautoblogger_run_id`
+  + new `_prautoblogger_idea_hash` meta (check-before-insert)** so a retried run cannot
+  create a duplicate post. Run-level research/analysis checkpoints ride Pipeline_Runner;
+  completion/failure marks land on the runs row (Executor catch paths, orphan aborts,
+  monthly-budget aborts).
+- **Reaper extension** (`PRAutoBlogger_Run_Reaper`, same daily cron as the #19 research
+  reaper — no new schedule): stages stuck `running` > 2× expected stage wall-clock and runs
+  silent > 2× expected run wall-clock are marked `failed` (filterable expectations); their
+  open stages are reaped; such runs are queryable as **"incomplete"** via
+  `Run_Reaper::incomplete_runs()`. Also enforces **retention**: `request_json` on the
+  generation log and stage output snapshots are NULLed after R days — R from the new
+  **Audit Payload Retention** setting (`prautoblogger_request_json_retention_days`, default
+  `PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS` = 14, 0 = keep forever).
+- **Audit writes** (`PRAutoBlogger_Audit_Writer`): every reviewed article records its
+  editorial verdict in `run_decisions`; every published article records the sources that
+  fed it in `run_sources` (the source_ids_json / `_prautoblogger_research_sources`
+  consolidation for new runs; no backfill).
+
 ### Changed
 - `Content_Generator`'s four stage methods now share one `execute_stage()` helper (the Opik
   span + dispatch + cost-log boilerplate was identical); file drops from 301 to ~220 lines.
@@ -64,6 +88,9 @@ behavior change** to the Economy (single-pass) and multi-step publish paths.
   reporting query); the Cost_Tracker method remains as a delegating wrapper.
 - `OpenRouter_Provider`'s API-key fetch + format validation moved to
   `OpenRouter_Request_Builder::resolve_api_key()` (300-line cap); identical messages/behavior.
+- Pipeline_Runner's and Article_Worker's duplicated status-transient/summary helpers moved
+  verbatim to the new `PRAutoBlogger_Pipeline_Status` (Pipeline_Runner back under the
+  300-line cap at 271).
 
 ### Fixed
 - ARCHITECTURE.md documented the multi-step edit stage as `edit`; the code has always

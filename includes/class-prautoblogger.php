@@ -150,6 +150,10 @@ class PRAutoBlogger {
 		// pipeline dies before amortize_research_costs runs).
 		add_action( 'prautoblogger_reap_orphan_research_rows', array( 'PRAutoBlogger_Research_Reaper', 'on_cron' ) );
 
+		// v0.18.0: stuck-run sweep + audit-payload retention rides the SAME
+		// existing daily cron (no new schedule). See class-run-reaper.php.
+		add_action( 'prautoblogger_reap_orphan_research_rows', array( 'PRAutoBlogger_Run_Reaper', 'on_cron' ) );
+
 		// v0.8.1: WP-CLI manual trigger for the reaper. Only registers when
 		// WP-CLI is present; no-op in normal HTTP requests.
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {

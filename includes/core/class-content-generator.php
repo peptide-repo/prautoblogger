@@ -19,12 +19,37 @@ class PRAutoBlogger_Content_Generator {
 	private PRAutoBlogger_LLM_Provider_Interface $llm;
 	private PRAutoBlogger_Cost_Tracker $cost_tracker;
 
+	/** @var string|null Run UUID for stage-state checkpointing (null = off). */
+	private ?string $run_id = null;
+
+	/** @var string|null Stage item key scoping this article within the run. */
+	private ?string $item_key = null;
+
 	public function __construct(
 		PRAutoBlogger_LLM_Provider_Interface $llm,
 		PRAutoBlogger_Cost_Tracker $cost_tracker
 	) {
 		$this->llm          = $llm;
 		$this->cost_tracker = $cost_tracker;
+	}
+
+	/**
+	 * Enable per-stage state checkpointing for one article item (v0.18.0).
+	 *
+	 * When set, every LLM stage (outline/draft/polish or the single-pass
+	 * draft) records pending->running->done state and snapshots its output;
+	 * a re-entered done stage returns the snapshot WITHOUT a new LLM call
+	 * (never re-charged). When unset (default), behavior is exactly
+	 * pre-v0.18.0 — used by callers outside a run (e.g. eval mode).
+	 *
+	 * @param string|null $run_id   Run UUID, or null to disable.
+	 * @param string|null $item_key Item key from Run_Stage_State::item_key_for_idea().
+	 * @return $this
+	 */
+	public function set_run_item( ?string $run_id, ?string $item_key ): self {
+		$this->run_id   = $run_id;
+		$this->item_key = $item_key;
+		return $this;
 	}
 
 	/**
@@ -159,6 +184,19 @@ class PRAutoBlogger_Content_Generator {
 		array $options,
 		?string $prompt_key = null
 	): string {
+		// Idempotent resume: a done stage returns its snapshot, no LLM call.
+		if ( null !== $this->run_id && null !== $this->item_key ) {
+			$cached = PRAutoBlogger_Run_Stage_State::get_output( $this->run_id, $stage, '', $this->item_key );
+			if ( null !== $cached ) {
+				PRAutoBlogger_Logger::instance()->info(
+					sprintf( 'Reusing completed %s stage output (idempotent resume).', $stage ),
+					'pipeline'
+				);
+				return $cached;
+			}
+			PRAutoBlogger_Run_Stage_State::start( $this->run_id, $stage, '', $this->item_key );
+		}
+
 		$ctx = PRAutoBlogger_Opik_Trace_Context::current();
 
 		$span_id = $ctx->start_span(
@@ -208,6 +246,17 @@ class PRAutoBlogger_Content_Generator {
 			null,
 			$prompt_key
 		);
+
+		if ( null !== $this->run_id && null !== $this->item_key ) {
+			PRAutoBlogger_Run_Stage_State::done(
+				$this->run_id,
+				$stage,
+				'',
+				$this->item_key,
+				(string) $response['content'],
+				$this->llm->estimate_cost( $response['model'], (int) $response['prompt_tokens'], (int) $response['completion_tokens'] )
+			);
+		}
 
 		return $response['content'];
 	}

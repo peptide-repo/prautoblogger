@@ -9,8 +9,15 @@ declare(strict_types=1);
  * Extracted from Pipeline_Runner so each chained cron job has a focused,
  * single-responsibility worker. One worker = one article = one PHP process.
  *
+ * v0.18.0: per-article stage state (run_stages, item-scoped) makes resume
+ * idempotent — an already-published item is skipped outright, a done
+ * review is reused from its snapshot, and the writer reuses done LLM
+ * stages via Content_Generator::set_run_item(). Editorial verdicts and
+ * the sources that fed the article are persisted to the audit tables.
+ *
  * Triggered by: Pipeline_Runner (directly for article 1, via cron for 2..N).
- * Dependencies: Content_Generator, Chief_Editor, Publisher, Cost_Tracker.
+ * Dependencies: Content_Generator, Chief_Editor, Publisher, Cost_Tracker,
+ *               Run_Stage_State, Audit_Writer.
  *
  * Opik instrumentation: Initializes trace context at start, creates spans
  * for content generation and editorial review. Feature-flag gated (default off).
@@ -48,6 +55,27 @@ class PRAutoBlogger_Article_Worker {
 	 * @return array{generated: int, published: int, rejected: int, cost: float}
 	 */
 	public function generate( PRAutoBlogger_Article_Idea $idea ): array {
+		$run_id = (string) ( $this->cost_tracker->get_run_id() ?? '' );
+		$item   = PRAutoBlogger_Run_Stage_State::item_key_for_idea( $idea );
+
+		$result = array(
+			'generated' => 0,
+			'published' => 0,
+			'rejected'  => 0,
+			'cost'      => 0.0,
+		);
+
+		// Idempotent resume: this item already completed its publish stage
+		// in this run — re-dispatching it must not create a second post or
+		// charge a second cent.
+		if ( '' !== $run_id && PRAutoBlogger_Run_Stage_State::is_done( $run_id, 'publish', '', $item ) ) {
+			PRAutoBlogger_Logger::instance()->info(
+				sprintf( 'Skipping "%s" — already completed in run %s (idempotent resume).', $idea->get_topic(), $run_id ),
+				'pipeline'
+			);
+			return $result;
+		}
+
 		// Initialize Opik trace context for this article generation.
 		$opik = $this->should_trace_with_opik();
 		if ( $opik ) {
@@ -56,6 +84,7 @@ class PRAutoBlogger_Article_Worker {
 
 		$llm       = new PRAutoBlogger_OpenRouter_Provider();
 		$generator = new PRAutoBlogger_Content_Generator( $llm, $this->cost_tracker );
+		$generator->set_run_item( '' !== $run_id ? $run_id : null, $item );
 		$editor    = new PRAutoBlogger_Chief_Editor( $llm, $this->cost_tracker );
 		$publisher = new PRAutoBlogger_Publisher();
 
@@ -65,22 +94,16 @@ class PRAutoBlogger_Article_Worker {
 			true
 		);
 
-		$result = array(
-			'generated' => 0,
-			'published' => 0,
-			'rejected'  => 0,
-			'cost'      => 0.0,
-		);
-
 		try {
-			$this->broadcast_stage( __( 'Generating article draft via AI…', 'prautoblogger' ) );
+			PRAutoBlogger_Pipeline_Status::broadcast( __( 'Generating article draft via AI…', 'prautoblogger' ) );
 			$content             = $generator->generate( $idea );
 			$result['generated'] = 1;
 
-			$this->broadcast_stage( __( 'Running editorial pass…', 'prautoblogger' ) );
-			$review = $editor->review( $content, $idea );
+			PRAutoBlogger_Pipeline_Status::broadcast( __( 'Running editorial pass…', 'prautoblogger' ) );
+			$review = $this->review_with_state( $editor, $content, $idea, $run_id, $item );
 
-			$this->broadcast_stage( __( 'Saving and publishing…', 'prautoblogger' ) );
+			PRAutoBlogger_Pipeline_Status::broadcast( __( 'Saving and publishing…', 'prautoblogger' ) );
+			PRAutoBlogger_Run_Stage_State::start( $run_id, 'publish', '', $item );
 			$this->publish_or_draft(
 				$content,
 				$idea,
@@ -89,7 +112,13 @@ class PRAutoBlogger_Article_Worker {
 				$auto_publish,
 				$result
 			);
+			PRAutoBlogger_Run_Stage_State::done( $run_id, 'publish', '', $item );
+
+			PRAutoBlogger_Audit_Writer::record_idea_sources( $run_id, $idea );
 		} catch ( \Throwable $e ) {
+			if ( '' !== $run_id ) {
+				PRAutoBlogger_Run_Stage_State::fail_open_for_item( $run_id, $item );
+			}
 			PRAutoBlogger_Logger::instance()->error(
 				sprintf(
 					'Article generation %s for "%s": %s',
@@ -109,6 +138,63 @@ class PRAutoBlogger_Article_Worker {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Editorial review with stage state: a done review is reused from its
+	 * snapshot (never re-charged); a fresh review is checkpointed and its
+	 * verdict recorded to the run_decisions audit table.
+	 *
+	 * Side effects: run_stages upserts, one run_decisions insert, and —
+	 * when not resuming — one LLM call via Chief_Editor.
+	 *
+	 * @param PRAutoBlogger_Chief_Editor $editor  Editor agent.
+	 * @param string                     $content Generated HTML content.
+	 * @param PRAutoBlogger_Article_Idea $idea    The idea under review.
+	 * @param string                     $run_id  Run UUID ('' outside a run).
+	 * @param string                     $item    Stage item key for this idea.
+	 * @return PRAutoBlogger_Editorial_Review
+	 */
+	private function review_with_state(
+		PRAutoBlogger_Chief_Editor $editor,
+		string $content,
+		PRAutoBlogger_Article_Idea $idea,
+		string $run_id,
+		string $item
+	): PRAutoBlogger_Editorial_Review {
+		if ( '' !== $run_id ) {
+			$snapshot = PRAutoBlogger_Run_Stage_State::get_output( $run_id, 'review', '', $item );
+			if ( null !== $snapshot ) {
+				$data = json_decode( $snapshot, true );
+				if ( is_array( $data ) && isset( $data['verdict'] ) ) {
+					PRAutoBlogger_Logger::instance()->info(
+						sprintf( 'Reusing completed review for "%s" (idempotent resume).', $idea->get_topic() ),
+						'pipeline'
+					);
+					return new PRAutoBlogger_Editorial_Review( $data );
+				}
+			}
+			PRAutoBlogger_Run_Stage_State::start( $run_id, 'review', '', $item );
+		}
+
+		$review = $editor->review( $content, $idea );
+
+		if ( '' !== $run_id ) {
+			$snapshot = (string) wp_json_encode(
+				array(
+					'verdict'         => $review->get_verdict(),
+					'notes'           => $review->get_notes(),
+					'revised_content' => $review->get_revised_content(),
+					'quality_score'   => $review->get_quality_score(),
+					'seo_score'       => $review->get_seo_score(),
+					'issues'          => $review->get_issues(),
+				)
+			);
+			PRAutoBlogger_Run_Stage_State::done( $run_id, 'review', '', $item, $snapshot );
+			PRAutoBlogger_Audit_Writer::record_decision( $run_id, 'review', $review->get_verdict(), $review->get_notes() );
+		}
+
+		return $review;
 	}
 
 	/**
@@ -150,21 +236,6 @@ class PRAutoBlogger_Article_Worker {
 				'Article rejected by editor: ' . $idea->get_topic(),
 				'pipeline'
 			);
-		}
-	}
-
-	/**
-	 * Update the generation status transient with the current stage.
-	 *
-	 * @param string $stage Human-readable stage description.
-	 */
-	private function broadcast_stage( string $stage ): void {
-		$transient_key = 'prautoblogger_generation_status';
-		$current       = get_transient( $transient_key );
-		if ( is_array( $current ) && 'running' === ( $current['status'] ?? '' ) ) {
-			$current['stage']        = $stage;
-			$current['last_updated'] = time();
-			set_transient( $transient_key, $current, 600 );
 		}
 	}
 
