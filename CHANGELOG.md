@@ -99,6 +99,12 @@ behavior change** to the Economy (single-pass) and multi-step publish paths.
   columns when the columns are missing (a cron run right after deploy no longer loses cost
   rows), and the db-version self-heal now also runs on cron requests (`init` +
   `wp_doing_cron()`), not only on `admin_init`.
+- OpenRouter pricing now resolves dated snapshot model IDs returned by the API
+  (e.g. response model `deepseek/deepseek-v4-flash-20260423` for a
+  `deepseek/deepseek-v4-flash` request) to the base model's price before the
+  conservative-estimate fallback applies. Such responses were previously booked
+  at the conservative $10/$30 per-M rate (~30x real cost on flash-tier models) —
+  phantom spend that ate the per-run cost ceiling and the monthly budget gate.
 
 ## [0.17.0] - 2026-06-11
 
