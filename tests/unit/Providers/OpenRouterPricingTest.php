@@ -177,4 +177,89 @@ class OpenRouterPricingTest extends BaseTestCase {
         // At least some models should be present.
         $this->assertGreaterThan( 0, count( $models ) );
     }
+
+    /**
+     * Test a snapshot-suffixed response model ID resolves to the base model's price.
+     *
+     * OpenRouter sometimes returns a dated snapshot ID as the response model
+     * (e.g. 'deepseek/deepseek-v4-flash-20260423' for a
+     * 'deepseek/deepseek-v4-flash' request). Pricing must strip the date
+     * suffix and bill at the base model's rate, not the conservative fallback.
+     */
+    public function test_estimate_cost_snapshot_suffix_resolves_to_base_model_price(): void {
+        Functions\when( 'get_transient' )->alias(
+            function ( string $key ) {
+                if ( 'prautoblogger_openrouter_models' === $key ) {
+                    return [
+                        [
+                            'id'             => 'deepseek/deepseek-v4-flash',
+                            'name'           => 'DeepSeek V4 Flash',
+                            'context_length' => 131072,
+                            'pricing'        => [ 'prompt' => 0.05, 'completion' => 0.20 ],
+                        ],
+                    ];
+                }
+                return false;
+            }
+        );
+
+        $pricing = new \PRAutoBlogger_OpenRouter_Pricing();
+
+        $base_cost     = $pricing->estimate_cost( 'deepseek/deepseek-v4-flash', 1000, 500 );
+        $snapshot_cost = $pricing->estimate_cost( 'deepseek/deepseek-v4-flash-20260423', 1000, 500 );
+
+        // Billed exactly like the base model: (1000 * 0.05 + 500 * 0.20) / 1M.
+        $this->assertSame( $base_cost, $snapshot_cost );
+        $this->assertEqualsWithDelta( 0.00015, $snapshot_cost, 1e-12 );
+
+        // And not at the conservative fallback rate (10/30 per M = 0.025 here).
+        $this->assertNotEquals( 0.025, $snapshot_cost );
+    }
+
+    /**
+     * Test an unknown model with no date suffix still gets the conservative estimate.
+     */
+    public function test_estimate_cost_unknown_model_without_suffix_uses_conservative_estimate(): void {
+        $pricing = new \PRAutoBlogger_OpenRouter_Pricing();
+        $cost = $pricing->estimate_cost( 'unknown/fake-model', 1000, 500 );
+
+        // Conservative fallback: (1000 * $10 + 500 * $30) / 1M.
+        $this->assertEqualsWithDelta( 0.025, $cost, 1e-12 );
+    }
+
+    /**
+     * Test a trailing digit run that is not an 8-digit date is never stripped.
+     *
+     * 'foo-202612345' has nine trailing digits — even with 'foo' and 'foo-2'
+     * registered, no stripping may occur and the conservative estimate applies.
+     */
+    public function test_estimate_cost_non_date_suffix_is_not_stripped(): void {
+        Functions\when( 'get_transient' )->alias(
+            function ( string $key ) {
+                if ( 'prautoblogger_openrouter_models' === $key ) {
+                    return [
+                        [
+                            'id'             => 'foo',
+                            'name'           => 'Foo',
+                            'context_length' => 8192,
+                            'pricing'        => [ 'prompt' => 0.01, 'completion' => 0.02 ],
+                        ],
+                        [
+                            'id'             => 'foo-2',
+                            'name'           => 'Foo 2',
+                            'context_length' => 8192,
+                            'pricing'        => [ 'prompt' => 0.01, 'completion' => 0.02 ],
+                        ],
+                    ];
+                }
+                return false;
+            }
+        );
+
+        $pricing = new \PRAutoBlogger_OpenRouter_Pricing();
+        $cost = $pricing->estimate_cost( 'foo-202612345', 1000, 500 );
+
+        // Nine trailing digits is not a snapshot date — conservative estimate applies.
+        $this->assertEqualsWithDelta( 0.025, $cost, 1e-12 );
+    }
 }

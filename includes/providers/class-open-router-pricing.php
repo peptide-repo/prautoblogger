@@ -132,7 +132,9 @@ class PRAutoBlogger_OpenRouter_Pricing {
 	/**
 	 * Estimate the cost of an API call in USD.
 	 *
-	 * Uses hardcoded pricing first, falls back to cached model data.
+	 * Uses hardcoded pricing first, falls back to cached model data. IDs
+	 * carrying a date-snapshot suffix that miss both sources are retried
+	 * once as their base ID (see resolve_pricing()).
 	 *
 	 * @param string $model            Model identifier.
 	 * @param int    $prompt_tokens     Input tokens.
@@ -146,18 +148,7 @@ class PRAutoBlogger_OpenRouter_Pricing {
 			return 0.0;
 		}
 
-		$pricing = self::MODEL_PRICING[ $model ] ?? null;
-
-		// Fall back to cached model list pricing.
-		if ( null === $pricing ) {
-			$models = $this->get_available_models();
-			foreach ( $models as $m ) {
-				if ( $m['id'] === $model && isset( $m['pricing'] ) ) {
-					$pricing = $m['pricing'];
-					break;
-				}
-			}
-		}
+		$pricing = $this->resolve_pricing( $model );
 
 		if ( null === $pricing ) {
 			// Unknown model — use a conservative estimate.
@@ -170,6 +161,82 @@ class PRAutoBlogger_OpenRouter_Pricing {
 
 		return ( $prompt_tokens * $pricing['prompt'] / 1000000 )
 			+ ( $completion_tokens * $pricing['completion'] / 1000000 );
+	}
+
+	/**
+	 * Resolve pricing for a model ID, normalizing dated snapshot IDs.
+	 *
+	 * Tries the exact ID first. On a miss, strips a trailing date-snapshot
+	 * suffix and retries once with the base ID: OpenRouter responses can
+	 * name a dated snapshot of the requested model (e.g. request
+	 * 'deepseek/deepseek-v4-flash', response model
+	 * 'deepseek/deepseek-v4-flash-20260423') while pricing sources only
+	 * list the base ID. Every cost path (governor reserve/settle and
+	 * generation-log booking) prices through this seam, so all of them
+	 * survive snapshot IDs instead of booking the conservative estimate.
+	 *
+	 * Side effects: may fetch the models list over HTTP on cache miss
+	 * (via get_available_models()).
+	 *
+	 * @param string $model Model ID as requested, or as returned by the API.
+	 *
+	 * @return array{prompt: float, completion: float}|null Per-million USD pricing, or null when unknown.
+	 */
+	private function resolve_pricing( string $model ): ?array {
+		$pricing = $this->lookup_pricing( $model );
+		if ( null !== $pricing ) {
+			return $pricing;
+		}
+
+		$base = $this->strip_snapshot_suffix( $model );
+		if ( $base !== $model ) {
+			return $this->lookup_pricing( $base );
+		}
+
+		return null;
+	}
+
+	/**
+	 * Look up one exact model ID: hardcoded table first, then cached model list.
+	 *
+	 * Side effects: may fetch the models list over HTTP on cache miss
+	 * (via get_available_models()).
+	 *
+	 * @param string $model Model ID (exact match, no normalization).
+	 *
+	 * @return array{prompt: float, completion: float}|null Per-million USD pricing, or null on miss.
+	 */
+	private function lookup_pricing( string $model ): ?array {
+		$pricing = self::MODEL_PRICING[ $model ] ?? null;
+		if ( null !== $pricing ) {
+			return $pricing;
+		}
+
+		foreach ( $this->get_available_models() as $m ) {
+			if ( $m['id'] === $model && isset( $m['pricing'] ) ) {
+				return $m['pricing'];
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Strip a trailing date-snapshot suffix (e.g. '-20260423') from a model ID.
+	 *
+	 * Only a dash followed by an 8-digit, 20-prefixed date at the very end
+	 * is treated as a snapshot suffix. Any other trailing digit run (e.g.
+	 * 'foo-202612345') is part of the model name and left untouched.
+	 *
+	 * Side effects: none — pure string transformation.
+	 *
+	 * @param string $model Model ID.
+	 *
+	 * @return string Base model ID, or the input unchanged when no snapshot suffix is present.
+	 */
+	private function strip_snapshot_suffix( string $model ): string {
+		$base = preg_replace( '/-20\d{6}$/', '', $model );
+		return is_string( $base ) ? $base : $model;
 	}
 
 	/**
