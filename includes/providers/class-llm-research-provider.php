@@ -123,25 +123,9 @@ class PRAutoBlogger_LLM_Research_Provider implements PRAutoBlogger_Source_Provid
 	 * @return string
 	 */
 	private function build_system_prompt(): string {
-		return 'You are a deep research analyst specializing in emerging trends, '
-			. 'scientific developments, and community knowledge in niche health and '
-			. "biohacking domains. Your task is to identify substantive, actionable findings.\n\n"
-			. "Using your training knowledge, scan across:\n"
-			. "- Recent scientific literature and research directions\n"
-			. "- Active community discussions, debates, and evolving consensus\n"
-			. "- Emerging products, protocols, and methodologies gaining traction\n"
-			. "- Common questions, misconceptions, and points of confusion\n"
-			. "- Regulatory changes, safety concerns, and legal shifts\n"
-			. "- Gaps between what practitioners want to know and what content exists\n\n"
-			. "Your findings must be:\n"
-			. "1. SUBSTANTIVE — 2-3 paragraphs of detailed analysis per finding, not a headline\n"
-			. "2. ACTIONABLE — practical enough to seed a full article\n"
-			. "3. REALISTIC — grounded in what is actually discussed or researched; do NOT invent citations\n"
-			. "4. TIMELY — reflect current knowledge, recent shifts, or emerging questions\n\n"
-			. "Respond with valid JSON only (no preamble, no markdown fences):\n"
-			. '{"findings": [{"title": "string", "content": "string (2-3 paragraphs)", '
-			. '"relevance_score": 0-100, "category": "question|trend|comparison|guide|misconception|safety"}]}' . "\n\n"
-			. 'Generate 8-12 findings. Prioritize depth over breadth. Avoid generic or surface-level topics.';
+		// v0.18.0: renders from the versioned registry ('research.system')
+		// with a byte-identical in-code fallback.
+		return PRAutoBlogger_Prompt_Registry::render( 'research.system' );
 	}
 
 	/**

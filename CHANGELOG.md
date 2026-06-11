@@ -27,6 +27,28 @@ behavior change** to the Economy (single-pass) and multi-step publish paths.
   per-stage default agent role and primary prompt-registry key.
 - Uninstall now drops the five substrate tables and clears every plugin cron hook
   (previously only two of eight were cleared).
+- **Versioned prompt registry** (`PRAutoBlogger_Prompt_Registry` + `_Writer`): all pipeline
+  prompt copy — content system/single-pass/outline/draft/polish, analysis system/user,
+  editor system/review, research system, plus the **illustration rewriter prompt and the
+  image Style Template** (the image-composer PR seam) — is seeded as immutable version 1
+  from the v0.16.0 hardcoded texts (`prautoblogger_migrated_prompt_seed_v0180`). One active
+  version per key; changes create new versions, never mutate. Call sites render through the
+  registry with a **byte-identical in-code fallback** when the table is missing/empty
+  (self-healing, no fatals on half-migrated state). No admin UI in Phase 1.
+- **Prompt-version pinning**: `Cost_Tracker::set_run_id()` pins the active version of every
+  key on the run's row; every generation_log row (text and image stages) is stamped with the
+  pinned `prompt_version` plus a stage-derived `agent_role`. Single-pass rows keep stage
+  `draft` and stamp `content.single_pass` explicitly.
+- `PRAutoBlogger_Run_State` (runs-table ledger row: ceiling/reserved/settled/overage, pins,
+  sticky lifecycle states) and `PRAutoBlogger_Run_Context` (per-process run id, mirrors the
+  Opik trace-context pattern).
+
+### Changed
+- `Content_Generator`'s four stage methods now share one `execute_stage()` helper (the Opik
+  span + dispatch + cost-log boilerplate was identical); file drops from 301 to ~220 lines.
+  No behavior change: same prompts, models, params, span names, stage values.
+- `Cost_Tracker::get_avg_tokens_for_stages()` body moved to `Cost_Reporter` (read-only
+  reporting query); the Cost_Tracker method remains as a delegating wrapper.
 
 ### Fixed
 - ARCHITECTURE.md documented the multi-step edit stage as `edit`; the code has always

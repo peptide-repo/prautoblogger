@@ -9,7 +9,7 @@ declare(strict_types=1);
  * Opik instrumentation: spans per review LLM call.
  *
  * Triggered by: PRAutoBlogger_Article_Worker.
- * Dependencies: LLM_Provider_Interface, Cost_Tracker.
+ * Dependencies: LLM_Provider_Interface, Cost_Tracker, Prompt_Registry.
  */
 class PRAutoBlogger_Chief_Editor {
 
@@ -92,54 +92,47 @@ class PRAutoBlogger_Chief_Editor {
 
 	/**
 	 * Build system prompt for editorial review.
+	 *
+	 * v0.18.0: renders from the versioned registry ('editor.system') with a
+	 * byte-identical in-code fallback; the admin's extra editor
+	 * instructions stay a setting and are injected as a token value.
+	 *
+	 * @param string $niche Niche description from settings.
+	 * @return string System prompt text.
 	 */
 	private function build_system_prompt( string $niche ): string {
-		$prompt = 'You are a senior blog editor';
-		if ( '' !== $niche ) {
-			$prompt .= " specializing in {$niche} content";
-		}
-		$prompt .= ". Review article drafts before publication.\n\n";
+		$instructions       = trim( (string) get_option( 'prautoblogger_editor_instructions', '' ) );
+		$instructions_block = '' !== $instructions ? "\nAdditional instructions:\n" . $instructions . "\n" : '';
 
-		$prompt .= "Evaluate on: QUALITY, ACCURACY, SEO, COMPLETENESS, READABILITY.\n";
-		$prompt .= "Respond with JSON: {\n";
-		$prompt .= '  "verdict": "approved" | "revised" | "rejected",' . "\n";
-		$prompt .= '  "quality_score": 0.0-1.0,' . "\n";
-		$prompt .= '  "seo_score": 0.0-1.0,' . "\n";
-		$prompt .= '  "issues": ["issue1", "issue2"],' . "\n";
-		$prompt .= '  "notes": "Editorial notes",' . "\n";
-		$prompt .= '  "revised_content": "Full revised HTML if revised, null otherwise"' . "\n";
-		$prompt .= "}\n\n";
-
-		$prompt .= "Rules:\n";
-		$prompt .= "- APPROVE if quality_score >= 0.7 and seo_score >= 0.6\n";
-		$prompt .= "- REVISE if fixable issues exist — provide full revised HTML\n";
-		$prompt .= "- REJECT if fundamentally flawed\n";
-		$prompt .= "- Preserve formatting, links, lists when revising\n";
-
-		$instructions = trim( (string) get_option( 'prautoblogger_editor_instructions', '' ) );
-		if ( '' !== $instructions ) {
-			$prompt .= "\nAdditional instructions:\n" . $instructions . "\n";
-		}
-
-		return $prompt;
+		return PRAutoBlogger_Prompt_Registry::render(
+			'editor.system',
+			array(
+				'niche_clause'       => '' !== $niche ? " specializing in {$niche} content" : '',
+				'instructions_block' => $instructions_block,
+			)
+		);
 	}
 
 	/**
 	 * Build user prompt for editorial review.
+	 *
+	 * v0.18.0: renders from the versioned registry ('editor.review').
+	 *
+	 * @param string                     $content The generated HTML content.
+	 * @param PRAutoBlogger_Article_Idea $idea    The original article idea.
+	 * @return string User prompt text.
 	 */
 	private function build_review_prompt( string $content, PRAutoBlogger_Article_Idea $idea ): string {
-		return sprintf(
-			"Review this article draft:\n\n" .
-			"BRIEF: Title: %s | Topic: %s | Type: %s\n" .
-			"KEY POINTS: %s\n" .
-			"TARGET KEYWORDS: %s\n\n" .
-			"CONTENT:\n%s",
-			$idea->get_suggested_title(),
-			$idea->get_topic(),
-			$idea->get_article_type(),
-			implode( ', ', $idea->get_key_points() ),
-			implode( ', ', $idea->get_target_keywords() ),
-			$content
+		return PRAutoBlogger_Prompt_Registry::render(
+			'editor.review',
+			array(
+				'title'        => $idea->get_suggested_title(),
+				'topic'        => $idea->get_topic(),
+				'article_type' => $idea->get_article_type(),
+				'key_points'   => implode( ', ', $idea->get_key_points() ),
+				'keywords'     => implode( ', ', $idea->get_target_keywords() ),
+				'content'      => $content,
+			)
 		);
 	}
 

@@ -31,6 +31,7 @@ class PRAutoBlogger_Activator {
 		self::set_default_options();
 		self::schedule_cron();
 		self::backpopulate_run_id_meta_v081();
+		PRAutoBlogger_Migrate_Prompt_Seed_V0180::run();
 
 		// Store the DB version so we can run migrations on future updates.
 		update_option( 'prautoblogger_db_version', PRAUTOBLOGGER_DB_VERSION, false );

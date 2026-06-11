@@ -21,6 +21,14 @@ if ( ! defined( 'PRAB_PLUGIN_DIR' ) ) {
     define( 'PRAB_PLUGIN_DIR', dirname( __DIR__ ) . '/' );
 }
 
+// Pipeline v2 Phase 1 defaults (source of truth: prautoblogger.php).
+if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD' ) ) {
+    define( 'PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD', 0.50 );
+}
+if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS' ) ) {
+    define( 'PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS', 14 );
+}
+
 // WordPress time constants used by CostTracker and ContentAnalyzer.
 if ( ! defined( 'DAY_IN_SECONDS' ) ) {
     define( 'DAY_IN_SECONDS', 86400 );

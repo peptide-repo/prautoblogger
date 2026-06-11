@@ -11,7 +11,8 @@ declare(strict_types=1);
  * independently of the generation orchestration.
  *
  * Triggered by: PRAutoBlogger_Content_Generator (called for every stage).
- * Dependencies: WordPress query functions (get_posts, get_the_title, get_permalink).
+ * Dependencies: PRAutoBlogger_Prompt_Registry (versioned prompt bodies),
+ *               WordPress query functions (get_posts, get_the_title, get_permalink).
  *
  * @see core/class-content-generator.php — Consumer of these prompts.
  * @see models/class-content-request.php — Data bag passed to every builder.
@@ -24,18 +25,22 @@ class PRAutoBlogger_Content_Prompts {
 	 * Includes niche, tone, mandatory style guide, internal link reference,
 	 * peptide database links, and the "never fabricate URLs" rule.
 	 *
+	 * v0.18.0: the prompt copy renders from the versioned registry
+	 * ('content.system', falls back to the identical in-code default);
+	 * the style guide and linking rules are data injection and stay here.
+	 *
 	 * @param PRAutoBlogger_Content_Request $request Content request with settings.
 	 * @return string Complete system prompt.
 	 */
 	public static function build_system( PRAutoBlogger_Content_Request $request ): string {
 		$niche  = $request->get_niche_description();
-		$prompt = 'You are an expert blog writer';
-		if ( '' !== $niche ) {
-			$prompt .= " specializing in {$niche}";
-		}
-		$prompt .= '. Write well-researched, engaging, SEO-friendly content. ';
-		$prompt .= "Use a {$request->get_tone()} tone. ";
-		$prompt .= 'Output HTML content only — no markdown, no code fences, no commentary.';
+		$prompt = PRAutoBlogger_Prompt_Registry::render(
+			'content.system',
+			array(
+				'niche_clause' => '' !== $niche ? " specializing in {$niche}" : '',
+				'tone'         => $request->get_tone(),
+			)
+		);
 
 		// Append user-defined writing instructions as a mandatory style guide.
 		$instructions = trim( $request->get_writing_instructions() );
@@ -60,24 +65,17 @@ class PRAutoBlogger_Content_Prompts {
 	public static function build_single_pass( PRAutoBlogger_Content_Request $request ): string {
 		$idea = $request->get_idea();
 
-		return sprintf(
-			"Write a complete blog post in HTML format.\n\n" .
-			"Title: %s\nTopic: %s\nType: %s\n\nKey points:\n- %s\n\n" .
-			"Keywords: %s\n\n" .
-			"Requirements:\n" .
-			"- %d-%d words\n" .
-			"- Proper HTML (h2, h3, p, ul/li)\n" .
-			"- Engaging intro, strong conclusion with CTA\n" .
-			"- Do NOT include the title or <html>/<body> tags\n" .
-			"- Output HTML only, no markdown or commentary\n" .
-			'- Follow EVERY formatting and structural requirement from your system prompt style guide',
-			$idea->get_suggested_title(),
-			$idea->get_topic(),
-			$idea->get_article_type(),
-			implode( "\n- ", $idea->get_key_points() ),
-			implode( ', ', $idea->get_target_keywords() ),
-			$request->get_min_word_count(),
-			$request->get_max_word_count()
+		return PRAutoBlogger_Prompt_Registry::render(
+			'content.single_pass',
+			array(
+				'title'        => $idea->get_suggested_title(),
+				'topic'        => $idea->get_topic(),
+				'article_type' => $idea->get_article_type(),
+				'key_points'   => implode( "\n- ", $idea->get_key_points() ),
+				'keywords'     => implode( ', ', $idea->get_target_keywords() ),
+				'min_words'    => (string) $request->get_min_word_count(),
+				'max_words'    => (string) $request->get_max_word_count(),
+			)
 		);
 	}
 
@@ -90,21 +88,17 @@ class PRAutoBlogger_Content_Prompts {
 	public static function build_outline( PRAutoBlogger_Content_Request $request ): string {
 		$idea = $request->get_idea();
 
-		return sprintf(
-			"Create a detailed outline for a blog post titled: \"%s\"\n\n" .
-			"Topic: %s\nArticle type: %s\n\nKey points to cover:\n%s\n\n" .
-			"Target keywords: %s\n\n" .
-			'The outline should have 4-6 main sections with bullet points under each. ' .
-			'Include an introduction hook and a conclusion with a call to action. ' .
-			"Word count target: %d-%d words.\n\n" .
-			'Plan the structure to satisfy EVERY requirement in your system prompt style guide.',
-			$idea->get_suggested_title(),
-			$idea->get_topic(),
-			$idea->get_article_type(),
-			implode( "\n- ", $idea->get_key_points() ),
-			implode( ', ', $idea->get_target_keywords() ),
-			$request->get_min_word_count(),
-			$request->get_max_word_count()
+		return PRAutoBlogger_Prompt_Registry::render(
+			'content.outline',
+			array(
+				'title'        => $idea->get_suggested_title(),
+				'topic'        => $idea->get_topic(),
+				'article_type' => $idea->get_article_type(),
+				'key_points'   => implode( "\n- ", $idea->get_key_points() ),
+				'keywords'     => implode( ', ', $idea->get_target_keywords() ),
+				'min_words'    => (string) $request->get_min_word_count(),
+				'max_words'    => (string) $request->get_max_word_count(),
+			)
 		);
 	}
 
@@ -116,23 +110,15 @@ class PRAutoBlogger_Content_Prompts {
 	 * @return string Draft prompt.
 	 */
 	public static function build_draft( PRAutoBlogger_Content_Request $request, string $outline ): string {
-		return sprintf(
-			"Using this outline, write the full blog post in HTML format.\n\n" .
-			"OUTLINE:\n%s\n\n" .
-			"Requirements:\n" .
-			"- Write in a %s tone\n" .
-			"- Target %d-%d words\n" .
-			"- Use proper HTML headings (h2, h3), paragraphs, and lists\n" .
-			"- Include an engaging introduction and strong conclusion\n" .
-			"- Naturally incorporate these keywords: %s\n" .
-			"- Do NOT include the title in the HTML (it will be set separately)\n" .
-			"- Do NOT wrap in <html>, <head>, or <body> tags — just the article content\n" .
-			'- Follow EVERY formatting and structural requirement from your system prompt style guide',
-			$outline,
-			$request->get_tone(),
-			$request->get_min_word_count(),
-			$request->get_max_word_count(),
-			implode( ', ', $request->get_idea()->get_target_keywords() )
+		return PRAutoBlogger_Prompt_Registry::render(
+			'content.draft',
+			array(
+				'outline'   => $outline,
+				'tone'      => $request->get_tone(),
+				'min_words' => (string) $request->get_min_word_count(),
+				'max_words' => (string) $request->get_max_word_count(),
+				'keywords'  => implode( ', ', $request->get_idea()->get_target_keywords() ),
+			)
 		);
 	}
 
@@ -143,18 +129,10 @@ class PRAutoBlogger_Content_Prompts {
 	 * @return string Polish prompt.
 	 */
 	public static function build_polish( string $draft ): string {
-		return "Review and polish this blog post draft. Improve:\n" .
-			"1. Flow and readability\n" .
-			"2. SEO optimization (headings, keyword placement)\n" .
-			"3. Engagement (hooks, transitions, call-to-action)\n" .
-			"4. Accuracy and clarity\n" .
-			"5. Remove any filler or redundant sentences\n\n" .
-			'IMPORTANT: Preserve all bullet points, numbered lists, hyperlinks, and ' .
-			'structural elements from the draft. Do NOT flatten lists into prose or ' .
-			'remove links. Ensure every requirement from your system prompt style ' .
-			"guide is satisfied in the final output.\n\n" .
-			"Return the polished HTML content only. Do not add commentary.\n\n" .
-			"DRAFT:\n" . $draft;
+		return PRAutoBlogger_Prompt_Registry::render(
+			'content.polish',
+			array( 'draft' => $draft )
+		);
 	}
 
 	/**

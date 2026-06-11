@@ -26,6 +26,8 @@ class PRAutoBlogger_Generation_Log {
 	private ?string $request_json;
 	private string $response_status;
 	private ?string $error_message;
+	private ?string $agent_role;
+	private ?string $prompt_version;
 	private string $created_at;
 
 	/**
@@ -44,6 +46,8 @@ class PRAutoBlogger_Generation_Log {
 		$this->request_json      = $data['request_json'] ?? null;
 		$this->response_status   = $data['response_status'] ?? 'success';
 		$this->error_message     = $data['error_message'] ?? null;
+		$this->agent_role        = $data['agent_role'] ?? null;
+		$this->prompt_version    = isset( $data['prompt_version'] ) ? (string) $data['prompt_version'] : null;
 		$this->created_at        = $data['created_at'] ?? current_time( 'mysql' );
 	}
 
@@ -71,6 +75,10 @@ class PRAutoBlogger_Generation_Log {
 		return $this->response_status; }
 	public function get_error_message(): ?string {
 		return $this->error_message; }
+	public function get_agent_role(): ?string {
+		return $this->agent_role; }
+	public function get_prompt_version(): ?string {
+		return $this->prompt_version; }
 	public function get_created_at(): string {
 		return $this->created_at; }
 
@@ -90,6 +98,8 @@ class PRAutoBlogger_Generation_Log {
 			'request_json'      => $this->request_json,
 			'response_status'   => $this->response_status,
 			'error_message'     => $this->error_message,
+			'agent_role'        => $this->agent_role,
+			'prompt_version'    => $this->prompt_version,
 			'created_at'        => $this->created_at,
 		);
 	}
