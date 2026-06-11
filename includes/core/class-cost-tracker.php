@@ -127,9 +127,19 @@ class PRAutoBlogger_Cost_Tracker {
 		$table = $wpdb->prefix . 'prautoblogger_generation_log';
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$wpdb->insert( $table, $log_entry->to_db_row() );
+		$inserted = $wpdb->insert( $table, $log_entry->to_db_row() );
 
-		if ( false === $wpdb->insert_id ) {
+		// Self-healing on a half-migrated schema (e.g. cron fires after a
+		// deploy but before any admin_init migration pass): retry without
+		// the v0.18.0 audit columns rather than losing the cost row.
+		if ( false === $inserted ) {
+			$legacy_row = $log_entry->to_db_row();
+			unset( $legacy_row['agent_role'], $legacy_row['prompt_version'] );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+			$inserted = $wpdb->insert( $table, $legacy_row );
+		}
+
+		if ( false === $inserted || false === $wpdb->insert_id ) {
 			PRAutoBlogger_Logger::instance()->error( 'Failed to log API call: ' . $wpdb->last_error, 'cost-tracker' );
 		}
 	}
@@ -179,25 +189,31 @@ class PRAutoBlogger_Cost_Tracker {
 		}
 		$table = $wpdb->prefix . 'prautoblogger_generation_log';
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$wpdb->insert(
-			$table,
-			array(
-				'post_id'           => $post_id,
-				'run_id'            => $this->run_id,
-				'stage'             => $stage,
-				'provider'          => 'cloudflare-workers-ai',
-				'model'             => $model,
-				'prompt_tokens'     => 0,
-				'completion_tokens' => 0,
-				'estimated_cost'    => $cost_usd,
-				'response_status'   => 'success',
-				'error_message'     => '',
-				'agent_role'        => PRAutoBlogger_Stage_Display_Map::default_agent_role( $stage ),
-				'prompt_version'    => $this->resolve_prompt_version( $stage, null ),
-				'created_at'        => current_time( 'mysql' ),
-			)
+		$row = array(
+			'post_id'           => $post_id,
+			'run_id'            => $this->run_id,
+			'stage'             => $stage,
+			'provider'          => 'cloudflare-workers-ai',
+			'model'             => $model,
+			'prompt_tokens'     => 0,
+			'completion_tokens' => 0,
+			'estimated_cost'    => $cost_usd,
+			'response_status'   => 'success',
+			'error_message'     => '',
+			'agent_role'        => PRAutoBlogger_Stage_Display_Map::default_agent_role( $stage ),
+			'prompt_version'    => $this->resolve_prompt_version( $stage, null ),
+			'created_at'        => current_time( 'mysql' ),
 		);
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$inserted = $wpdb->insert( $table, $row );
+
+		// Self-healing on a half-migrated schema — see log_api_call().
+		if ( false === $inserted ) {
+			unset( $row['agent_role'], $row['prompt_version'] );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+			$wpdb->insert( $table, $row );
+		}
 	}
 
 	/**
