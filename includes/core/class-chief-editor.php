@@ -64,6 +64,7 @@ class PRAutoBlogger_Chief_Editor {
 				'temperature'     => 0.3,
 				'max_tokens'      => 5000,
 				'response_format' => array( 'type' => 'json_object' ),
+				'stage'           => 'review',
 			)
 		);
 

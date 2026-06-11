@@ -78,7 +78,17 @@ class PRAutoBlogger_Settings_Fields_Extended {
 					'low'     => __( 'Low — light reasoning, lower cost', 'prautoblogger' ),
 					'minimal' => __( 'Minimal — barely any reasoning', 'prautoblogger' ),
 				),
-				'description' => __( 'How much effort the model spends reasoning before answering. Higher effort = more reasoning tokens = higher cost. Only applies when reasoning is enabled above.', 'prautoblogger' ),
+				'description' => __( 'How much effort the model spends reasoning before answering. Higher effort = more reasoning tokens = higher cost. Only applies when reasoning is enabled above. When the Reasoning Token Cap below is set (default), the cap is sent instead of the effort level — set the cap to 0 to use effort only.', 'prautoblogger' ),
+			),
+			array(
+				'id'          => 'prautoblogger_reasoning_max_tokens',
+				'label'       => __( 'Reasoning Token Cap', 'prautoblogger' ),
+				'type'        => 'number',
+				'section'     => 'prautoblogger_models',
+				'default'     => PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS,
+				'min'         => 0,
+				'max'         => 32000,
+				'description' => __( 'Hard ceiling on thinking tokens per call when reasoning is enabled. The completion budget is raised by this amount so reasoning can never crowd out the article text — an uncapped high effort can spend the entire budget thinking and return an empty draft. 0 = no cap (uncapped effort mode, not recommended).', 'prautoblogger' ),
 			),
 
 			// ── Schedule & Budget ───────────────────────────────────────

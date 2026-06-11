@@ -82,6 +82,23 @@ class PRAutoBlogger_Publisher {
 		?string $run_id = null,
 		?PRAutoBlogger_Cost_Tracker $cost_tracker = null
 	): int {
+		// v0.18.1 belt-and-braces: never create a post whose content is
+		// empty once tags and whitespace are stripped — an empty "draft
+		// for human review" (2026-06-11 incident, post 921) reviews
+		// nothing and hides the underlying generation failure. The
+		// provider/writer guards make this unreachable on OpenRouter
+		// paths; this protects every other path into post creation.
+		if ( '' === trim( wp_strip_all_tags( $content ) ) ) {
+			throw new \RuntimeException(
+				sprintf(
+					/* translators: 1: intended post status, 2: article title. */
+					__( 'Refusing to create %1$s post "%2$s": generated content is empty.', 'prautoblogger' ),
+					$post_status,
+					$idea->get_suggested_title()
+				)
+			);
+		}
+
 		// v0.18.0 idempotency: post creation is keyed by run + idea
 		// (check-before-insert) so a retried/resumed run cannot create a
 		// duplicate post. One run_id spans all N articles of a batch, so

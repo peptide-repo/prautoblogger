@@ -36,6 +36,10 @@ class PublisherTest extends BaseTestCase {
 
         Functions\when( 'sanitize_text_field' )->returnArg();
         Functions\when( 'wp_kses_post' )->returnArg();
+        // v0.18.1 empty-content guard strips tags before the emptiness check.
+        Functions\when( 'wp_strip_all_tags' )->alias( function ( $text ) {
+            return trim( strip_tags( (string) $text ) );
+        } );
         Functions\when( 'is_wp_error' )->justReturn( false );
         Functions\when( 'apply_filters' )->returnArg( 2 );
         Functions\when( 'absint' )->alias( function ( $val ) { return abs( (int) $val ); } );
@@ -294,5 +298,36 @@ class PublisherTest extends BaseTestCase {
 
         $publisher = new \PRAutoBlogger_Publisher();
         $publisher->publish( '<p>Content</p>', $this->idea, $this->review );
+    }
+
+    /**
+     * v0.18.1 belt-and-braces: save_as_draft() with empty content throws
+     * and never reaches wp_insert_post — no empty draft post can be
+     * created (the 2026-06-11 post-921 incident shape).
+     */
+    public function test_save_as_draft_refuses_empty_content(): void {
+        Functions\expect( 'wp_insert_post' )->never();
+
+        $publisher = new \PRAutoBlogger_Publisher();
+
+        $this->expectException( \RuntimeException::class );
+        $this->expectExceptionMessage( 'generated content is empty' );
+
+        $publisher->save_as_draft( '', $this->idea, $this->review, 'run_empty_draft' );
+    }
+
+    /**
+     * v0.18.1 belt-and-braces: publish() refuses content that is empty
+     * once tags and whitespace are stripped (an empty HTML shell).
+     */
+    public function test_publish_refuses_whitespace_only_html_content(): void {
+        Functions\expect( 'wp_insert_post' )->never();
+
+        $publisher = new \PRAutoBlogger_Publisher();
+
+        $this->expectException( \RuntimeException::class );
+        $this->expectExceptionMessage( 'generated content is empty' );
+
+        $publisher->publish( "<p> \n\t </p>", $this->idea, $this->review );
     }
 }

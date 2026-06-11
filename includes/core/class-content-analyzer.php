@@ -78,6 +78,7 @@ class PRAutoBlogger_Content_Analyzer {
 				'temperature'     => 0.5,
 				'max_tokens'      => 8000,
 				'response_format' => array( 'type' => 'json_object' ),
+				'stage'           => 'analysis',
 			)
 		);
 

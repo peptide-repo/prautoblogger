@@ -5,6 +5,53 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.18.1] - 2026-06-11
+
+Empty-draft hotfix (CTO diagnosis: convo thread `2026-06-pipeline-v2-phase1` seq 12; prod run
+`acf24029`, draft post 921). A true reasoning model at a high reasoning effort could spend the
+entire `max_tokens` completion budget on thinking, return zero visible content with
+`finish_reason=length`, and the empty article flowed writer → editor (reject: "draft text is
+missing") → empty draft post in the Review Queue, with the cost booked as `success`.
+
+### Fixed
+- **Empty-completion guard at the call seam** (`PRAutoBlogger_OpenRouter_Completion_Guard`):
+  a chat completion whose visible content is empty/whitespace is now a **failure**, never a
+  success. When the empty result co-occurs with `finish_reason=length` or an active reasoning
+  request, the call is retried **once** with reasoning disabled (per-call `reasoning`
+  override) before the stage fails. Failed/retried attempts land in `generation_log` with
+  `response_status='error'`, the failure note, and the real token burn; inside a v0.18.0 run a
+  `run_decisions` row records the verdict (`retry_reasoning_disabled` /
+  `failed_empty_completion`).
+- **Writer-path guard**: a writing stage (outline/draft/polish/single-pass) whose output is
+  empty throws instead of passing an empty article to the editor (belt over the seam guard,
+  covers any future non-OpenRouter provider).
+- **Publisher belt-and-braces**: `Publisher::create_post()` refuses to create any post —
+  publish or draft — whose content is empty after tag stripping. No empty draft post can ever
+  be created again.
+- `finish_reason=length` is now always warning-logged with model, stage, and
+  prompt/completion/reasoning token counts (previously silent — the truncated `llm_research`
+  call in the incident run was invisible).
+
+### Added
+- **Reasoning token cap + completion headroom**: when a request enables reasoning, the
+  thinking budget is capped via OpenRouter's `reasoning.max_tokens` and the request's
+  `max_tokens` is **raised** by the same amount, so no reasoning effort (incl. `xhigh`) can
+  consume the visible-content budget. New setting `prautoblogger_reasoning_max_tokens`
+  (Settings → AI Models, default `PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS` = 2048; 0
+  restores the previous uncapped effort mode). When the cap is active it replaces `effort`
+  (OpenRouter treats them as alternative budget controls); the `xhigh`/`high` effort options
+  stay available but are bounded by default. Cost-governor reservations use the effective
+  (raised) ceiling.
+- LLM call sites now pass their pipeline stage to the provider (`stage` option, never sent
+  upstream) so guard warnings and failure rows are attributable: `analysis`, `review`,
+  `llm_research`, `image_prompt_rewrite`, `opik_eval_judge`, and the writer stages (which
+  also pass `prompt_key`).
+
+### Notes
+- `OpenRouter_Provider::send_chat_completion()` body assembly moved to
+  `OpenRouter_Request_Builder::build_body()` (300-line cap; behavior unchanged apart from the
+  reasoning budget above).
+
 ## [0.18.0] - 2026-06-12
 
 Pipeline v2 — Phase 1 substrate (plan of record: CPO thread

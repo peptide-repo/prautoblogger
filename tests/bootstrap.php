@@ -28,6 +28,9 @@ if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD' ) ) {
 if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS' ) ) {
     define( 'PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS', 14 );
 }
+if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS' ) ) {
+    define( 'PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS', 2048 );
+}
 
 // WordPress time constants used by CostTracker and ContentAnalyzer.
 if ( ! defined( 'DAY_IN_SECONDS' ) ) {

@@ -200,6 +200,7 @@ PROMPT;
 				array(
 					'temperature' => 0.7,
 					'max_tokens'  => self::REWRITER_MAX_TOKENS,
+					'stage'       => 'image_prompt_rewrite',
 				)
 			);
 

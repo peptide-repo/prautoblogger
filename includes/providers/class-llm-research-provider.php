@@ -70,6 +70,7 @@ class PRAutoBlogger_LLM_Research_Provider implements PRAutoBlogger_Source_Provid
 				'temperature'     => 0.7,
 				'max_tokens'      => 8000,
 				'response_format' => array( 'type' => 'json_object' ),
+				'stage'           => 'llm_research',
 			)
 		);
 
