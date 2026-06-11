@@ -237,7 +237,8 @@ class ImageComposerTest extends BaseTestCase {
 
 	/**
 	 * A cached probe with a matching environment fingerprint is reused —
-	 * no re-probe, no option write.
+	 * no re-probe, no option write. (update_option calls are captured via a
+	 * when() alias: an expect() here would be shadowed by the setUp stub.)
 	 */
 	public function test_matching_capability_cache_skips_probe_write(): void {
 		$fingerprint = md5(
@@ -251,7 +252,13 @@ class ImageComposerTest extends BaseTestCase {
 				],
 			]
 		);
-		Functions\expect( 'update_option' )->never();
+		$writes = [];
+		Functions\when( 'update_option' )->alias(
+			function ( $key, $value = null, $autoload = null ) use ( &$writes ) {
+				$writes[] = $key;
+				return true;
+			}
+		);
 
 		$composer = new \PRAutoBlogger_Image_Composer(
 			$this->createMock( \PRAutoBlogger_Image_Composer_Imagick::class )
@@ -259,11 +266,13 @@ class ImageComposerTest extends BaseTestCase {
 		$variants = $composer->compose( $this->image_data, $this->context() );
 
 		$this->assertSame( 'featured', $variants[0]['role'] );
+		$this->assertSame( [], $writes, 'A matching cache fingerprint must not trigger a probe rewrite.' );
 	}
 
 	/**
 	 * A stale fingerprint (host changed) triggers a fresh probe and a cache
-	 * rewrite — the auto-invalidation the spec requires.
+	 * rewrite — the auto-invalidation the spec requires. (Captured via a
+	 * when() alias: an expect() here would be shadowed by the setUp stub.)
 	 */
 	public function test_stale_capability_cache_reprobes_and_rewrites(): void {
 		$this->stub_get_option(
@@ -274,20 +283,13 @@ class ImageComposerTest extends BaseTestCase {
 				],
 			]
 		);
-		Functions\expect( 'update_option' )
-			->once()
-			->with(
-				\PRAutoBlogger_Image_Composer::OPTION_CAPABILITY,
-				\Mockery::on(
-					static function ( $value ): bool {
-						return is_array( $value )
-							&& isset( $value['fingerprint'], $value['capability'] )
-							&& 'old-host-fingerprint' !== $value['fingerprint'];
-					}
-				),
-				false
-			)
-			->andReturn( true );
+		$writes = [];
+		Functions\when( 'update_option' )->alias(
+			function ( $key, $value = null, $autoload = null ) use ( &$writes ) {
+				$writes[] = [ $key, $value, $autoload ];
+				return true;
+			}
+		);
 
 		$composer = new \PRAutoBlogger_Image_Composer(
 			$this->createMock( \PRAutoBlogger_Image_Composer_Imagick::class )
@@ -295,6 +297,12 @@ class ImageComposerTest extends BaseTestCase {
 		$variants = $composer->compose( $this->image_data, $this->context() );
 
 		$this->assertSame( 'featured', $variants[0]['role'] );
+		$this->assertCount( 1, $writes, 'A stale fingerprint must rewrite the capability cache.' );
+		$this->assertSame( \PRAutoBlogger_Image_Composer::OPTION_CAPABILITY, $writes[0][0] );
+		$this->assertIsArray( $writes[0][1] );
+		$this->assertArrayHasKey( 'capability', $writes[0][1] );
+		$this->assertNotSame( 'old-host-fingerprint', $writes[0][1]['fingerprint'] ?? '' );
+		$this->assertFalse( $writes[0][2], 'Capability cache must not autoload.' );
 	}
 
 	/**

@@ -176,7 +176,7 @@ class PRAutoBlogger_Image_Composer implements PRAutoBlogger_Image_Composer_Inter
 		);
 
 		$cached = get_option( self::OPTION_CAPABILITY, array() );
-		if ( is_array( $cached ) && $fingerprint === ( $cached['fingerprint'] ?? '' ) && isset( $cached['capability'] ) ) {
+		if ( is_array( $cached ) && ( $cached['fingerprint'] ?? '' ) === $fingerprint && isset( $cached['capability'] ) ) {
 			$capability = (string) $cached['capability'];
 		} else {
 			$capability = $this->probe_capability();
