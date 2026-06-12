@@ -1,76 +1,203 @@
 <?php
 /**
- * Tests for Article Dossier admin page menu registration.
+ * Tests for Dossier admin page menu registration — structural invariants.
  *
- * Regression guard for the menu-ordering rule (v0.19.1 lesson):
- * any submenu registered BEFORE add_menu_page fires will resolve under the
- * fallback hookname `admin_page_*` instead of `prautoblogger_page_*`, causing
- * a wp_die 404 at request time.
+ * Covers: parent slug (options.php), $submenu non-mutation, page slug constant,
+ * asset enqueue gate prefix, deep-link URL shape, and hook priority ordering.
  *
- * The dossier page uses a hidden-submenu pattern (removed from $submenu after
- * registration) at priority 12 -- after board (11) and parent (10).
+ * Request-time hookname faithfulness tests live in DossierHooknameMechanismTest.
+ *
+ * @see DossierHooknameMechanismTest -- request-time discriminator + regression proof.
+ * @see ARCHITECTURE.md             -- §22b (hidden admin page convention).
+ * @see CONVENTIONS.md              -- §Hidden Admin Pages.
  *
  * @package PRAutoBlogger\Tests\Admin
  */
 
 namespace PRAutoBlogger\Tests\Admin;
 
-use PRAutoBlogger\Tests\BaseTestCase;
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 
-class DossierMenuRegistrationTest extends BaseTestCase {
+class DossierMenuRegistrationTest extends DossierMenuRegistrationTestCase {
 
-	/** @var array<int, string> Call sequence spy. */
-	private array $call_sequence = [];
+	// =========================================================================
+	// § STRUCTURAL INVARIANTS
+	// =========================================================================
 
-	protected function setUp(): void {
-		parent::setUp();
-		$this->call_sequence = [];
+	/**
+	 * Parent slug must be PARENT_SLUG constant ('options.php').
+	 *
+	 * FAILS on v0.19.2 (parent was 'prautoblogger-settings').
+	 * PASSES after v0.19.3 fix (parent is 'options.php').
+	 */
+	public function test_dossier_parent_slug_is_options_php(): void {
+		$dossier_page = new \PRAutoBlogger_Dossier_Page();
+		$dossier_page->on_register_menu();
 
-		Functions\when( 'add_menu_page' )->alias(
-			function () {
-				$this->call_sequence[] = 'add_menu_page';
-				return 'prautoblogger-settings';
-			}
+		$this->assertSame(
+			'options.php',
+			$this->captured_parent_slug,
+			'Dossier must use options.php as parent (canonical hidden-page pattern). '
+			. 'Never use a plugin-owned parent with post-registration $submenu unset -- '
+			. 'that is the v0.19.2 403 bug class. See CONVENTIONS.md §Hidden Admin Pages.'
 		);
-		Functions\when( 'add_submenu_page' )->alias(
-			function ( string $parent_slug, string $page_title, string $menu_title, string $capability, string $menu_slug ) {
-				$this->call_sequence[] = 'add_submenu_page:' . $menu_slug;
-				return 'prautoblogger_page_' . $menu_slug;
-			}
+
+		$this->assertSame(
+			\PRAutoBlogger_Dossier_Page::PARENT_SLUG,
+			$this->captured_parent_slug,
+			'Captured parent slug must match PARENT_SLUG constant.'
 		);
-
-		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'get_option' )->justReturn( false );
-		Functions\when( 'admin_url' )->alias( function ( $path = '' ) {
-			return 'https://example.com/wp-admin/' . ltrim( $path, '/' );
-		} );
-
-		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- test isolation.
-		$GLOBALS['submenu'] = array();
-	}
-
-	protected function tearDown(): void {
-		$this->call_sequence = [];
-		unset( $GLOBALS['submenu'] );
-		parent::tearDown();
 	}
 
 	/**
-	 * Dossier on_register_menu must be hooked at priority > board (11).
-	 * Mirrors the bindings in register_admin_hooks():
-	 *   parent at 10, board at 11, dossier at 12.
+	 * No $submenu mutation after registration.
 	 *
-	 * FAILS if dossier drops to priority ≤ 11 (same as or before board).
-	 * FAILS if dossier drops to priority ≤ 10 (same as or before parent).
+	 * options.php-parent pages are hidden by construction; the slug must remain
+	 * in $submenu so get_admin_page_parent() can resolve the parent at request time.
+	 *
+	 * FAILS on v0.19.2 (slug was unset from $submenu after registration).
+	 * PASSES after v0.19.3 fix (no mutation).
 	 */
-	public function test_dossier_hook_registered_after_board(): void {
+	public function test_no_submenu_mutation_after_registration(): void {
+		$dossier_page = new \PRAutoBlogger_Dossier_Page();
+		$dossier_page->on_register_menu();
+
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- test read.
+		global $submenu;
+
+		// The dossier slug must still be present somewhere in $submenu.
+		$slug_found = false;
+		foreach ( $submenu as $parent => $items ) {
+			foreach ( $items as $item ) {
+				if ( isset( $item[2] ) && \PRAutoBlogger_Dossier_Page::PAGE_SLUG === $item[2] ) {
+					$slug_found = true;
+					break 2;
+				}
+			}
+		}
+
+		$this->assertTrue(
+			$slug_found,
+			'Dossier slug must remain in $submenu after on_register_menu() completes. '
+			. 'Unsetting it causes get_admin_page_parent() to fail at request time and '
+			. 'produces the admin_page_* orphan hookname -- the v0.19.2 403 bug class. '
+			. 'options.php-parent pages are hidden by construction; no mutation needed.'
+		);
+	}
+
+	/**
+	 * Page slug must be PAGE_SLUG constant ('prautoblogger-dossier').
+	 */
+	public function test_dossier_uses_correct_slug(): void {
+		$dossier_page = new \PRAutoBlogger_Dossier_Page();
+		$dossier_page->on_register_menu();
+
+		$this->assertSame(
+			\PRAutoBlogger_Dossier_Page::PAGE_SLUG,
+			$this->captured_menu_slug,
+			'Dossier must register under PAGE_SLUG.'
+		);
+	}
+
+	/**
+	 * Asset enqueue gate must use 'admin_page_' prefix (not 'prautoblogger_page_').
+	 *
+	 * options.php-parent pages always resolve to 'admin_page_{slug}'.
+	 * FAILS on v0.19.2 (gate checked 'prautoblogger_page_prautoblogger-dossier').
+	 * PASSES after v0.19.3 fix (gate checks 'admin_page_prautoblogger-dossier').
+	 */
+	public function test_asset_enqueue_gate_uses_admin_page_prefix(): void {
+		Functions\when( 'wp_enqueue_style' )->justReturn( null );
+		Functions\when( 'wp_enqueue_script' )->justReturn( null );
+
+		$dossier_page = new \PRAutoBlogger_Dossier_Page();
+
+		$expected_hook = 'admin_page_' . \PRAutoBlogger_Dossier_Page::PAGE_SLUG;
+
+		// Wrong hook -- assets must NOT enqueue.
+		$enqueued = false;
+		Functions\when( 'wp_enqueue_style' )->alias( function () use ( &$enqueued ) {
+			$enqueued = true;
+		} );
+
+		$dossier_page->on_enqueue_assets( 'wrong_hook_prautoblogger_page_' . \PRAutoBlogger_Dossier_Page::PAGE_SLUG );
+		$this->assertFalse(
+			$enqueued,
+			'Assets must NOT enqueue when hook_suffix is the old prautoblogger_page_* hook.'
+		);
+
+		// Correct hook -- assets must enqueue.
+		$dossier_page->on_enqueue_assets( $expected_hook );
+		$this->assertTrue(
+			$enqueued,
+			sprintf(
+				'Assets must enqueue when hook_suffix is "%s" (admin_page_* from options.php parent).',
+				$expected_hook
+			)
+		);
+	}
+
+	// =========================================================================
+	// § DEEP-LINK URL INVARIANCE
+	// =========================================================================
+
+	/**
+	 * url_for_post() must produce admin.php?page=prautoblogger-dossier&post_id=N.
+	 *
+	 * Deep-link URLs are parent-agnostic -- they reference only the page slug.
+	 * The fix changes only the registration parent; the URL shape is unchanged.
+	 */
+	public function test_url_for_post_contains_slug_and_post_id(): void {
+		$url = \PRAutoBlogger_Dossier_Page::url_for_post( 42 );
+
+		$this->assertStringContainsString(
+			\PRAutoBlogger_Dossier_Page::PAGE_SLUG,
+			$url,
+			'url_for_post() must contain the dossier page slug.'
+		);
+		$this->assertStringContainsString(
+			'42',
+			$url,
+			'url_for_post() must contain the post_id.'
+		);
+		$this->assertStringContainsString(
+			'admin.php',
+			$url,
+			'url_for_post() must use admin.php (parent-agnostic deep-link).'
+		);
+	}
+
+	/**
+	 * url_for_post() URL shape is unchanged from v0.19.2.
+	 *
+	 * Confirms the exact URL format that board cards and the metabox link depend on.
+	 */
+	public function test_url_for_post_exact_shape(): void {
+		$url = \PRAutoBlogger_Dossier_Page::url_for_post( 930 );
+
+		// Must contain admin.php?page=prautoblogger-dossier&post_id=930
+		// (or equivalent query string order -- admin_url may vary order).
+		$this->assertStringContainsString( 'page=prautoblogger-dossier', $url );
+		$this->assertStringContainsString( 'post_id=930', $url );
+	}
+
+	// =========================================================================
+	// § HOOK REGISTRATION ORDERING (priority guard)
+	// =========================================================================
+
+	/**
+	 * Dossier on_register_menu must remain at priority 12 (after board 11, parent 10).
+	 *
+	 * The options.php-parent fix removes the dependency on ordering relative to the
+	 * plugin's own parent menu (since we no longer add a submenu under it), but we
+	 * keep the priority assertion to prevent accidental priority regression.
+	 */
+	public function test_dossier_hook_registered_at_priority_12(): void {
 		$admin_page   = new \PRAutoBlogger_Admin_Page();
 		$board_page   = new \PRAutoBlogger_Board_Page();
 		$dossier_page = new \PRAutoBlogger_Dossier_Page();
 
-		// Mirror class-prautoblogger.php register_admin_hooks() priorities.
 		add_action( 'admin_menu', array( $admin_page,   'on_register_menu' ), 10 );
 		add_action( 'admin_menu', array( $board_page,   'on_register_menu' ), 11 );
 		add_action( 'admin_menu', array( $dossier_page, 'on_register_menu' ), 12 );
@@ -94,56 +221,15 @@ class DossierMenuRegistrationTest extends BaseTestCase {
 			if ( false !== strpos( $cb, 'PRAutoBlogger_Dossier_Page' ) ) { $dossier_priority = $priority; }
 		}
 
-		$this->assertGreaterThan( $parent_priority, $board_priority,
-			'Board priority must exceed parent priority.' );
-		$this->assertGreaterThan( $board_priority, $dossier_priority,
-			'Dossier priority must exceed board priority to ensure hookname resolves correctly.' );
-	}
-
-	/**
-	 * Dossier submenu slug must be 'prautoblogger-dossier'.
-	 */
-	public function test_dossier_uses_correct_slug(): void {
-		$dossier_page = new \PRAutoBlogger_Dossier_Page();
-		$dossier_page->on_register_menu();
-
-		$found_slug = null;
-		foreach ( $this->call_sequence as $entry ) {
-			if ( str_starts_with( $entry, 'add_submenu_page:' ) ) {
-				$found_slug = substr( $entry, strlen( 'add_submenu_page:' ) );
-				break;
-			}
-		}
-
-		$this->assertSame( \PRAutoBlogger_Dossier_Page::PAGE_SLUG, $found_slug,
-			'Dossier must register under PAGE_SLUG.' );
-	}
-
-	/**
-	 * Dossier submenu parent must be 'prautoblogger-settings'.
-	 */
-	public function test_dossier_parent_slug_is_settings(): void {
-		$captured_parent = null;
-		Functions\when( 'add_submenu_page' )->alias(
-			function ( string $parent_slug ) use ( &$captured_parent ) {
-				$captured_parent = $parent_slug;
-				return null;
-			}
+		$this->assertGreaterThan(
+			$parent_priority,
+			$board_priority,
+			'Board priority must exceed parent priority.'
 		);
-
-		$dossier_page = new \PRAutoBlogger_Dossier_Page();
-		$dossier_page->on_register_menu();
-
-		$this->assertSame( 'prautoblogger-settings', $captured_parent,
-			'Dossier must use prautoblogger-settings as parent.' );
-	}
-
-	/**
-	 * url_for_post() returns a URL containing the dossier slug and post_id.
-	 */
-	public function test_url_for_post_contains_slug_and_post_id(): void {
-		$url = \PRAutoBlogger_Dossier_Page::url_for_post( 42 );
-		$this->assertStringContainsString( \PRAutoBlogger_Dossier_Page::PAGE_SLUG, $url );
-		$this->assertStringContainsString( '42', $url );
+		$this->assertGreaterThan(
+			$board_priority,
+			$dossier_priority,
+			'Dossier priority must exceed board priority.'
+		);
 	}
 }

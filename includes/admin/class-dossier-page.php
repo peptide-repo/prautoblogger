@@ -6,10 +6,25 @@ declare(strict_types=1);
  *
  * Registers and renders the Article Dossier admin page (M2).
  *
- * The dossier is link-accessed -- it is NOT a visible submenu item. It registers
- * as a hidden submenu under 'prautoblogger-settings' at admin_menu priority 12
- * (after board at 11) so WordPress resolves the hookname correctly. Board cards and
- * post list columns deep-link here via ?page=prautoblogger-dossier&post_id=X.
+ * The dossier is link-accessed -- it is NOT a visible submenu item. It uses
+ * the canonical hidden-admin-page pattern: register under parent 'options.php'
+ * so WordPress computes the hookname as `admin_page_prautoblogger-dossier` at
+ * BOTH registration time AND request time. The page is hidden from nav by
+ * construction (options.php is a built-in WP page with no visible submenu block)
+ * so no $submenu mutation is needed or permitted.
+ *
+ * Why NOT the hide-by-unset pattern (the v0.19.2 bug):
+ *   add_submenu_page('prautoblogger-settings', ...) → hookname 'prautoblogger_page_prautoblogger-dossier'
+ *   post-registration unset($submenu['prautoblogger-settings'][$idx])
+ *   → at request time get_admin_page_parent() no longer finds the slug in $submenu
+ *   → WP recomputes hookname in the 'admin_page_*' orphan namespace
+ *   → no callback registered there → wp_die(403).
+ * See ARCHITECTURE.md §22b + CONVENTIONS.md §Hidden Admin Pages for the full incident
+ * history (board 404 v0.19.1, dossier 403 v0.19.2).
+ *
+ * Board cards and post-metabox deep-link here via
+ * admin.php?page=prautoblogger-dossier&post_id=X. Deep-link URLs are parent-agnostic
+ * (they reference only the page slug) so they are unchanged by this fix.
  *
  * Design contract: Proposal C "Editorial Record" -- warm editorial dossier,
  * verdict pills, receipt-style cost sidebar, per-stage I/O with raw-trace toggle.
@@ -19,46 +34,44 @@ declare(strict_types=1);
  *
  * @see admin/class-dossier-data-assembler.php -- Builds the view model.
  * @see templates/admin/dossier-page.php       -- HTML template.
- * @see ARCHITECTURE.md                         -- §Dossier (M2).
+ * @see ARCHITECTURE.md                         -- §22b (hidden admin page convention).
+ * @see CONVENTIONS.md                          -- §Hidden Admin Pages.
  */
 class PRAutoBlogger_Dossier_Page {
 
 	/** Admin page slug. */
 	public const PAGE_SLUG = 'prautoblogger-dossier';
 
+	/**
+	 * Parent slug used at registration.
+	 * 'options.php' is the canonical WP hidden-page parent: the hookname resolves
+	 * to `admin_page_{slug}` at both registration time and request time, so there is
+	 * no hookname mismatch and no need to manipulate $submenu.
+	 */
+	public const PARENT_SLUG = 'options.php';
+
 	/** Nonce action for any future stateful actions. */
 	public const NONCE_ACTION = 'prautoblogger_dossier';
 
 	/**
-	 * Register the dossier as a hidden submenu page.
+	 * Register the dossier as a hidden admin page.
 	 *
-	 * Hidden = not visible in the menu, but reachable by URL.
-	 * Priority 12 ensures add_menu_page() (priority 10) has populated
-	 * $admin_page_hooks before this add_submenu_page() call. See ARCHITECTURE.md §Board.
+	 * Uses the canonical options.php-parent pattern so the hookname is stable at
+	 * both registration time and request time. No $submenu manipulation required
+	 * or permitted (see CONVENTIONS.md §Hidden Admin Pages).
 	 *
 	 * @return void
 	 */
 	public function on_register_menu(): void {
 		add_submenu_page(
-			'prautoblogger-settings',
+			self::PARENT_SLUG,
 			__( 'Article Dossier', 'prautoblogger' ),
 			__( 'Dossier', 'prautoblogger' ),
 			'manage_options',
 			self::PAGE_SLUG,
 			array( $this, 'render_page' )
 		);
-
-		// Remove from visible submenu so it doesn't clutter the nav.
-		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- intentional hidden-submenu pattern.
-		global $submenu;
-		if ( isset( $submenu['prautoblogger-settings'] ) ) {
-			foreach ( $submenu['prautoblogger-settings'] as $idx => $item ) {
-				if ( isset( $item[2] ) && self::PAGE_SLUG === $item[2] ) {
-					unset( $submenu['prautoblogger-settings'][ $idx ] );
-					break;
-				}
-			}
-		}
+		// No $submenu mutation. options.php-parent pages are hidden by construction.
 	}
 
 	/**
@@ -71,7 +84,7 @@ class PRAutoBlogger_Dossier_Page {
 			return;
 		}
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only dossier; no state changes.
-		$post_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
+		$post_id   = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
 		$assembler = new PRAutoBlogger_Dossier_Data_Assembler();
 		$dossier   = $assembler->assemble( $post_id );
 		include PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/dossier-page.php';
@@ -80,11 +93,14 @@ class PRAutoBlogger_Dossier_Page {
 	/**
 	 * Enqueue dossier-specific CSS + JS.
 	 *
+	 * The hook suffix for an options.php-parent page is `admin_page_{slug}`.
+	 *
 	 * @param string $hook_suffix Current admin page hook suffix.
 	 * @return void
 	 */
 	public function on_enqueue_assets( string $hook_suffix ): void {
-		$dossier_hook = 'prautoblogger_page_' . self::PAGE_SLUG;
+		// options.php-parent pages resolve to 'admin_page_{slug}' (not 'prautoblogger_page_*').
+		$dossier_hook = 'admin_page_' . self::PAGE_SLUG;
 		if ( $hook_suffix !== $dossier_hook ) {
 			return;
 		}
@@ -107,6 +123,9 @@ class PRAutoBlogger_Dossier_Page {
 
 	/**
 	 * Build the URL to the dossier for a given post.
+	 *
+	 * Deep-link URLs use admin.php?page=<slug> which is parent-agnostic.
+	 * This method is unchanged from v0.19.2 -- only the registration parent changed.
 	 *
 	 * @param int $post_id WordPress post ID.
 	 * @return string Admin URL to the dossier page.

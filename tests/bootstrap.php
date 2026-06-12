@@ -205,3 +205,16 @@ if ( ! class_exists( 'WP_Post' ) ) {
         }
     }
 }
+
+// Plugin URL and version constants used by admin enqueue methods.
+// Defined here so all tests that load admin classes can stub WP enqueue calls
+// without hitting "Undefined constant" errors.
+if ( ! defined( 'PRAUTOBLOGGER_PLUGIN_URL' ) ) {
+    define( 'PRAUTOBLOGGER_PLUGIN_URL', 'https://test.example.com/wp-content/plugins/prautoblogger/' );
+}
+if ( ! defined( 'PRAUTOBLOGGER_VERSION' ) ) {
+    define( 'PRAUTOBLOGGER_VERSION', '0.19.3-test' );
+}
+if ( ! defined( 'PRAUTOBLOGGER_PLUGIN_DIR' ) ) {
+    define( 'PRAUTOBLOGGER_PLUGIN_DIR', dirname( __DIR__ ) . '/' );
+}
