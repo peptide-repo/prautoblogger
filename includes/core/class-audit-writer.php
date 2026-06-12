@@ -125,6 +125,37 @@ class PRAutoBlogger_Audit_Writer {
 		}
 	}
 
+	/**
+	 * Flag the run_decisions rows of given stages as human-modified
+	 * (v0.20.0 / CPO guardrail 2). Used in two cases: the decision rows of
+	 * a stage whose edited input enters execution, and decisions recorded
+	 * during a re-run-from-here window on an item that carries a human
+	 * edit (derived-from-edited-content). Self-healing no-op when the
+	 * column/table is missing.
+	 *
+	 * @param string        $run_id Run UUID.
+	 * @param array<string> $stages Stage names to flag.
+	 * @param string|null   $since  Optional MySQL datetime — only flag rows created at/after it.
+	 * @return int Rows flagged.
+	 */
+	public static function flag_decisions_human_modified( string $run_id, array $stages, ?string $since = null ): int {
+		if ( '' === $run_id || empty( $stages ) || ! self::is_available() ) {
+			return 0;
+		}
+		global $wpdb;
+		$table        = $wpdb->prefix . 'prautoblogger_run_decisions';
+		$placeholders = implode( ',', array_fill( 0, count( $stages ), '%s' ) );
+		$sql          = "UPDATE {$table} SET human_modified = 1 WHERE run_id = %s AND stage IN ({$placeholders})";
+		$params       = array_merge( array( $run_id ), array_values( $stages ) );
+		if ( null !== $since ) {
+			$sql     .= ' AND created_at >= %s';
+			$params[] = $since;
+		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.NotPrepared -- $placeholders is a fixed %s list.
+		$updated = $wpdb->query( $wpdb->prepare( $sql, $params ) );
+		return is_numeric( $updated ) ? (int) $updated : 0;
+	}
+
 	/** Reset per-request caches (tests). */
 	public static function flush_cache(): void {
 		self::$tables_ok = null;

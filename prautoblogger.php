@@ -36,7 +36,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 | and limits without magic strings.
 */
 define( 'PRAUTOBLOGGER_VERSION', '0.19.4' );
-define( 'PRAUTOBLOGGER_DB_VERSION', '1.1.0' );
+define( 'PRAUTOBLOGGER_DB_VERSION', '1.3.0' );
 define( 'PRAUTOBLOGGER_PLUGIN_FILE', __FILE__ );
 define( 'PRAUTOBLOGGER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PRAUTOBLOGGER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

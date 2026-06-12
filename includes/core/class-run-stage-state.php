@@ -16,9 +16,17 @@ declare(strict_types=1);
  * roles (Phase-2 fan-out) are honoured as-is. get() falls back to role=''
  * on miss for mid-run-upgrade compat with v0.18.1 rows.
  *
+ * v0.20.0: write bodies extracted to PRAutoBlogger_Run_Stage_Writes (the
+ * M2 split pattern — this class was at the 300-line cap); the public API
+ * here is unchanged and delegates. Operator-action mutations (replay
+ * restart, stale marking, re-run demotion) live in
+ * PRAutoBlogger_Run_Stage_Rerun_State only.
+ *
+ * @see core/class-run-stage-writes.php      — Extracted write bodies.
+ * @see core/class-run-stage-rerun-state.php — M3 operator-action writes.
  * @see core/class-run-state.php  — Run-level lifecycle + ledger row.
  * @see core/class-run-reaper.php — Sweeps stages stuck in 'running'.
- * @see ARCHITECTURE.md #22       — Pipeline v2 Phase 1 substrate.
+ * @see ARCHITECTURE.md #22 / #24 — Substrate + edit/re-run design.
  */
 class PRAutoBlogger_Run_Stage_State {
 
@@ -73,6 +81,7 @@ class PRAutoBlogger_Run_Stage_State {
 
 	/**
 	 * Mark a stage as running. Sticky: done stages are never demoted.
+	 * Delegates to Run_Stage_Writes (v0.20.0 split — behavior unchanged).
 	 *
 	 * @param string $run_id     Run UUID.
 	 * @param string $stage      Stage name (see Stage_Display_Map).
@@ -80,35 +89,13 @@ class PRAutoBlogger_Run_Stage_State {
 	 * @param string $item_key   Article scope ('' for run-level stages).
 	 */
 	public static function start( string $run_id, string $stage, string $agent_role = '', string $item_key = '' ): void {
-		if ( '' === $run_id || ! self::is_available() ) {
-			return;
-		}
-		$agent_role = self::resolve_role( $stage, $agent_role );
-		global $wpdb;
-		$table = self::table_name();
-		$now   = current_time( 'mysql' );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$wpdb->query(
-			$wpdb->prepare(
-				"INSERT INTO {$table}
-				(run_id, stage, agent_role, item_key, status, attempt, started_at, updated_at)
-				VALUES (%s, %s, %s, %s, 'running', 1, %s, %s)
-				ON DUPLICATE KEY UPDATE
-					attempt = IF(status = 'done', attempt, attempt + 1),
-					status = IF(status = 'done', 'done', 'running'),
-					updated_at = VALUES(updated_at)",
-				$run_id,
-				$stage,
-				$agent_role,
-				$item_key,
-				$now,
-				$now
-			)
-		);
+		PRAutoBlogger_Run_Stage_Writes::start( $run_id, $stage, $agent_role, $item_key );
 	}
 
 	/**
 	 * Mark a stage done and persist its output for resume-without-recharge.
+	 * Delegates to Run_Stage_Writes (v0.20.0 split; fresh completion also
+	 * clears the `stale` flag there).
 	 *
 	 * @param string      $run_id     Run UUID.
 	 * @param string      $stage      Stage name.
@@ -118,41 +105,12 @@ class PRAutoBlogger_Run_Stage_State {
 	 * @param float       $cost_usd   Cost attributed to this stage.
 	 */
 	public static function done( string $run_id, string $stage, string $agent_role = '', string $item_key = '', ?string $output = null, float $cost_usd = 0.0 ): void {
-		if ( '' === $run_id || ! self::is_available() ) {
-			return;
-		}
-		$agent_role = self::resolve_role( $stage, $agent_role );
-		global $wpdb;
-		$table = self::table_name();
-		$now   = current_time( 'mysql' );
-		$meta  = null !== $output ? wp_json_encode( array( 'output' => $output ) ) : null;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$wpdb->query(
-			$wpdb->prepare(
-				"INSERT INTO {$table}
-				(run_id, stage, agent_role, item_key, status, attempt, cost_usd, meta_json, started_at, updated_at, finished_at)
-				VALUES (%s, %s, %s, %s, 'done', 1, %f, %s, %s, %s, %s)
-				ON DUPLICATE KEY UPDATE
-					status = 'done',
-					cost_usd = VALUES(cost_usd),
-					meta_json = VALUES(meta_json),
-					updated_at = VALUES(updated_at),
-					finished_at = VALUES(finished_at)",
-				$run_id,
-				$stage,
-				$agent_role,
-				$item_key,
-				$cost_usd,
-				$meta,
-				$now,
-				$now,
-				$now
-			)
-		);
+		PRAutoBlogger_Run_Stage_Writes::done( $run_id, $stage, $agent_role, $item_key, $output, $cost_usd );
 	}
 
 	/**
-	 * Mark a stage failed (does not demote a done stage).
+	 * Mark a stage failed (does not demote a done stage). Delegates to
+	 * Run_Stage_Writes (v0.20.0 split — behavior unchanged).
 	 *
 	 * @param string $run_id     Run UUID.
 	 * @param string $stage      Stage name.
@@ -160,26 +118,7 @@ class PRAutoBlogger_Run_Stage_State {
 	 * @param string $item_key   Article scope.
 	 */
 	public static function fail( string $run_id, string $stage, string $agent_role = '', string $item_key = '' ): void {
-		if ( '' === $run_id || ! self::is_available() ) {
-			return;
-		}
-		$agent_role = self::resolve_role( $stage, $agent_role );
-		global $wpdb;
-		$table = self::table_name();
-		$now   = current_time( 'mysql' );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$wpdb->query(
-			$wpdb->prepare(
-				"UPDATE {$table} SET status = 'failed', updated_at = %s, finished_at = %s
-				WHERE run_id = %s AND stage = %s AND agent_role = %s AND item_key = %s AND status != 'done'",
-				$now,
-				$now,
-				$run_id,
-				$stage,
-				$agent_role,
-				$item_key
-			)
-		);
+		PRAutoBlogger_Run_Stage_Writes::fail( $run_id, $stage, $agent_role, $item_key );
 	}
 
 	/**
@@ -196,7 +135,7 @@ class PRAutoBlogger_Run_Stage_State {
 		if ( '' === $run_id || ! self::is_available() ) {
 			return null;
 		}
-		$agent_role = self::resolve_role( $stage, $agent_role );
+		$agent_role = PRAutoBlogger_Run_Stage_Writes::resolve_role( $stage, $agent_role );
 		global $wpdb;
 		$table = self::table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -265,49 +204,42 @@ class PRAutoBlogger_Run_Stage_State {
 
 	/**
 	 * Fail every still-open stage of one item. Done stages are untouched.
+	 * Delegates to Run_Stage_Writes (v0.20.0 split — behavior unchanged).
 	 *
 	 * @param string $run_id   Run UUID.
 	 * @param string $item_key Stage item key ('' = run-level stages).
 	 */
 	public static function fail_open_for_item( string $run_id, string $item_key ): void {
+		PRAutoBlogger_Run_Stage_Writes::fail_open_for_item( $run_id, $item_key );
+	}
+
+	/**
+	 * All stage rows for one item of a run (plus run-level rows when
+	 * $include_run_level), ordered by id. Read API for the rerun engine
+	 * and the dossier's item-scoped assembly (v0.20.0).
+	 *
+	 * @param string $run_id            Run UUID.
+	 * @param string $item_key          Item key ('idea:<hash>').
+	 * @param bool   $include_run_level Include item_key='' rows too.
+	 * @return array<int, array<string, mixed>> Stage rows (ARRAY_A).
+	 */
+	public static function stages_for_item( string $run_id, string $item_key, bool $include_run_level = true ): array {
 		if ( '' === $run_id || ! self::is_available() ) {
-			return;
+			return array();
 		}
 		global $wpdb;
 		$table = self::table_name();
-		$now   = current_time( 'mysql' );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-		$wpdb->query(
-			$wpdb->prepare(
-				"UPDATE {$table} SET status = 'failed', updated_at = %s, finished_at = %s
-				WHERE run_id = %s AND item_key = %s AND status IN ('pending','running')",
-				$now,
-				$now,
-				$run_id,
-				$item_key
-			)
-		);
+		$sql   = $include_run_level
+			? "SELECT * FROM {$table} WHERE run_id = %s AND item_key IN (%s, '') ORDER BY id ASC"
+			: "SELECT * FROM {$table} WHERE run_id = %s AND item_key = %s ORDER BY id ASC";
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- assembled from two fixed literals above.
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $run_id, $item_key ), ARRAY_A );
+		return is_array( $rows ) ? $rows : array();
 	}
 
-	/** Reset per-request caches (tests). */
+	/** Reset per-request caches (tests). */	/** Reset per-request caches (tests). */
 	public static function flush_cache(): void {
 		self::$table_ok = null;
 	}
 
-	/**
-	 * Resolve the effective agent role for a stage.
-	 *
-	 * '' → derive from Stage_Display_Map (unknown stages map to '').
-	 * Non-empty → returned as-is (Phase-2 explicit fan-out role).
-	 *
-	 * @param string $stage      Stage name.
-	 * @param string $agent_role Caller-supplied role ('' = auto-resolve).
-	 * @return string Effective agent role.
-	 */
-	private static function resolve_role( string $stage, string $agent_role ): string {
-		if ( '' !== $agent_role ) {
-			return $agent_role;
-		}
-		return (string) PRAutoBlogger_Stage_Display_Map::default_agent_role( $stage );
-	}
 }

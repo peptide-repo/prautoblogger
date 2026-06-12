@@ -4,12 +4,14 @@ declare(strict_types=1);
 /**
  * phpcs:ignore WordPress.Files.FileName.InvalidClassFileName -- class naming convention differs from WordPress standard
  *
- * Creates / updates the Pipeline v2 substrate tables via `dbDelta` (db 1.2.0).
+ * Creates / updates the Pipeline v2 substrate tables via `dbDelta` (db 1.3.0).
  *
- * What: Owns the five v0.18.0 substrate tables — the versioned prompt
+ * What: Owns the six pipeline substrate tables — the versioned prompt
  *       registry (`prompts`), the audit child tables (`run_sources`,
  *       `run_decisions`), and the run ledger / state machine tables
- *       (`runs`, `run_stages`). Kept separate from the original
+ *       (`runs`, `run_stages`), and the immutable stage-input version
+ *       store (`stage_inputs`, v0.20.0 / db 1.3.0 — edit + re-run forks
+ *       and idea seeds). Kept separate from the original
  *       PRAutoBlogger_Schema_Installer so both classes stay under the
  *       300-line cap and the v1.1.0 schema remains byte-stable.
  * Who triggers it: PRAutoBlogger_Activator::activate() — on activation and
@@ -33,7 +35,7 @@ class PRAutoBlogger_Pipeline_Schema_Installer {
 	 * plugin's forward-only schema policy. Safe to re-run on every
 	 * version mismatch.
 	 *
-	 * Side effects: up to five CREATE TABLE / ALTER TABLE statements.
+	 * Side effects: up to six CREATE TABLE / ALTER TABLE statements.
 	 *
 	 * @return void
 	 */
@@ -91,6 +93,7 @@ class PRAutoBlogger_Pipeline_Schema_Installer {
 			verdict VARCHAR(50) NOT NULL,
 			rationale TEXT DEFAULT NULL,
 			citation_score FLOAT DEFAULT NULL,
+			human_modified TINYINT(1) NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL,
 			PRIMARY KEY (id),
 			KEY run_id (run_id)
@@ -130,6 +133,8 @@ class PRAutoBlogger_Pipeline_Schema_Installer {
 			attempt SMALLINT UNSIGNED NOT NULL DEFAULT 1,
 			cost_usd DECIMAL(10,6) NOT NULL DEFAULT 0,
 			meta_json LONGTEXT DEFAULT NULL,
+			human_modified TINYINT(1) NOT NULL DEFAULT 0,
+			stale TINYINT(1) NOT NULL DEFAULT 0,
 			started_at DATETIME NOT NULL,
 			updated_at DATETIME NOT NULL,
 			finished_at DATETIME DEFAULT NULL,
@@ -138,10 +143,37 @@ class PRAutoBlogger_Pipeline_Schema_Installer {
 			KEY status_updated (status, updated_at)
 		) {$charset_collate};";
 
+		// Immutable stage-input version store (v0.20.0 / db 1.3.0, M3
+		// edit + re-run). Rows are INSERT-only: a human edit creates the
+		// next (scope, version) row -- the original input (the
+		// generation_log.request_json of the executed call) is never
+		// overwritten (CPO guardrail 1). source='seed' rows persist the
+		// Article_Idea payload at worker start so re-run-from-here can
+		// reconstruct the exact idea (item_key hash stability); 'human'
+		// rows are edit forks. Human fork bodies are retention-pruned
+		// like all heavy payloads; seed rows (~1KB) are structural and
+		// kept for the life of the run.
+		$sql_stage_inputs = "CREATE TABLE {$prefix}stage_inputs (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			run_id VARCHAR(36) NOT NULL,
+			stage VARCHAR(50) NOT NULL DEFAULT '',
+			agent_role VARCHAR(50) NOT NULL DEFAULT '',
+			item_key VARCHAR(64) NOT NULL DEFAULT '',
+			version INT UNSIGNED NOT NULL DEFAULT 1,
+			source VARCHAR(20) NOT NULL DEFAULT 'human',
+			request_json LONGTEXT DEFAULT NULL,
+			author VARCHAR(100) NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL,
+			PRIMARY KEY (id),
+			UNIQUE KEY scope_version (run_id, stage, agent_role, item_key, version),
+			KEY run_id (run_id)
+		) {$charset_collate};";
+
 		dbDelta( $sql_prompts );
 		dbDelta( $sql_run_sources );
 		dbDelta( $sql_run_decisions );
 		dbDelta( $sql_runs );
 		dbDelta( $sql_run_stages );
+		dbDelta( $sql_stage_inputs );
 	}
 }

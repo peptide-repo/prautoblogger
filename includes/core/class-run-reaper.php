@@ -16,8 +16,9 @@ declare(strict_types=1);
  *          ledger/state activity for 2× the expected run wall-clock are
  *          marked `failed` and their non-done stages reaped to `failed`;
  *          such runs render as "incomplete" via incomplete_runs().
- *       3. Retention — `request_json` on generation_log and stage output
+ *       3. Retention — `request_json` on generation_log, stage output
  *          payloads (`meta_json` on run_stages) are NULLed after R days;
+ *          payloads, and stage_inputs human-fork bodies (v0.20.0);
  *          R comes from the `prautoblogger_request_json_retention_days`
  *          SETTING (default constant 14; 0 = keep forever) — never a
  *          literal at the point of use.
@@ -264,6 +265,11 @@ class PRAutoBlogger_Run_Reaper {
 			);
 			$pruned += is_numeric( $result ) ? (int) $result : 0;
 		}
+
+		// v0.20.0: human edit-fork bodies ride the same retention (seed
+		// rows are kept — structural, ~1KB). A pruned fork can no longer
+		// be replayed; the dossier explains that state honestly.
+		$pruned += PRAutoBlogger_Stage_Input_Store::prune_human_bodies( $cutoff );
 
 		return $pruned;
 	}
