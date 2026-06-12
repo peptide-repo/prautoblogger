@@ -21,12 +21,17 @@ Four confirmed-live maintenance fixes (CTO thread `2026-06-pipeline-v2-phase1` s
   HTTP status parsed from the exception message, and the first 200 chars of the error body —
   so a 27-day outage like the seq-22 llm_research 404 incident is diagnosable after the fact.
   No behaviour change; logging only.
-- **`run_stages.agent_role` back-write (P3)**: `Pipeline_Runner`, `Article_Worker`, and
-  `Content_Generator` were calling `Run_Stage_State::start()` with `agent_role = ''`. All four
-  stage-start call sites now pass `Stage_Display_Map::default_agent_role( $stage )` so the run
-  timeline is self-describing. Role is written at INSERT only (the `start()` call); the
-  `ON DUPLICATE KEY UPDATE` path does not include `agent_role`, preserving the
-  `run_id+stage+agent_role+item_key` idempotency-key semantics on resume.
+- **`run_stages.agent_role` symmetric write (P3)**: `Pipeline_Runner`, `Article_Worker`, and
+  `Content_Generator` were calling `start()` with the mapped role but leaving `done()`,
+  `is_done()`, and `get_output()` with `agent_role = ''`. With `agent_role` in the UNIQUE key,
+  the mismatch addressed different rows — stranding `start()` rows in `running` forever and
+  breaking idempotent resume (duplicate-post vector). Fixed via an in-class seam in
+  `Run_Stage_State::resolve_role()`: when the caller passes `''`, the role is derived from
+  `Stage_Display_Map::default_agent_role($stage)` before any DB query, ensuring every method
+  addresses the same row. Explicit non-empty roles (Phase-2 fan-out) are passed through
+  unchanged. `get()` falls back to `role=''` on miss for mid-run-upgrade compat with v0.18.1
+  rows. Two new `RunStageStateTest` cases lock the symmetric-role and fallback contracts.
+  ARCHITECTURE.md §22 updated to document Phase 1 role population.
 - **Runware float deprecation (P3)**: `normalize_seed()` in `class-runware-image-support.php`
   applied the modulo operator to a float (`microtime(true) * 1000`), triggering
   `Deprecated: Implicit conversion from float … to int` on every image generation. Fixed

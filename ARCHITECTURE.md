@@ -536,7 +536,7 @@ dropped on uninstall.
 | id          | BIGINT UNSIGNED | Auto-increment PK                                  |
 | run_id      | VARCHAR(36)     | Pipeline run UUID                                  |
 | stage       | VARCHAR(50)     | Stage name (see stage vocabulary)                  |
-| agent_role  | VARCHAR(50)     | Fan-out dimension for Phase-2 quorum ('' default)  |
+| agent_role  | VARCHAR(50)     | Fan-out dimension. Populated in Phase 1 from `Stage_Display_Map::default_agent_role()` (e.g. 'writer', 'editor', 'publisher'). Phase-2 quorum passes multiple roles for the same stage. |
 | item_key    | VARCHAR(64)     | Scopes article-level stages within multi-article runs ('' for run-level) |
 | status      | VARCHAR(20)     | pending / running / done / failed / halted         |
 | attempt     | SMALLINT UNSIGNED | Re-entry counter                                 |
@@ -831,8 +831,9 @@ multi-step publish paths. Four subsystems:
    keyed by `_prautoblogger_run_id` + `_prautoblogger_idea_hash` (check-before-insert) so a
    retried run cannot duplicate a post. `PRAutoBlogger_Run_Reaper` (same daily cron as #19)
    marks runs stuck `running` > 2× expected stage wall-clock as `failed`; such runs render
-   as **"incomplete"** in audit queries. Quorum logic itself is Phase 2 — the schema just
-   reserves its dimensions.
+   as **"incomplete"** in audit queries. Quorum logic (multiple roles per stage) itself is Phase 2. In Phase 1,
+   `agent_role` is populated on every row from `Stage_Display_Map::default_agent_role()`
+   so the run timeline is self-describing and the idempotency key is fully populated.
 
 ### #20: PHPUnit test infrastructure + WordPress-Core PHPCS compliance (v0.10.1)
 
