@@ -42,6 +42,11 @@ define( 'PRAUTOBLOGGER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PRAUTOBLOGGER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'PRAUTOBLOGGER_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 // API and retry limits — named constants instead of magic numbers.
+// SAFETY INVARIANT: API_TIMEOUT_SECONDS × MAX_RETRIES must stay < STATUS_TTL (600s,
+// defined in PRAutoBlogger_Generation_Status_Poller). The current product
+// (180s × 3 = 540s) leaves a 60s margin. If either constant is raised, verify the
+// inequality still holds — otherwise a fully-retrying LLM call can exhaust the
+// status transient TTL within a single stage and trigger a false orphan-run abort.
 define( 'PRAUTOBLOGGER_MAX_RETRIES', 3 );
 // Pipeline v2 Phase 1 (v0.18.0) defaults. Both are SETTINGS-backed at every
 // read site (prautoblogger_per_run_cost_ceiling_usd /
