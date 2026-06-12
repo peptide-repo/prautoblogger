@@ -954,41 +954,7 @@ swap with no user-visible change in article quality.
   run_id-based log linking, RuntimeException on WP_Error, action/filter
   hook firing. Replaces previous method-existence-only checks.
 
-## [0.2.1] — 2026-04-12
 
-### Changed
-- **Reddit data source switched to RSS primary, .json fallback.**
-  PullPush.io was frequently stale/unavailable. Reddit RSS/Atom feeds work
-  reliably from datacenter IPs (Hostinger) where .json gets 403. Comments
-  are still fetched via .json (unavailable in RSS).
-- Updated "Enabled Sources" checkbox label to "Reddit (RSS + .json)".
-- Updated "Test Connections" to show RSS + .json status.
-- Source status indicator now shows Reddit RSS (Primary) and .json (Fallback).
-
-### Removed
-- `class-pull-push-client.php` — replaced by RSS feeds in `class-reddit-json-client.php`.
-- All PullPush.io references from admin UI, docs, and provider code.
-
-### Fixed
-- Generate Now button now always sends `force: '1'` to clear stale generation locks.
-- Fixed encryption double-encryption bug with `enc:` prefix detection.
-
-## [0.2.0] — 2026-04-12
-
-### Changed
-- **Reddit data source migrated from OAuth to RSS + .json (no auth required).**
-  Reddit rejected our API application; RSS feeds and .json endpoints are free
-  and require no authentication.
-- Removed Reddit Client ID and Client Secret fields from admin API Keys tab.
-- Updated "Test Connections" results to show Reddit source status.
-
-### Added
-- Source status indicator in API Keys tab showing RSS and .json
-  availability with live status dots and last-collection timestamp.
-- Configurable research cache TTL (1–72 hours) in Sources tab.
-- Reddit time window selector (24h / week / month) in Sources tab.
-- Posts-per-subreddit limit (5–100) in Sources tab.
-- LiteSpeed cache purge step in CI/CD deploy pipeline.
 ## [0.2.1] — 2026-04-12
 
 ### Changed
