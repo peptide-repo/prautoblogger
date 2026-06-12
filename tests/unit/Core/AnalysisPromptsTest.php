@@ -24,6 +24,8 @@ class AnalysisPromptsTest extends BaseTestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		$this->wpdb         = $this->create_mock_wpdb();
+		// Analysis prompts uses $wpdb->posts (JOIN {->posts}) and prefix.
+		$this->wpdb->posts  = 'wp_posts';
 		$GLOBALS['wpdb']    = $this->wpdb;
 	}
 
