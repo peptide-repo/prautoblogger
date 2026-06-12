@@ -38,6 +38,10 @@ class PRAutoBlogger_Image_Composer_Layout {
 	 * plugin; sizes are px. Values were tuned against rendered samples (see
 	 * PR #thread 2026-06-image-composer assets).
 	 *
+	 * Note: 'caption_margin_right' (og) and 'caption_side_padding' (square) were removed
+	 * in v0.19.4 — the Imagick renderer enforces right-edge geometry via caption_chars_per_line
+	 * and centered x positioning respectively, so those keys had no consumer.
+	 *
 	 * @return array<string, array<string, mixed>> Keyed by role: featured, og, square.
 	 */
 	public static function defaults(): array {
@@ -60,7 +64,6 @@ class PRAutoBlogger_Image_Composer_Layout {
 				'caption_size'          => 32,
 				'caption_color'         => '#FFFFFF',
 				'caption_gap'           => 24,
-				'caption_margin_right'  => 40,
 				'caption_max_lines'     => 2,
 				'caption_chars_per_line' => 52,
 				'caption_line_height'   => 1.3,
@@ -79,7 +82,6 @@ class PRAutoBlogger_Image_Composer_Layout {
 				'caption_color'         => self::COLOR_INK,
 				'caption_max_lines'     => 3,
 				'caption_chars_per_line' => 36,
-				'caption_side_padding'  => 64,
 				'caption_line_height'   => 1.3,
 			),
 		);

@@ -5,6 +5,41 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.19.4] - 2026-06-12
+
+### Added
+- **GD-rung unit tests.** New `ImageComposerEditorTest.php` (7 tests) covering
+  `PRAutoBlogger_Image_Composer_Editor`: `wp_get_image_editor` WP_Error, resize WP_Error,
+  upscale-guard size mismatch, save WP_Error, zero-width target geometry guard, missing-role
+  guard, and successful OG resize happy path. Orchestrator ladder test
+  `test_gd_rung_emits_passthrough_featured_and_single_warning` added to `ImageComposerTest.php`,
+  asserting the Imagick renderer is never called on the `gd` rung and pass-through featured is
+  always first.
+  (Source: QA verdict `Peptide Repo CTO/qa-reviews/prautoblogger/2026-06-11-6f76df1.md` P2-1.)
+
+### Fixed
+- **Dead layout keys removed.** `caption_margin_right` (og) and `caption_side_padding` (square)
+  were defined in `Layout::defaults()` and exposed via the `prautoblogger_image_compose_layout`
+  filter but never consumed by the Imagick renderer. The og renderer positions text from
+  `logo_x + logo_w + caption_gap` (left-anchor); the square renderer uses centered `x` alignment.
+  Right-edge overflow is enforced via `caption_chars_per_line` on both variants. Keys removed;
+  filter users tuning these values had no effect and received no error.
+  (Source: QA verdict `Peptide Repo CTO/qa-reviews/prautoblogger/2026-06-11-6f76df1.md` P3-3.)
+- **Amortized research row now carries audit fields.** `Post_Assembler::amortize_research_costs()`
+  previously inserted per-article `llm_research` copies without `prompt_version` or `agent_role`,
+  leaving those columns NULL/empty while the original (correctly stamped) row was deleted.
+  SELECT now includes both columns; INSERT carries them forward from the original row.
+  (Source: phase-1 thread seq 49, seq 50 carried-list: "amortized llm_research rows pv=null/role
+  empty" — `convo/prautoblogger/threads/2026-06-pipeline-v2-phase1/`.)
+- **`fetch_page()` error body included in exception.** Non-200 responses from the Runware
+  modelSearch API now include up to 200 chars of the response body in the `RuntimeException`
+  message, making diagnosis from logs actionable without re-reproducing the request.
+  (Source: phase-1 thread seq 50 carried-list: "`fetch_page()` error-body logging".)
+
+### Notes
+- cto-review.yml isinstance guard (handoff item 5): the fix (`c.get("severity", "UNKNOWN")`)
+  is already applied at HEAD (line 454 of the workflow). No changes made.
+
 ## [0.19.3] - 2026-06-12
 
 ### Fixed

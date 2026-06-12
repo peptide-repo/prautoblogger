@@ -138,7 +138,8 @@ class PRAutoBlogger_Runware_Catalog_Fetcher {
 	 * @param int    $offset  Pagination offset (0-based).
 	 * @param int    $limit   Page size.
 	 * @return array{results: array<int, array<string, mixed>>, totalResults: int}
-	 * @throws \RuntimeException On HTTP error or malformed response.
+	 * @throws \RuntimeException On HTTP error or malformed response (non-200 exceptions
+	 *               include up to 200 chars of the response body for diagnosis).
 	 */
 	private function fetch_page( string $api_key, int $offset, int $limit ): array {
 		$payload = array(
@@ -171,8 +172,10 @@ class PRAutoBlogger_Runware_Catalog_Fetcher {
 
 		$status = (int) wp_remote_retrieve_response_code( $response );
 		if ( 200 !== $status ) {
+			$raw_body   = (string) wp_remote_retrieve_body( $response );
+			$body_excerpt = '' !== $raw_body ? ' — body: ' . substr( $raw_body, 0, 200 ) : '';
 			throw new \RuntimeException(
-				sprintf( 'Runware modelSearch returned HTTP %d', $status )
+				sprintf( 'Runware modelSearch returned HTTP %d%s', $status, $body_excerpt )
 			);
 		}
 

@@ -322,4 +322,30 @@ class ImageComposerTest extends BaseTestCase {
 			$this->assertStringStartsWith( 'prautoblogger_', $key );
 		}
 	}
+
+	/**
+	 * Ladder rung 2 forced via the override filter ('gd'): compose() emits the
+	 * pass-through featured variant as first element, and fires exactly one WARNING.
+	 * The Imagick renderer must never be called on this rung.
+	 *
+	 * Source: QA verdict 2026-06-11-6f76df1.md P2-1 and CTO handoff
+	 * convo/prautoblogger/threads/2026-06-maintenance-v0194/01-cto-maintenance-handoff.md item 1.
+	 */
+	public function test_gd_rung_emits_passthrough_featured_and_single_warning(): void {
+		Filters\expectApplied( 'prautoblogger_image_compose_capability' )->andReturn( 'gd' );
+
+		// Imagick renderer must not be invoked on the gd rung.
+		$renderer = $this->createMock( \PRAutoBlogger_Image_Composer_Imagick::class );
+		$renderer->expects( $this->never() )->method( 'compose_featured' );
+		$renderer->expects( $this->never() )->method( 'compose_og' );
+		$renderer->expects( $this->never() )->method( 'compose_square' );
+
+		$composer = new \PRAutoBlogger_Image_Composer( $renderer );
+		$variants = $composer->compose( $this->image_data, $this->context() );
+
+		// Pass-through featured variant is always first.
+		$this->assertNotEmpty( $variants );
+		$this->assertSame( 'featured', $variants[0]['role'] );
+		$this->assertSame( 'raw_base_bytes', $variants[0]['bytes'] );
+	}
 }
