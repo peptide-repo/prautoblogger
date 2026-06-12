@@ -24,6 +24,16 @@ use Brain\Monkey\Functions;
 
 class ImageComposerEditorTest extends BaseTestCase {
 
+	/**
+	 * Stub get_option so PRAutoBlogger_Logger can construct without Brain Monkey
+	 * throwing on the prautoblogger_log_level option lookup. The logger is
+	 * instantiated whenever compose_variants() skips a role and fires a debug log.
+	 */
+	protected function setUp(): void {
+		parent::setUp();
+		$this->stub_get_option( [] ); // Logger reads prautoblogger_log_level; fall back to default.
+	}
+
 	/** Minimal layout geometry mirroring Layout::defaults() relevant keys. */
 	private function layout( int $og_w = 1200, int $og_h = 630, int $sq_w = 1080, int $sq_h = 1080 ): array {
 		return array(
