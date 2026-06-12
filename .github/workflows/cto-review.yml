@@ -1,20 +1,17 @@
 name: CTO Review
 
-# Automated PR review powered by Claude + DeepSeek + Kimi (via OpenRouter)
-# plus Neurometric PR-Summarizer (a Qwen3-4B task-specialist SLM).
+# Automated PR review powered by Claude Haiku (via OpenRouter).
 #
-# During the A/B window (until further notice), every PR gets reviewed by FOUR models
-# in parallel. The PR comment shows each model's verdict side-by-side so we can compare
-# quality/cost on real PRs before picking a permanent default.
+# A/B panel decision 2026-06-12: panel dropped to Haiku-only.
+# Evidence: convo/cto/threads/2026-06-qa-ab-review/02-analyst-findings.md
+# DeepSeek: high false-positive rate (absint()="code exec", PLUGIN_DIR="dir traversal").
+# Kimi: ~60% model failure rate across 13 PRs sampled.
+# Neurometric: summarizer only, zero unique-real findings, unreliable heuristic verdict.
+# Haiku: 0 failures, lowest noise, equivalent real-signal catch rate vs 4-voice panel.
 #
-# Neurometric is a "prose voice": it does not support OpenAI tool-calling, so its
-# contribution is raw markdown + a heuristic verdict. It is never the primary voice.
+# Does NOT merge. Posts formal APPROVE/REQUEST_CHANGES/COMMENT reviews.
 #
-# Does NOT merge. Does NOT post formal APPROVE/REQUEST_CHANGES reviews — always COMMENT
-# (GITHUB_TOKEN can't formally approve PRs without repo-setting toggle).
-#
-# Requires repo secrets: OPENROUTER_API_KEY, NEUROMETRIC_API_KEY (optional; the
-# Neurometric voice self-skips with an inline error note if the key is missing).
+# Requires repo secret: OPENROUTER_API_KEY
 #
 # Cost cap: tracked in Repository Variables (CTO_REVIEW_SPEND_CENTS, CTO_REVIEW_CAP_CENTS).
 # Default cap is 1000 cents ($10/month). Auto-resets on the 1st of each month.
@@ -125,8 +122,8 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           # Write the diff to a file, not a step output / env var. Passing a
           # ~400KB diff through the process env (execve argv+envp) exceeds the
-          # runner ARG_MAX and fails the next step with "Argument list too long"
-          # (issue #110). File transport also sidesteps the ~1MB step-output cap.
+          # runner ARG_MAX and fails the next step with "Argument list too long".
+          # File transport also sidesteps the ~1MB step-output cap.
           git diff --no-color "$BASE_SHA" "$HEAD_SHA" | head -c 400000 > /tmp/cto-review-diff.txt
           FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
           SIZE=$(wc -c < /tmp/cto-review-diff.txt)
@@ -151,12 +148,11 @@ jobs:
             echo "EOF_CONV"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Call 4 models in parallel (OpenRouter + Neurometric)
+      - name: Call Haiku via OpenRouter
         if: steps.budget.outputs.skip != 'true'
         id: review
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          NEUROMETRIC_API_KEY: ${{ secrets.NEUROMETRIC_API_KEY }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
@@ -184,24 +180,17 @@ jobs:
           fi
 
           python3 - <<'PY'
-          import json, os, sys, urllib.request, concurrent.futures
+          import json, os, sys, urllib.request
 
           api_key = os.environ["OPENROUTER_API_KEY"]
 
-          # A/B harness: four models. Each gets the same prompt.
-          # Primary model's verdict drives the heading. Others are labeled.
-          # Edit this list to change the roster (or drop to 1 after A/B window closes).
-          #
-          # provider_type semantics:
-          #   - "openrouter_tools": OpenAI tool-calling via OpenRouter; structured verdict.
-          #   - "neurometric_prose": Neurometric marketplace SLM; prose output + heuristic verdict.
-          MODELS = [
-              # (slug, display name, input_per_M_USD, output_per_M_USD, is_primary, provider_type)
-              ("anthropic/claude-haiku-4.5",       "Claude Haiku 4.5",                     1.00, 5.00, True,  "openrouter_tools"),
-              ("deepseek/deepseek-chat-v3.1",      "DeepSeek V3.1",                        0.15, 0.75, False, "openrouter_tools"),
-              ("moonshotai/kimi-k2-thinking",      "Kimi K2 Thinking",                     0.60, 2.50, False, "openrouter_tools"),
-              ("neurometric/pr-summarizer",        "Neurometric PR-Summarizer (Qwen3-4B)", 0.00, 0.00, False, "neurometric_prose"),
-          ]
+          # Haiku-only reviewer. A/B panel dropped 2026-06-12 per QA data:
+          # DeepSeek high false-positive rate, Kimi ~60% failure rate,
+          # Neurometric zero unique-real findings. Haiku retained as sole voice.
+          MODEL_SLUG = "anthropic/claude-haiku-4.5"
+          MODEL_DISPLAY = "Claude Haiku 4.5"
+          INPUT_PER_M_USD = 1.00
+          OUTPUT_PER_M_USD = 5.00
 
           system = """You are the CTO and lead reviewer for the peptiderepo project. You are reviewing a pull request opened by an autonomous agent or human contributor.
 
@@ -264,218 +253,100 @@ jobs:
               }
           }]
 
-          PER_MODEL_TIMEOUT = 60  # seconds; one hung model should not block siblings
+          body = {
+              "model": MODEL_SLUG,
+              "max_tokens": 2048,
+              "messages": [
+                  {"role": "system", "content": system},
+                  {"role": "user", "content": user_message}
+              ],
+              "tools": tools,
+              "tool_choice": {"type": "function", "function": {"name": "submit_review"}}
+          }
+          req = urllib.request.Request(
+              "https://openrouter.ai/api/v1/chat/completions",
+              data=json.dumps(body).encode(),
+              headers={
+                  "Authorization": f"Bearer {api_key}",
+                  "content-type": "application/json",
+                  "HTTP-Referer": "https://github.com/peptiderepo",
+                  "X-Title": f"peptiderepo CTO reviewer ({MODEL_DISPLAY})"
+              },
+              method="POST"
+          )
 
-          # Heuristic verdict inference for prose-voice models that can't do tool-calling.
-          # Keyword order matters: block markers beat approve markers.
-          PROSE_BLOCK_MARKERS = [
-              "do not merge", "do not approve", "should not be merged", "reject this",
-              "critical security", "critical issue", "critical vulnerability",
-              "blocker", "blocking issue", "request_changes", "request changes",
-              "**critical**", "sql injection", "must be addressed before",
-          ]
-          PROSE_APPROVE_MARKERS = [
-              "safe to merge", "ready to merge", "no blocking issues", "lgtm",
-              "approve this", "looks good to merge", "no concerns",
-          ]
+          error = None
+          review = None
+          cost_cents = 0.0
+          ptok = 0
+          ctok = 0
 
-          def infer_verdict_from_prose(text):
-              t = (text or "").lower()
-              if any(m in t for m in PROSE_BLOCK_MARKERS):
-                  return "REQUEST_CHANGES"
-              if any(m in t for m in PROSE_APPROVE_MARKERS):
-                  return "APPROVE"
-              return "COMMENT"
+          try:
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  data = json.loads(resp.read())
+          except Exception as e:
+              error = str(e)[:300]
+              data = {}
 
-          def call_openrouter_tools(slug, display, in_rate, out_rate, is_primary):
-              body = {
-                  "model": slug,
-                  "max_tokens": 2048,
-                  "messages": [
-                      {"role": "system", "content": system},
-                      {"role": "user", "content": user_message}
-                  ],
-                  "tools": tools,
-                  "tool_choice": {"type": "function", "function": {"name": "submit_review"}}
-              }
-              req = urllib.request.Request(
-                  "https://openrouter.ai/api/v1/chat/completions",
-                  data=json.dumps(body).encode(),
-                  headers={
-                      "Authorization": f"Bearer {api_key}",
-                      "content-type": "application/json",
-                      "HTTP-Referer": "https://github.com/peptiderepo",
-                      "X-Title": f"peptiderepo CTO reviewer ({display})"
-                  },
-                  method="POST"
-              )
-              try:
-                  with urllib.request.urlopen(req, timeout=PER_MODEL_TIMEOUT) as resp:
-                      data = json.loads(resp.read())
-              except Exception as e:
-                  return {
-                      "slug": slug, "display": display, "is_primary": is_primary,
-                      "provider_type": "openrouter_tools",
-                      "error": str(e)[:300],
-                      "cost_cents": 0,
-                  }
-
+          if not error:
               choice = data.get("choices", [{}])[0].get("message", {})
               tool_calls = choice.get("tool_calls", [])
               if not tool_calls:
-                  return {
-                      "slug": slug, "display": display, "is_primary": is_primary,
-                      "provider_type": "openrouter_tools",
-                      "error": f"No tool_call in response. Raw content: {str(choice)[:300]}",
-                      "cost_cents": 0,
-                  }
+                  error = f"No tool_call in response. Raw content: {str(choice)[:300]}"
+              else:
+                  try:
+                      review = json.loads(tool_calls[0]["function"]["arguments"])
+                  except Exception as e:
+                      error = f"Malformed tool args: {e}"
 
-              try:
-                  review = json.loads(tool_calls[0]["function"]["arguments"])
-              except Exception as e:
-                  return {
-                      "slug": slug, "display": display, "is_primary": is_primary,
-                      "provider_type": "openrouter_tools",
-                      "error": f"Malformed tool args: {e}",
-                      "cost_cents": 0,
-                  }
+              if not error:
+                  usage = data.get("usage", {})
+                  ptok = usage.get("prompt_tokens", 0)
+                  ctok = usage.get("completion_tokens", 0)
+                  cost_usd = (ptok * INPUT_PER_M_USD / 1_000_000) + (ctok * OUTPUT_PER_M_USD / 1_000_000)
+                  cost_cents = cost_usd * 100
 
-              usage = data.get("usage", {})
-              ptok = usage.get("prompt_tokens", 0)
-              ctok = usage.get("completion_tokens", 0)
-              cost_usd = (ptok * in_rate / 1_000_000) + (ctok * out_rate / 1_000_000)
-              cost_cents = cost_usd * 100
-              return {
-                  "slug": slug, "display": display, "is_primary": is_primary,
-                  "provider_type": "openrouter_tools",
-                  "review": review, "prompt_tokens": ptok, "completion_tokens": ctok,
-                  "cost_cents": cost_cents,
-              }
-
-          def call_neurometric_prose(slug, display, is_primary):
-              nm_key = os.environ.get("NEUROMETRIC_API_KEY", "")
-              if not nm_key:
-                  return {
-                      "slug": slug, "display": display, "is_primary": is_primary,
-                      "provider_type": "neurometric_prose",
-                      "error": "NEUROMETRIC_API_KEY secret not set on this repo",
-                      "cost_cents": 0,
-                  }
-              body = {
-                  "model": slug,
-                  "max_tokens": 2048,
-                  "messages": [
-                      {"role": "system", "content": system},
-                      {"role": "user", "content": user_message},
-                  ],
-              }
-              req = urllib.request.Request(
-                  "https://api.neurometric.ai/v1/chat/completions",
-                  data=json.dumps(body).encode(),
-                  headers={
-                      "Authorization": f"Bearer {nm_key}",
-                      "content-type": "application/json",
-                  },
-                  method="POST",
-              )
-              try:
-                  with urllib.request.urlopen(req, timeout=PER_MODEL_TIMEOUT) as resp:
-                      data = json.loads(resp.read())
-              except Exception as e:
-                  return {
-                      "slug": slug, "display": display, "is_primary": is_primary,
-                      "provider_type": "neurometric_prose",
-                      "error": str(e)[:300],
-                      "cost_cents": 0,
-                  }
-              prose = data.get("choices", [{}])[0].get("message", {}).get("content") or ""
-              verdict = infer_verdict_from_prose(prose)
-              return {
-                  "slug": slug, "display": display, "is_primary": is_primary,
-                  "provider_type": "neurometric_prose",
-                  "review": {"verdict": verdict, "prose": prose},
-                  "prompt_tokens": 0, "completion_tokens": 0,
-                  "cost_cents": 0,
-              }
-
-          def call_model(slug, display, in_rate, out_rate, is_primary, provider_type="openrouter_tools"):
-              if provider_type == "neurometric_prose":
-                  return call_neurometric_prose(slug, display, is_primary)
-              return call_openrouter_tools(slug, display, in_rate, out_rate, is_primary)
-
-          results = []
-          with concurrent.futures.ThreadPoolExecutor(max_workers=len(MODELS)) as pool:
-              futures = [pool.submit(call_model, *m) for m in MODELS]
-              for f in concurrent.futures.as_completed(futures):
-                  results.append(f.result())
-
-          # Order: primary first, then alphabetical for stable comparison
-          results.sort(key=lambda r: (not r.get("is_primary"), r["display"]))
-
-          # Build combined comment
-          primary = next((r for r in results if r.get("is_primary") and "review" in r), None)
-          heading_verdict = primary["review"]["verdict"] if primary else "MIXED"
-
-          lines = [f"## CTO Review — {heading_verdict}", ""]
-          lines.append(f"_A/B harness active: {len(results)} models reviewing in parallel. Primary verdict drives heading; others are advisory._")
-          lines.append("")
-
-          total_cents = 0.0
-          for r in results:
-              lines.append(f"---")
-              primary_tag = " (primary)" if r.get("is_primary") else ""
-              lines.append(f"### {r['display']}{primary_tag}")
-              if "error" in r:
-                  lines.append("")
-                  lines.append(f"⚠️ Model failed: `{r['error']}`")
-                  lines.append("")
-                  continue
-              rev = r["review"]
+          # Build comment
+          if error:
+              heading_verdict = "ERROR"
+              lines = [f"## CTO Review — {heading_verdict}", ""]
+              lines.append(f"Model failed: `{error}`")
               lines.append("")
-              if r.get("provider_type") == "neurometric_prose":
-                  lines.append(f"**Verdict:** {rev['verdict']} _(heuristic, inferred from prose)_")
-                  lines.append("")
-                  # Cap at 6KB to keep PR comments readable; 4B model output is rarely over this
-                  prose = rev.get("prose", "")
-                  if len(prose) > 6000:
-                      prose = prose[:6000] + "\n\n_…output truncated for comment length…_"
-                  lines.append(prose)
-                  lines.append("")
-                  lines.append("_free tier; per-call token usage not tracked_")
-                  lines.append("")
-                  continue
-              lines.append(f"**Verdict:** {rev.get('verdict', 'COMMENT')}")
+              lines.append(f"_reviewer: {MODEL_DISPLAY}_")
+          else:
+              heading_verdict = review.get("verdict", "COMMENT")
+              lines = [f"## CTO Review — {heading_verdict}", ""]
+              lines.append(f"**Verdict:** {heading_verdict}")
               lines.append("")
-              lines.append(rev.get("summary") or "_(model returned no summary)_")
+              lines.append(review.get("summary") or "_(model returned no summary)_")
               lines.append("")
-              if rev.get("concerns"):
+              if review.get("concerns"):
                   lines.append("**Concerns:**")
-                  for c in rev["concerns"]:
+                  for c in review["concerns"]:
                       sev = c.get("severity", "UNKNOWN").upper()
                       f = f"`{c['file']}`" if c.get("file") else ""
                       lines.append(f"- **{sev}** {f} — {c['issue']}")
                   lines.append("")
-              if rev.get("positives"):
-                  lines.append("**Positives:** " + "; ".join(rev["positives"]))
+              if review.get("positives"):
+                  lines.append("**Positives:** " + "; ".join(review["positives"]))
                   lines.append("")
-              lines.append(f"_tokens in/out: {r['prompt_tokens']}/{r['completion_tokens']} · cost: ${r['cost_cents']/100:.4f}_")
-              total_cents += r["cost_cents"]
+              lines.append(f"_tokens in/out: {ptok}/{ctok} · cost: ${cost_cents/100:.4f}_")
               lines.append("")
 
           lines.append("---")
-          lines.append(f"_Total review cost: **${total_cents/100:.4f}**. A/B roster configured in `.github/workflows/cto-review.yml`._")
+          lines.append(f"_Total review cost: **${cost_cents/100:.4f}**. Reviewer: {MODEL_DISPLAY}. Roster configured in `.github/workflows/cto-review.yml`._")
 
           with open("/tmp/review-body.md", "w") as f:
               f.write("\n".join(lines))
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"added_cents={int(round(total_cents))}\n")
+              f.write(f"added_cents={int(round(cost_cents))}\n")
               f.write(f"skipped=0\n")
               f.write(f"primary_verdict={heading_verdict}\n")
           PY
 
       - name: Post PR review (formal APPROVE / REQUEST_CHANGES / COMMENT)
-        # Uses primary model's verdict as the formal event. Falls back to COMMENT
-        # if the primary model failed or returned something unexpected.
+        # Uses Haiku's verdict as the formal event. Falls back to COMMENT
+        # if the model failed or returned something unexpected.
         if: steps.budget.outputs.skip != 'true' && steps.review.outputs.skipped != '1'
         uses: actions/github-script@v7
         env:
