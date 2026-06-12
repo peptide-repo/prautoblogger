@@ -37,6 +37,14 @@ class DossierDataAssemblerTest extends BaseTestCase {
 		// Stub PRAutoBlogger_Run_Stage_State::is_available() to return true.
 		// Static method -- stubbed via wpdb table check returning the table name.
 		\PRAutoBlogger_Run_Stage_State::flush_cache();
+		\PRAutoBlogger_Run_State::flush_cache();
+		\PRAutoBlogger_Stage_Input_Store::flush_cache();
+
+		// v0.20.0 additions: image data + eligibility paths.
+		Functions\when( 'get_post_thumbnail_id' )->justReturn( 0 );
+		Functions\when( 'get_children' )->justReturn( array() );
+		Functions\when( 'wp_get_attachment_image_url' )->justReturn( '' );
+		Functions\when( 'apply_filters' )->returnArg( 2 );
 
 		// table_name returns wp_prautoblogger_run_stages.
 		$this->wpdb->prefix = 'wp_';

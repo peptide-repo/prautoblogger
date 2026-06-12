@@ -37,6 +37,8 @@ $tables = array(
 	$prefix . 'run_decisions',
 	$prefix . 'runs',
 	$prefix . 'run_stages',
+	// Edit + re-run input versions (v0.20.0 / db 1.3.0).
+	$prefix . 'stage_inputs',
 );
 
 foreach ( $tables as $table ) {
@@ -93,6 +95,8 @@ $hooks = array(
 	'prautoblogger_generate_queued_article',
 	'prautoblogger_generate_from_idea',
 	'prautoblogger_opik_dispatch',
+	'prautoblogger_rerun_stage_replay',
+	'prautoblogger_rerun_from_stage',
 );
 
 foreach ( $hooks as $hook ) {

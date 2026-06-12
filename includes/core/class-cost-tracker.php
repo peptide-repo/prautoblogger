@@ -69,7 +69,9 @@ class PRAutoBlogger_Cost_Tracker {
 	/**
 	 * Log an API call with its token usage and estimated cost.
 	 *
-	 * Side effects: database insert into prab_generation_log.
+	 * Side effects: database insert into prab_generation_log. Consumes the
+	 * Request_Recorder stash (v0.20.0 / B1) into the row's request_json so
+	 * every chat call's input is persisted (retention-pruned after R days).
 	 *
 	 * @param int|null    $post_id           WordPress post ID (null during generation, set later).
 	 * @param string      $stage             Pipeline stage (see PRAutoBlogger_Stage_Display_Map).
@@ -117,6 +119,7 @@ class PRAutoBlogger_Cost_Tracker {
 				'estimated_cost'    => $cost,
 				'response_status'   => $response_status,
 				'error_message'     => $error_message,
+				'request_json'      => PRAutoBlogger_Request_Recorder::consume(),
 				'agent_role'        => $agent_role ?? PRAutoBlogger_Stage_Display_Map::default_agent_role( $stage ),
 				'prompt_version'    => $this->resolve_prompt_version( $stage, $prompt_key ),
 				'created_at'        => current_time( 'mysql' ),

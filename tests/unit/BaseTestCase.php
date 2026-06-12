@@ -147,7 +147,7 @@ abstract class BaseTestCase extends TestCase {
      */
     protected function create_mock_wpdb() {
         $wpdb = $this->getMockBuilder( \stdClass::class )
-            ->addMethods( [ 'prepare', 'get_var', 'get_results', 'insert', 'query', 'get_row', 'update' ] )
+            ->addMethods( [ 'prepare', 'get_var', 'get_results', 'insert', 'query', 'get_row', 'get_col', 'update' ] )
             ->getMock();
 
         $wpdb->prefix         = 'wp_';

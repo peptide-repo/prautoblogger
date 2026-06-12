@@ -3,9 +3,10 @@
  * Partial: single stage section for the Article Dossier.
  *
  * Variables injected by dossier-page.php:
- *   $stage_row (array)  -- run_stages row incl. display_output
+ *   $stage_row (array)  -- run_stages row incl. display_output + ['rerun'] panel data (M3)
  *   $stage_name (string) -- stage key
  *   $log_rows (array)   -- generation_log rows for this stage
+ *   $dossier (array)    -- page view model (spend/eligibility/post_id)
  *
  * Security: all model output escaped via esc_html() or wp_kses_post().
  * request_json escaped via esc_html() -- treat as untrusted HTML.
@@ -30,9 +31,14 @@ $s_model       = ( null !== $first_log && ! empty( $first_log['model'] ) ) ? $fi
 $s_pv          = ( null !== $first_log && ! empty( $first_log['prompt_version'] ) ) ? $first_log['prompt_version'] : '—';
 $has_raw_trace = ! empty( $log_rows );
 $section_id    = 'prab-stage-' . esc_attr( $stage_name ) . '-' . esc_attr( $s_role );
+$rerun         = is_array( $stage_row['rerun'] ?? null ) ? $stage_row['rerun'] : array();
+$is_stale      = ! empty( $rerun['stale'] );
+$is_human      = ! empty( $rerun['human_modified'] );
+$attempts      = (int) ( $rerun['attempt'] ?? 1 );
 ?>
-<div class="prab-dossier-section prab-dossier-section--stage prab-stage-status--<?php echo esc_attr( $s_status ); ?>"
+<div class="prab-dossier-section prab-dossier-section--stage prab-stage-status--<?php echo esc_attr( $s_status ); ?><?php echo $is_stale ? ' prab-stage--stale' : ''; ?>"
 	 data-stage="<?php echo esc_attr( $stage_name ); ?>"
+	 data-agent-role="<?php echo esc_attr( $s_role ); ?>"
 	 id="<?php echo $section_id; // Already escaped. ?>">
 
 	<div class="prab-stage-header">
@@ -46,6 +52,24 @@ $section_id    = 'prab-stage-' . esc_attr( $stage_name ) . '-' . esc_attr( $s_ro
 			<span class="prab-stage-status-pill prab-stage-status-pill--<?php echo esc_attr( $s_status ); ?>">
 				<?php echo esc_html( ucfirst( $s_status ) ); ?>
 			</span>
+			<?php // M3 audit chips -- visible, never tooltip-buried (CPO guardrails 2+3). ?>
+			<span class="prab-chip prab-chip--stale" data-chip="stale" <?php echo $is_stale ? '' : 'hidden'; ?>>
+				<?php esc_html_e( 'Stale — upstream changed', 'prautoblogger' ); ?>
+			</span>
+			<span class="prab-chip prab-chip--human" data-chip="human" <?php echo $is_human ? '' : 'hidden'; ?>>
+				<?php esc_html_e( 'Human-edited input', 'prautoblogger' ); ?>
+			</span>
+			<?php if ( $attempts > 1 ) : ?>
+				<span class="prab-chip prab-chip--attempt">
+					<?php
+					printf(
+						/* translators: %d: attempt count. */
+						esc_html__( 'Attempt %d', 'prautoblogger' ),
+						(int) $attempts
+					);
+					?>
+				</span>
+			<?php endif; ?>
 			<?php if ( $s_cost > 0 ) : ?>
 				<span class="prab-stage-cost">$<?php echo esc_html( number_format( $s_cost, 5 ) ); ?></span>
 			<?php endif; ?>
@@ -122,5 +146,28 @@ $section_id    = 'prab-stage-' . esc_attr( $stage_name ) . '-' . esc_attr( $s_ro
 			<?php endif; ?>
 		</div>
 	<?php endif; ?>
+
+	<?php // ── M3: edit + re-run affordances (chained-cron; nothing is synchronous) ── ?>
+	<div class="prab-stage-rerun-footer">
+		<?php if ( ! empty( $rerun['editable'] ) ) : ?>
+			<button type="button" class="button prab-edit-toggle"
+					aria-expanded="false" aria-controls="<?php echo $section_id; // Already escaped. ?>-edit">
+				<?php esc_html_e( 'Edit input', 'prautoblogger' ); ?>
+			</button>
+		<?php elseif ( ! empty( $rerun['edit_reason'] ) ) : ?>
+			<span class="prab-edit-unavailable"><?php echo esc_html( (string) $rerun['edit_reason'] ); ?></span>
+		<?php endif; ?>
+		<?php if ( ! empty( $rerun['rerun_from'] ) ) : ?>
+			<button type="button" class="button prab-rerun-from<?php echo $is_stale ? ' prab-rerun-from--stale' : ''; ?>"
+					data-stage="<?php echo esc_attr( $stage_name ); ?>">
+				<?php esc_html_e( 'Re-run from here', 'prautoblogger' ); ?>
+			</button>
+		<?php endif; ?>
+	</div>
+	<?php
+	if ( ! empty( $rerun['editable'] ) ) {
+		require PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/dossier-edit-panel.php';
+	}
+	?>
 
 </div><!-- .prab-dossier-section--stage -->

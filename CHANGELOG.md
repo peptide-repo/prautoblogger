@@ -5,6 +5,77 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-06-12
+
+### Added
+- **Edit + single-step re-run (Phase 2 admin M3)** under the five CPO guardrails
+  (cpo seq 8, hard AC). From the Article Dossier, eligible stages can have their
+  input edited and re-run as QUEUED background jobs (chained-cron — the UI never
+  implies synchronous execution; board + dossier polling shows queued → pickup →
+  result).
+  - **Immutable input versions (guardrail 1).** Edits fork into the new INSERT-only
+    `prautoblogger_stage_inputs` table (monotonic versions per stage scope); the
+    executed original in `generation_log.request_json` is never overwritten. The
+    editor locks message structure (count/roles) so every fork stays replayable.
+  - **Visible human-modified audit (guardrail 2).** `run_stages.human_modified` +
+    `run_decisions.human_modified` set when an edited fork enters execution (sticky,
+    never cleared); surfaced as dossier header + stage chips, a board-card chip, and
+    decisions recorded while rebuilding a human-modified item are flagged too.
+  - **Explicit downstream invalidation (guardrail 3).** Re-running a stage marks all
+    downstream chain stages `stale` (new column — rows STAY 'done', so the resume
+    machinery can never silently auto-re-run them). Stale chips render per stage, in
+    the dossier header, and as a Review Queue warning chip linking to the dossier
+    (stale state visible at publish). Downstream re-runs are deliberate: per-stage
+    "Re-run from here" rebuilds the target + downstream from current upstream
+    snapshots via the existing worker resume path.
+  - **Cost governor applies to re-runs (guardrail 4).** Replays go through the normal
+    provider seam: reserve-before-call against the SAME run ledger row.
+    `Run_State::reopen()` re-snapshots the ceiling from the current setting and never
+    resets accumulated spend. The dossier shows a Run Spend card + per-panel spend
+    strip and warns when committed spend reaches the ceiling fraction (filterable,
+    `prautoblogger_rerun_ceiling_warn_fraction`, default 0.8).
+  - **Published posts are frozen (guardrail 5).** publish/future/private lock the run
+    server-side (not just hidden UI); `Publisher` refreshes re-run output onto
+    UNPUBLISHED posts only, preserving their status — a re-run never publishes.
+- **B1 — `request_json` persisted on every chat LLM call** (QA M2 F1). The provider
+  records the outgoing request BODY pre-dispatch (process-scoped recorder, consume-once);
+  `log_api_call()` writes it to the row. Authorization headers can never be recorded
+  (built separately; body keys whitelisted — covered by tests). Retention rides the
+  existing `prautoblogger_request_json_retention_days` prune; the dossier raw-trace
+  "Request payload" section now renders for new runs.
+- **Idea seeds.** `Article_Worker` persists the exact `Article_Idea` payload once per
+  item (stage_inputs, source='seed') so re-run-from-here reconstructs the precise idea
+  (re-deriving from post fields could break the item-key hash and duplicate a post).
+- **Dossier sidebar consolidation (QA M2 F2).** New "Models & Prompts" card: per-stage
+  model + prompt version + agent role at a glance, plus the "Run Spend" card.
+- **Image sections wired to real data (QA M2 F3).** image_a/image_b (and every
+  log-only stage: llm_research, image_prompt_rewrite, …) now render from their actual
+  generation_log rows, with the post's pipeline attachments (featured/og/square via
+  `_prautoblogger_image_role`) shown as an image grid — chosen/featured highlighted.
+- **Schema (db 1.3.0).** `run_stages` + `human_modified`/`stale`; `run_decisions` +
+  `human_modified`; new `stage_inputs` table. dbDelta-idempotent via the standard
+  self-healing migration path (admin_init + cron init); half-migrated sites degrade
+  gracefully (done() retries the legacy statement; M3 features no-op until migrated).
+  Uninstall drops the new table and clears the two new cron hooks.
+
+### Changed
+- **`PRAutoBlogger_Run_Stage_State` split** (300-line cap, M2 pattern): pipeline write
+  bodies moved verbatim to `Run_Stage_Writes` (public API unchanged via thin proxies);
+  operator-action mutations (restart / mark_stale / demote_to_pending) isolated in
+  `Run_Stage_Rerun_State` — the ONLY code allowed to demote a done row. `done()` now
+  clears `stale` on fresh output.
+- **Dossier is item-scoped** (M2 correctness fix): stage rows filter to THIS post's
+  item (idea-hash meta), and gen_log rows linked to OTHER posts of a multi-article run
+  are excluded (unlinked run-level rows are kept).
+- **`Publisher` idempotency short-circuit** now refreshes existing UNPUBLISHED posts
+  with re-run content (title/content/verdict meta; status untouched) instead of
+  silently discarding regenerated output. Published posts remain untouched.
+- Review Queue rows show a stale-stages warning chip linking to the dossier; board
+  cards show a "Human-modified" chip (single batched query, no N+1).
+
+### Fixed
+- Dossier "Request payload" raw trace was always empty (request_json never populated —
+  QA M2 F1); image sections always rendered the absent state (QA M2 F3).
 ## [0.19.4] - 2026-06-12
 
 ### Added

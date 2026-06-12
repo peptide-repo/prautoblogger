@@ -252,6 +252,41 @@ class PRAutoBlogger_Run_State {
 		return is_array( $rows ) ? $rows : array();
 	}
 
+	/**
+	 * Reopen a terminal run for operator-deliberate new spend (M3
+	 * re-runs). done/failed/halted -> running; finished_at cleared; the
+	 * cost ceiling is RE-SNAPSHOTTED from the current setting — the
+	 * deliberate re-run action adopts the operator's current per-run
+	 * policy (can lower as well as raise), exactly as a new run would.
+	 * Accumulated reserved/settled spend is kept: the governor treats
+	 * re-runs as new spend on the SAME run (CPO guardrail 4).
+	 *
+	 * The conditional UPDATE is the atomic gate: an actively executing
+	 * run (pending/running) can never be reopened.
+	 *
+	 * @param string $run_id Run UUID.
+	 * @return bool Whether the run transitioned to running.
+	 */
+	public static function reopen( string $run_id ): bool {
+		if ( '' === $run_id || ! self::is_available() ) {
+			return false;
+		}
+		global $wpdb;
+		$table = self::table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$updated = $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table}
+				SET status = 'running', ceiling_usd = %f, updated_at = %s, finished_at = NULL
+				WHERE run_id = %s AND status IN ('done','failed','halted')",
+				self::ceiling_setting(),
+				current_time( 'mysql' ),
+				$run_id
+			)
+		);
+		return 1 === (int) $updated;
+	}
+
 	/** Reset per-request caches (tests). */
 	public static function flush_cache(): void {
 		self::$table_ok = null;

@@ -103,6 +103,18 @@ $bulk_type = isset( $_GET['prautoblogger_bulk_type'] ) ? sanitize_text_field( wp
 				</span>
 			</div>
 
+			<?php
+			// v0.20.0: stale-stage warning chips (one batched query; CPO
+			// product AC -- the stale flag is visible at publish time).
+			$rq_post_runs = array();
+			foreach ( $query->posts as $rq_post ) {
+				$rq_run_id = (string) get_post_meta( $rq_post->ID, '_prautoblogger_run_id', true );
+				if ( '' !== $rq_run_id ) {
+					$rq_post_runs[ $rq_post->ID ] = $rq_run_id;
+				}
+			}
+			$rq_stale_runs = array_flip( PRAutoBlogger_Run_Stage_State::runs_with_stale_stages( array_values( $rq_post_runs ) ) );
+			?>
 			<table class="widefat striped prautoblogger-queue-table">
 				<thead>
 					<tr>
@@ -137,6 +149,11 @@ $bulk_type = isset( $_GET['prautoblogger_bulk_type'] ) ? sanitize_text_field( wp
 							</td>
 							<td>
 								<strong><?php the_title(); ?></strong>
+								<?php if ( isset( $rq_post_runs[ $post_id ], $rq_stale_runs[ $rq_post_runs[ $post_id ] ] ) ) : ?>
+									<a class="prab-review-stale-chip" href="<?php echo esc_url( PRAutoBlogger_Dossier_Page::url_for_post( (int) $post_id ) ); ?>">
+										<?php esc_html_e( 'Stale stages -- review dossier', 'prautoblogger' ); ?>
+									</a>
+								<?php endif; ?>
 								<?php if ( $editor_notes ) : ?>
 									<div class="prautoblogger-editor-notes"><?php echo esc_html( $editor_notes ); ?></div>
 								<?php endif; ?>

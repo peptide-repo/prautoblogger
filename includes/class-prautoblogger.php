@@ -141,6 +141,11 @@ class PRAutoBlogger {
 			new PRAutoBlogger_Opik_Settings();
 		}
 
+		// v0.20.0 (M3): operator re-run jobs — chained-cron, never synchronous.
+		$rerun_executor = new PRAutoBlogger_Rerun_Executor();
+		add_action( PRAutoBlogger_Rerun_Executor::REPLAY_ACTION, array( $rerun_executor, 'on_replay_job' ), 10, 5 );
+		add_action( PRAutoBlogger_Rerun_Executor::REBUILD_ACTION, array( $rerun_executor, 'on_rebuild_job' ), 10, 4 );
+
 		add_action( 'prautoblogger_generate_from_idea', array( 'PRAutoBlogger_Ideas_Browser', 'on_cron_generate_from_idea' ) );
 		add_action( 'prautoblogger_reap_orphan_research_rows', array( 'PRAutoBlogger_Research_Reaper', 'on_cron' ) );
 		add_action( 'prautoblogger_reap_orphan_research_rows', array( 'PRAutoBlogger_Run_Reaper', 'on_cron' ) );
@@ -173,6 +178,13 @@ class PRAutoBlogger {
 
 		add_action( 'wp_ajax_prautoblogger_clear_logs', array( new PRAutoBlogger_Log_Viewer(), 'on_ajax_clear_logs' ) );
 		add_action( 'wp_ajax_' . PRAutoBlogger_Board_Page::AJAX_ACTION, array( new PRAutoBlogger_Board_Page(), 'on_ajax_board_status' ) );
+
+		// v0.20.0 (M3): dossier edit + re-run endpoints (validate + queue only).
+		$dossier_actions = new PRAutoBlogger_Dossier_Actions();
+		add_action( 'wp_ajax_prautoblogger_dossier_save_input', array( $dossier_actions, 'on_save_input' ) );
+		add_action( 'wp_ajax_prautoblogger_dossier_rerun_stage', array( $dossier_actions, 'on_rerun_stage' ) );
+		add_action( 'wp_ajax_prautoblogger_dossier_rerun_from', array( $dossier_actions, 'on_rerun_from' ) );
+		add_action( 'wp_ajax_prautoblogger_dossier_stage_status', array( $dossier_actions, 'on_stage_status' ) );
 
 		$ideas = new PRAutoBlogger_Ideas_Browser();
 		add_action( 'wp_ajax_prautoblogger_generate_from_idea', array( $ideas, 'on_ajax_generate_from_idea' ) );
