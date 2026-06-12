@@ -77,6 +77,29 @@ class PRAutoBlogger_Generation_Lock {
 	}
 
 	/**
+	 * Get the Unix timestamp when the lock was acquired, or null if not held.
+	 *
+	 * Returns null when the lock is not set. The timestamp is the value written
+	 * by acquire() — used by the status poller to detect infrastructure-timeout
+	 * runs (lock held longer than STATUS_TTL → background PHP process died).
+	 *
+	 * @return int|null Unix timestamp, or null when the lock is absent.
+	 */
+	public static function get_acquired_at(): ?int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$row = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+				self::LOCK_NAME
+			)
+		);
+
+		return null !== $row ? (int) $row : null;
+	}
+
+	/**
 	 * Release the generation mutex.
 	 *
 	 * Safe to call even if the lock is not held (no-ops gracefully).

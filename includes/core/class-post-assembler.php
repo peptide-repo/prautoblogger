@@ -108,8 +108,8 @@ class PRAutoBlogger_Post_Assembler {
 		// Find the unlinked research cost row for this run.
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$research_row = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT id, estimated_cost, provider, model, prompt_tokens, completion_tokens  // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT id, estimated_cost, provider, model, prompt_tokens, completion_tokens
 				FROM {$table}
 				WHERE run_id = %s AND stage = 'llm_research' AND post_id IS NULL
 				LIMIT 1",
