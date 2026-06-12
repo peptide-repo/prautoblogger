@@ -687,4 +687,22 @@ The primary admin screen is now a kanban board (Direction C "Editorial Record") 
 columns: Generating | In Review | Published | Failed. A separate `class-board-page.php`
 registers the `Board` submenu first so it appears before Settings in the nav.
 `class-board-data-provider.php` computes column cards from existing tables
-(`prab_generat
+(`prab_generation_log`, WordPress post meta) — no new schema required for M1. The data
+provider uses the `prautoblogger_generation_status` transient (written by the Executor for
+manual/daily runs) as the primary active-run signal, with a secondary query on recent
+`prab_generation_log` run_ids that have no linked post as a fallback. M2 will rename Runs &
+Audit → Articles and wire board cards to the Article Dossier. Poll interval and published
+window are settings-backed, localized into board.js, never hardcoded.
+
+## Cross-System LLM Budget Coordination
+
+PRAutoBlogger and Peptide News both call OpenRouter and may share a single API key / billing account. Their combined spend should be considered when setting per-plugin budgets.
+
+| Plugin | Default Models | Typical Daily Spend | Budget Control |
+|--------|---------------|--------------------:|----------------|
+| PRAutoBlogger | Gemini 2.5 Flash Lite (analysis + editing), Claude Sonnet 4 (writing) | $0.05–$0.30 depending on article count | Hard-stop monthly budget in plugin settings |
+| Peptide News | Google Gemini 2.0 Flash (keywords + summaries) | $0.01–$0.05 | No hard budget yet (planned) |
+
+**Important:** If your OpenRouter account has a global spending limit, set each plugin's budget to less than half the total. PRAutoBlogger will hard-stop when its budget is exhausted, but Peptide News currently has no budget enforcement — a spike in news fetches could consume shared quota.
+
+**Future improvement:** A shared `wp_options` key (e.g., `ecosystem_monthly_llm_budget`) that both plugins read, with each plugin reserving its allocation on startup. This requires coordination at the ecosystem level and is tracked as a medium-term goal.
