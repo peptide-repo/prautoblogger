@@ -1,0 +1,240 @@
+/**
+ * PRAutoBlogger dossier — edit + re-run styles (M3, v0.20.0).
+ * Extends dossier.css (kept separate: dossier.css predates the
+ * 300-line discipline and is not grown further).
+ */
+
+/* ── Audit chips (stale / human-edited / attempt) ─────────────────── */
+.prab-chip {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.6;
+	vertical-align: middle;
+}
+
+.prab-chip--stale {
+	background: #fcf0e4;
+	color: #8a4a0b;
+	border: 1px solid #e8c9a8;
+}
+
+.prab-chip--human {
+	background: #e9f2f4;
+	color: #1b5e6b;
+	border: 1px solid #b8d8de;
+}
+
+.prab-chip--attempt {
+	background: #f0f0f1;
+	color: #50575e;
+	border: 1px solid #dcdcde;
+}
+
+.prab-chip--chosen {
+	background: #edf7ed;
+	color: #1e6b2e;
+	border: 1px solid #b9dfc0;
+}
+
+.prab-chip--header {
+	margin-left: 6px;
+	font-size: 12px;
+}
+
+.prab-stage--stale {
+	border-left: 3px solid #d98c2b;
+}
+
+/* ── Stage footer actions ─────────────────────────────────────────── */
+.prab-stage-rerun-footer {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-top: 12px;
+	padding-top: 10px;
+	border-top: 1px dashed #e2dcd2;
+}
+
+.prab-edit-unavailable {
+	font-size: 12px;
+	color: #777;
+	font-style: italic;
+	max-width: 46em;
+}
+
+.prab-rerun-from--stale {
+	border-color: #d98c2b;
+	color: #8a4a0b;
+}
+
+/* ── Edit panel ───────────────────────────────────────────────────── */
+.prab-edit-panel {
+	margin-top: 12px;
+	padding: 14px 16px;
+	background: #fbf8f2;
+	border: 1px solid #e2dcd2;
+	border-radius: 6px;
+}
+
+.prab-edit-copy {
+	font-size: 13px;
+	color: #50575e;
+	max-width: 60em;
+}
+
+.prab-edit-spend {
+	font-size: 12px;
+	color: #50575e;
+}
+
+.prab-edit-spend--warn,
+.prab-spend-warning {
+	color: #8a2a0b;
+	font-weight: 600;
+}
+
+.prab-run-spend--warn {
+	border-left: 3px solid #c9501f;
+}
+
+.prab-edit-model {
+	font-size: 12px;
+	color: #777;
+	font-family: Consolas, Monaco, monospace;
+}
+
+.prab-edit-message {
+	margin-bottom: 10px;
+}
+
+.prab-edit-role {
+	display: block;
+	font-size: 11px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #8c8f94;
+	margin-bottom: 3px;
+}
+
+.prab-edit-textarea {
+	width: 100%;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.prab-edit-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-top: 8px;
+}
+
+.prab-edit-forkinfo {
+	font-size: 12px;
+	color: #777;
+}
+
+.prab-edit-feedback {
+	font-size: 12px;
+	color: #1e6b2e;
+}
+
+.prab-edit-feedback--error {
+	color: #b32d2e;
+}
+
+/* ── Image grid (F3) ──────────────────────────────────────────────── */
+.prab-image-grid {
+	display: flex;
+	gap: 14px;
+	flex-wrap: wrap;
+	margin: 10px 0;
+}
+
+.prab-image-card {
+	margin: 0;
+	max-width: 220px;
+}
+
+.prab-image-card img {
+	width: 100%;
+	height: auto;
+	border-radius: 4px;
+	border: 1px solid #e2dcd2;
+}
+
+.prab-image-card--chosen img {
+	border: 2px solid #1b8a92;
+}
+
+.prab-image-card figcaption {
+	font-size: 12px;
+	color: #50575e;
+	margin-top: 4px;
+}
+
+/* ── Sidebar models card (F2) ─────────────────────────────────────── */
+.prab-models-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+
+.prab-models-table th {
+	text-align: left;
+	font-weight: 600;
+	padding: 4px 6px 4px 0;
+	vertical-align: top;
+	color: #50575e;
+	width: 38%;
+}
+
+.prab-models-table td {
+	padding: 4px 0;
+}
+
+.prab-models-model {
+	display: block;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 11px;
+	word-break: break-all;
+}
+
+.prab-models-meta {
+	display: block;
+	color: #8c8f94;
+	font-size: 11px;
+}
+
+/* ── Board card human-modified dot ────────────────────────────────── */
+.prab-card-human-chip {
+	display: inline-block;
+	margin-top: 4px;
+	padding: 1px 7px;
+	border-radius: 9px;
+	font-size: 10px;
+	font-weight: 700;
+	background: #e9f2f4;
+	color: #1b5e6b;
+	border: 1px solid #b8d8de;
+}
+
+/* ── Review queue stale warning ───────────────────────────────────── */
+.prab-review-stale-chip {
+	display: inline-block;
+	margin-left: 6px;
+	padding: 1px 7px;
+	border-radius: 9px;
+	font-size: 10px;
+	font-weight: 700;
+	background: #fcf0e4;
+	color: #8a4a0b;
+	border: 1px solid #e8c9a8;
+}

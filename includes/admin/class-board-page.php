@@ -152,6 +152,7 @@ class PRAutoBlogger_Board_Page {
 					'edit'         => __( 'Edit', 'prautoblogger' ),
 					'viewLog'      => __( 'View Log', 'prautoblogger' ),
 					'pollError'    => __( 'Board update failed — retrying.', 'prautoblogger' ),
+					'humanModified' => __( 'Human-modified', 'prautoblogger' ),
 				),
 			)
 		);

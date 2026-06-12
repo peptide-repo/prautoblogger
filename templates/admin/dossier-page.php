@@ -101,6 +101,13 @@ $back_url = admin_url( 'admin.php?page=prautoblogger-board' );
 					<span class="prab-dossier-status prab-dossier-status--<?php echo esc_attr( $dossier['post_status'] ?? '' ); ?>">
 						<?php echo esc_html( ucfirst( $dossier['post_status'] ?? '' ) ); ?>
 					</span>
+					<?php // M3: run-summary audit badges -- visible, never tooltip-buried (CPO guardrail 2). ?>
+					<span class="prab-chip prab-chip--human prab-chip--header" data-header-chip="human" <?php echo ! empty( $dossier['human_modified_any'] ) ? '' : 'hidden'; ?>>
+						<?php esc_html_e( 'Human-modified', 'prautoblogger' ); ?>
+					</span>
+					<span class="prab-chip prab-chip--stale prab-chip--header" data-header-chip="stale" <?php echo ! empty( $dossier['stale_any'] ) ? '' : 'hidden'; ?>>
+						<?php esc_html_e( 'Has stale stages', 'prautoblogger' ); ?>
+					</span>
 				</div>
 			</div>
 			<?php if ( $post_id > 0 ) : ?>
@@ -140,6 +147,16 @@ $back_url = admin_url( 'admin.php?page=prautoblogger-board' );
 				$stage_name = (string) ( $stage_row['stage'] ?? 'unknown' );
 				$log_rows   = $log_index[ $stage_name ] ?? array();
 				require PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/dossier-stage-section.php';
+			}
+
+			// M3/F3: stages that exist only in generation_log (images,
+			// llm_research, ...) render from their real data source.
+			foreach ( ( $dossier['log_only_stages'] ?? array() ) as $stage_name ) {
+				$log_rows = $log_index[ $stage_name ] ?? array();
+				if ( empty( $log_rows ) ) {
+					continue;
+				}
+				require PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/dossier-log-stage-section.php';
 			}
 
 			if ( empty( $stages ) ) :
@@ -189,6 +206,8 @@ $back_url = admin_url( 'admin.php?page=prautoblogger-board' );
 						</dl>
 					<?php endif; ?>
 				</div>
+
+				<?php require PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/dossier-sidebar-cards.php'; ?>
 
 				<div class="prab-sidebar-card prab-cost-receipt">
 					<h3 class="prab-sidebar-heading"><?php esc_html_e( 'Cost Receipt', 'prautoblogger' ); ?></h3>

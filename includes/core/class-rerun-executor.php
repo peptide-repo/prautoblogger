@@ -218,5 +218,4 @@ class PRAutoBlogger_Rerun_Executor {
 			PRAutoBlogger_Generation_Lock::release();
 		}
 	}
-
 }

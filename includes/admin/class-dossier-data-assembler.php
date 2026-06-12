@@ -16,6 +16,15 @@ declare(strict_types=1);
  * Legacy posts (no run row) return ['has_run' => false] -- never notices.
  * Amortized research rows (pv=null, role='') render gracefully.
  *
+ * v0.20.0 (M3): stage rows are filtered to THIS post's item (item_key
+ * from the idea-hash meta; multi-article runs no longer collide) and
+ * gen_log rows exclude entries linked to OTHER posts; per-stage edit/
+ * re-run affordance data + run spend ride the view model
+ * (Dossier_Rerun_Panel_Data); log-only stages (image_a/image_b/
+ * llm_research/... -- generation_log rows with no run_stages row) and
+ * the post's pipeline attachments are exposed so the image sections
+ * render from their REAL data sources (QA M2 F3).
+ *
  * Triggered by: PRAutoBlogger_Dossier_Page::render_page().
  * Dependencies: PRAutoBlogger_Dossier_Gen_Log_Query, PRAutoBlogger_Stage_Display_Map,
  *               PRAutoBlogger_Run_Stage_State.
@@ -55,6 +64,16 @@ class PRAutoBlogger_Dossier_Data_Assembler {
 			'stages'        => array(),
 			'decisions'     => array(),
 			'gen_log_index' => array(),
+			'item_key'      => '',
+			'eligibility'   => array(
+				'ok'     => false,
+				'reason' => '',
+			),
+			'spend'              => PRAutoBlogger_Dossier_Rerun_Panel_Data::spend( null ),
+			'human_modified_any' => false,
+			'stale_any'          => false,
+			'log_only_stages'    => array(),
+			'images'             => array(),
 		);
 
 		if ( $post_id <= 0 ) {
@@ -82,11 +101,40 @@ class PRAutoBlogger_Dossier_Data_Assembler {
 			return $base;
 		}
 
+		$idea_hash         = (string) get_post_meta( $post_id, '_prautoblogger_idea_hash', true );
+		$item_key          = '' !== $idea_hash ? 'idea:' . $idea_hash : '';
+		$base['item_key']  = $item_key;
+
 		$base['has_run']       = true;
 		$base['run']           = $run;
-		$base['stages']        = $this->get_stage_rows( $run_id );
+		$base['stages']        = $this->get_stage_rows( $run_id, $item_key );
 		$base['decisions']     = $this->get_decision_rows( $run_id );
-		$base['gen_log_index'] = $this->log_query->get_by_run( $run_id );
+		$base['gen_log_index'] = $this->filter_log_for_post( $this->log_query->get_by_run( $run_id ), $post_id );
+		$base['eligibility']   = PRAutoBlogger_Rerun_Eligibility::check( $run_id, $post_id );
+		$base['spend']         = PRAutoBlogger_Dossier_Rerun_Panel_Data::spend( $run );
+
+		foreach ( $base['stages'] as $role_key => $stage_row ) {
+			$stage_name = (string) ( $stage_row['stage'] ?? '' );
+			$rerun      = PRAutoBlogger_Dossier_Rerun_Panel_Data::for_stage(
+				$stage_row,
+				$base['gen_log_index'][ $stage_name ] ?? array(),
+				$run_id,
+				$base['eligibility']
+			);
+			$base['stages'][ $role_key ]['rerun'] = $rerun;
+			$base['human_modified_any']           = $base['human_modified_any'] || $rerun['human_modified'];
+			$base['stale_any']                    = $base['stale_any'] || $rerun['stale'];
+		}
+
+		// QA M2 F3: stages that exist only in generation_log (image_a/
+		// image_b, llm_research, image_prompt_rewrite, ...) render from
+		// their real source instead of silently disappearing.
+		$run_stage_names         = array();
+		foreach ( $base['stages'] as $stage_row ) {
+			$run_stage_names[ (string) ( $stage_row['stage'] ?? '' ) ] = true;
+		}
+		$base['log_only_stages'] = array_values( array_diff( array_keys( $base['gen_log_index'] ), array_keys( $run_stage_names ) ) );
+		$base['images']          = PRAutoBlogger_Dossier_Image_Data::for_post( $post_id );
 
 		return $base;
 	}
@@ -112,12 +160,14 @@ class PRAutoBlogger_Dossier_Data_Assembler {
 	}
 
 	/**
-	 * Fetch all run_stages rows for a run, indexed by stage name.
+	 * Fetch run_stages rows for a run, indexed by stage name — scoped to
+	 * one item (+ run-level rows) when an item key is known.
 	 *
-	 * @param string $run_id Pipeline run UUID.
+	 * @param string $run_id   Pipeline run UUID.
+	 * @param string $item_key Item key ('' = no scoping, M2 behavior).
 	 * @return array<string, array<string, mixed>> Stage rows keyed by stage name.
 	 */
-	private function get_stage_rows( string $run_id ): array {
+	private function get_stage_rows( string $run_id, string $item_key = '' ): array {
 		if ( ! PRAutoBlogger_Run_Stage_State::is_available() ) {
 			return array();
 		}
@@ -126,11 +176,22 @@ class PRAutoBlogger_Dossier_Data_Assembler {
 			return array();
 		}
 		$table = PRAutoBlogger_Run_Stage_State::table_name();
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$rows = $wpdb->get_results(
-			$wpdb->prepare( "SELECT * FROM {$table} WHERE run_id = %s ORDER BY id ASC", $run_id ),
-			ARRAY_A
-		);
+		// v0.20.0: scope to THIS post's item + run-level rows. When the
+		// idea-hash meta is absent (pre-v0.18 posts) fall back to the
+		// unfiltered M2 behavior (single-item runs are unaffected).
+		if ( '' !== $item_key ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$rows = $wpdb->get_results(
+				$wpdb->prepare( "SELECT * FROM {$table} WHERE run_id = %s AND item_key IN (%s, '') ORDER BY id ASC", $run_id, $item_key ),
+				ARRAY_A
+			);
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$rows = $wpdb->get_results(
+				$wpdb->prepare( "SELECT * FROM {$table} WHERE run_id = %s ORDER BY id ASC", $run_id ),
+				ARRAY_A
+			);
+		}
 
 		$index = array();
 		foreach ( ( $rows ?? array() ) as $row ) {
@@ -143,6 +204,29 @@ class PRAutoBlogger_Dossier_Data_Assembler {
 			$index[ $role_key ]    = $row;
 		}
 		return $index;
+	}
+
+	/**
+	 * Drop gen_log rows linked to OTHER posts (multi-article runs share
+	 * one run_id). Rows with no post linkage (NULL/0 — run-level work
+	 * and pre-link entries) are kept.
+	 *
+	 * @param array<string, array<int, array<string, mixed>>> $log_index Rows keyed by stage.
+	 * @param int                                             $post_id   This dossier's post.
+	 * @return array<string, array<int, array<string, mixed>>>
+	 */
+	private function filter_log_for_post( array $log_index, int $post_id ): array {
+		$filtered = array();
+		foreach ( $log_index as $stage => $rows ) {
+			foreach ( $rows as $row ) {
+				$row_post = (int) ( $row['post_id'] ?? 0 );
+				if ( 0 !== $row_post && $row_post !== $post_id ) {
+					continue;
+				}
+				$filtered[ $stage ][] = $row;
+			}
+		}
+		return $filtered;
 	}
 
 	/**

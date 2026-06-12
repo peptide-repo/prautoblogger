@@ -69,6 +69,11 @@
 
 		html += '<div class="prab-card-title">' + escHtml( card.title || cfg.strings.empty ) + '</div>';
 
+		// v0.20.0: human-modified runs are visually distinct at run-list level.
+		if ( card.human_modified ) {
+			html += '<span class="prab-card-human-chip">' + escHtml( cfg.strings.humanModified || 'Human-modified' ) + '</span>';
+		}
+
 		if ( card.cost_total ) {
 			html += '<div class="prab-card-meta"><span class="prab-card-cost">';
 			html += escHtml( formatCost( card.cost_total ) );

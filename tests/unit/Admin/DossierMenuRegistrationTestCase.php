@@ -51,6 +51,11 @@ abstract class DossierMenuRegistrationTestCase extends BaseTestCase {
 		$this->captured_menu_slug    = null;
 		$this->registration_hookname = null;
 
+		// v0.20.0: the dossier enqueue path localizes the edit/re-run config.
+		Functions\when( 'wp_localize_script' )->justReturn( true );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		Functions\when( 'absint' )->alias( static function ( $val ) { return abs( (int) $val ); } );
+
 		// Spy stub: tracks call order, captures slugs, returns a hookname that
 		// reflects how WordPress actually resolves it for known parents.
 		Functions\when( 'add_menu_page' )->alias(

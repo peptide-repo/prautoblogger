@@ -127,7 +127,7 @@ class PRAutoBlogger_Board_Data_Provider {
 			);
 		}
 
-		return $cards;
+		return $this->flag_human_modified( $cards );
 	}
 
 	/**
@@ -183,6 +183,48 @@ class PRAutoBlogger_Board_Data_Provider {
 			);
 		}
 
+		return $this->flag_human_modified( $cards );
+	}
+
+	/**
+	 * Set 'human_modified' on each card in ONE batched query (v0.20.0 —
+	 * CPO product AC: human-modified runs are visually distinct at the
+	 * run-list level). No per-card queries; self-healing on a missing
+	 * table/column (flag simply stays false).
+	 *
+	 * @param array<int, array<string, mixed>> $cards Column cards.
+	 * @return array<int, array<string, mixed>> Cards with the flag set.
+	 */
+	private function flag_human_modified( array $cards ): array {
+		$run_ids = array();
+		foreach ( $cards as $i => $card ) {
+			$cards[ $i ]['human_modified'] = false;
+			if ( ! empty( $card['run_id'] ) ) {
+				$run_ids[] = (string) $card['run_id'];
+			}
+		}
+		if ( empty( $run_ids ) || ! PRAutoBlogger_Run_Stage_State::is_available() ) {
+			return $cards;
+		}
+		global $wpdb;
+		$table        = PRAutoBlogger_Run_Stage_State::table_name();
+		$placeholders = implode( ',', array_fill( 0, count( $run_ids ), '%s' ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- $placeholders is a fixed %s list.
+		$flagged = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT run_id FROM {$table} WHERE human_modified = 1 AND run_id IN ({$placeholders})",
+				$run_ids
+			)
+		);
+		if ( ! is_array( $flagged ) || empty( $flagged ) ) {
+			return $cards;
+		}
+		$flagged = array_flip( array_map( 'strval', $flagged ) );
+		foreach ( $cards as $i => $card ) {
+			if ( isset( $flagged[ (string) ( $card['run_id'] ?? '' ) ] ) ) {
+				$cards[ $i ]['human_modified'] = true;
+			}
+		}
 		return $cards;
 	}
 }

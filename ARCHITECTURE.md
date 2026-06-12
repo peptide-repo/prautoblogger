@@ -121,17 +121,19 @@ prautoblogger/
 │   │   ├── admin.css                  # Admin page styles (wp-admin conventions)
 │   │   ├── board.css                  # Kanban board styles -- warm editorial palette (v0.19.0)
 │   │   ├── dossier.css                # Article dossier page styles: verdict pills, cost receipt, trace toggle (v0.19.2)
+│   │   ├── dossier-edit.css           # M3 edit/re-run layer: chips, edit panel, image grid, spend warning (v0.20.0)
 │   │   └── posts-widget.css           # Frontend posts widget styles (uses theme CSS vars)
 │   └── js/
 │       ├── admin.js                   # Admin page interactivity (vanilla JS / Alpine.js)
 │       ├── board.js                   # Board poller: AJAX poll + DOM updates + backoff (v0.19.0)
 │       ├── dossier.js                 # Per-stage raw-trace toggle: aria-expanded / aria-controls (v0.19.2)
+│       ├── dossier-edit.js            # M3 edit/re-run actions + stage-status polling (queued -> pickup -> result) (v0.20.0)
 │       └── posts-widget.js            # React component for frontend post cards (wp.element)
 │
 ├── includes/
-│   ├── class-prautoblogger.php        # Main orchestrator — registers all hooks, delegates execution (258 lines; split v0.19.2)
+│   ├── class-prautoblogger.php        # Main orchestrator — registers all hooks, delegates execution (split v0.19.2)
 │   ├── class-db-migrations.php        # DB migration methods extracted from class-prautoblogger.php (v0.19.2 split, binding 1)
-│   ├── class-pipeline-schema-installer.php # v0.18.0 substrate tables (prompts, run_sources, run_decisions, runs, run_stages)
+│   ├── class-pipeline-schema-installer.php # Pipeline substrate tables (prompts, run_sources, run_decisions, runs, run_stages, stage_inputs)
 │   ├── class-migrate-prompt-seed-v0180.php # One-shot v0.18.0 prompt-registry seed migration
 │   ├── class-executor.php             # Cron handlers, generation AJAX (delegates start + status to poller), model registry
 │   ├── class-generation-status-poller.php # Generation AJAX handlers: status transient renewal, lock-age orphan detection (R2b/R3), abort_orphaned_run
@@ -148,6 +150,9 @@ prautoblogger/
 │   │   ├── class-dossier-page.php     # Article dossier admin page: options.php-parent hidden-page, priority 12, enqueue, nonce (v0.19.3)
 │   │   ├── class-dossier-data-assembler.php # 5-query view-model builder: runs+stages+gen_log+decisions+meta (v0.19.2)
 │   │   ├── class-dossier-gen-log-query.php  # Dossier gen_log queries: per-stage cost receipt + raw trace (v0.19.2)
+│   │   ├── class-dossier-actions.php        # M3 AJAX: save fork / queue replay / queue rebuild / stage-status poll (v0.20.0)
+│   │   ├── class-dossier-rerun-panel-data.php # M3 per-stage affordance + spend view model (v0.20.0)
+│   │   ├── class-dossier-image-data.php     # F3: post's pipeline attachments via _prautoblogger_image_role (v0.20.0)
 │   │   ├── class-admin-page.php       # Main settings page (tabbed SaaS-style UI)
 │   │   ├── class-settings-fields.php  # Declarative settings: sections + core fields (API/Models/Content/Sources)
 │   │   ├── class-settings-fields-extended.php # Operational fields: schedule, publishing, display, analytics, images
@@ -194,7 +199,15 @@ prautoblogger/
 │   │   ├── class-run-state.php        # runs-table ledger + lifecycle row (ceiling/reserved/settled, pins, status)
 │   │   ├── class-cost-governor.php    # Per-run reserve-before-call enforcement (atomic conditional UPDATE)
 │   │   ├── class-cost-ceiling-exception.php # Thrown on ceiling breach (run already halted)
-│   │   ├── class-run-stage-state.php  # Per-run per-stage state machine (idempotent resume, output snapshots)
+│   │   ├── class-run-stage-state.php  # Per-run per-stage state machine: read API + thin write proxies (split v0.20.0)
+│   │   ├── class-run-stage-writes.php # Pipeline-path writes (start/done/fail; done clears stale) — extracted v0.20.0
+│   │   ├── class-run-stage-rerun-state.php # M3 operator-action mutations: restart/mark_stale/demote (v0.20.0)
+│   │   ├── class-stage-input-store.php # INSERT-only stage_inputs store: edit forks + idea seeds (v0.20.0)
+│   │   ├── class-rerun-eligibility.php # M3 policy gates: frozen posts, editable stages, chain order (v0.20.0)
+│   │   ├── class-stage-replay.php     # M3 governed single-stage replay from a fork body (v0.20.0)
+│   │   ├── class-rerun-executor.php   # M3 cron handlers: replay + rebuild jobs (v0.20.0)
+│   │   ├── class-rerun-job-support.php # M3 queue/lock/budget/status-transient plumbing (v0.20.0)
+│   │   ├── class-request-recorder.php # B1: process-scoped outbound request-body stash -> generation_log.request_json (v0.20.0)
 │   │   ├── class-run-reaper.php       # Stuck-run sweep + audit-payload retention (rides the #19 cron)
 │   │   ├── class-audit-writer.php     # run_sources / run_decisions insert layer
 │   │   ├── class-pipeline-status.php  # Status-transient + summary helpers (extracted from runner/worker)
@@ -252,6 +265,10 @@ prautoblogger/
 │   └── admin/
 │       ├── board-page.php             # Kanban board template (4-column editorial layout) (v0.19.0)
 │       ├── dossier-page.php           # Article dossier: two-column layout, sidebar, stage sections (v0.19.2)
+│       ├── dossier-stage-section.php  # Stage section partial: output, raw trace, M3 chips + rerun footer
+│       ├── dossier-edit-panel.php     # M3 per-stage edit panel: message textareas, fork info, spend strip (v0.20.0)
+│       ├── dossier-log-stage-section.php # F3 log-only stage sections incl. image attachment grid (v0.20.0)
+│       ├── dossier-sidebar-cards.php  # M3 sidebar: run spend (guardrail 4) + models/pv consolidation (F2) (v0.20.0)
 │       ├── dossier-stage-section.php  # Per-stage block: rendered output + raw-trace toggle + cost receipt (v0.19.2)
 │       ├── metabox-dossier-link.php   # Slim post metabox: "View generation dossier →" link (v0.19.2)
 │       ├── settings-page.php          # Settings page template (tabbed sidebar layout)
@@ -532,6 +549,7 @@ dropped on uninstall.
 | verdict        | VARCHAR(50) | e.g. 'approved', 'revised', 'rejected', 'halted' |
 | rationale      | TEXT        | Decision rationale (nullable)                 |
 | citation_score | FLOAT       | Nullable until the Phase-2 editorial loop computes it |
+| human_modified | TINYINT(1)  | v0.20.0 — decision derives from a human-edited input (set on replay of the stage, or on decisions recorded while rebuilding a human-modified item) |
 | created_at     | DATETIME    | Row creation time                             |
 
 - INDEX: `run_id`
@@ -568,11 +586,37 @@ dropped on uninstall.
 | attempt     | SMALLINT UNSIGNED | Re-entry counter                                 |
 | cost_usd    | DECIMAL(10,6)   | Cost attributed to the stage                       |
 | meta_json   | LONGTEXT        | Stage output snapshot — lets resume reuse a done stage instead of re-charging it (payload pruned on the retention cron) |
+| human_modified | TINYINT(1)   | v0.20.0 — set (sticky, never cleared) when an edited input fork enters execution for this row (CPO guardrail 2) |
+| stale       | TINYINT(1)      | v0.20.0 — upstream changed after this row completed; row STAYS 'done' so resume never silently re-runs it; cleared only by a fresh done() |
 | started_at  | DATETIME        | First entry                                        |
 | updated_at  | DATETIME        | Last transition                                    |
 | finished_at | DATETIME        | Set on done/failed (nullable)                      |
 
 - UNIQUE: `run_id, stage, agent_role, item_key` (the idempotency key) · INDEX: `status, updated_at`
+
+##### `prautoblogger_stage_inputs` — immutable input-version store (v0.20.0, db 1.3.0)
+
+| Column       | Type            | Description                                      |
+|--------------|-----------------|--------------------------------------------------|
+| id           | BIGINT UNSIGNED | Auto-increment PK                                |
+| run_id       | VARCHAR(36)     | Pipeline run UUID                                |
+| stage        | VARCHAR(50)     | Stage name ('' for idea seeds)                   |
+| agent_role   | VARCHAR(50)     | Stage row agent role                             |
+| item_key     | VARCHAR(64)     | Article scope                                    |
+| version      | INT UNSIGNED    | Monotonic per scope; **rows are INSERT-only** — edits create the next version, originals are never overwritten |
+| source       | VARCHAR(20)     | 'human' (edit fork) or 'seed' (Article_Idea payload persisted at worker start) |
+| request_json | LONGTEXT        | Fork body / idea JSON. Human fork bodies pruned by the retention cron after R days; seed rows (~1KB) kept |
+| author       | VARCHAR(100)    | WP user login, or 'pipeline' for seeds           |
+| created_at   | DATETIME        | Row creation time                                |
+
+- UNIQUE: `run_id, stage, agent_role, item_key, version` · INDEX: `run_id`
+- The ORIGINAL executed input of a stage is `generation_log.request_json` (B1) — it is
+  never copied or modified here; forks are the edit history (CPO guardrail 1).
+
+**db version note:** `PRAUTOBLOGGER_DB_VERSION` moved 1.1.0 → 1.3.0 in v0.20.0. The
+constant never actually carried the "db 1.2.0" this document used as shorthand for the
+v0.18.0 substrate; 1.3.0 leapfrogs the phantom value so the version-compare self-healing
+migration fires exactly once everywhere.
 
 ### WordPress Options (`wp_options`)
 
@@ -963,6 +1007,70 @@ kebab segment `d-b-migrations`, producing `class-d-b-migrations.php` — which d
 the file `class-db-migrations.php`. Explicit loading is the canonical pattern for classes
 whose names do not round-trip cleanly through the kebab converter. `class-prautoblogger.php`
 uses the same pattern (also explicitly required in `prautoblogger.php`).
+
+### #24: Edit + single-step re-run under CPO guardrails (v0.20.0, db 1.3.0, June 2026)
+
+Phase 2 admin M3 (design contract: cpo seq 8 Proposal C + the five guardrails of the
+edit+rerun delta ruling; decision `2026-06-12-admin-redesign-direction-c.md`).
+
+**B1 — request_json persistence.** The OpenRouter provider stashes every outgoing chat
+request BODY in the process-scoped `PRAutoBlogger_Request_Recorder` (the Run_Context
+pattern) right after `build_body()`; `Cost_Tracker::log_api_call()` consumes it into
+`generation_log.request_json`. Consume-once + overwrite-on-record means a stale body can
+never attach to an unrelated row; recording happens pre-dispatch so error rows carry the
+request too. Authorization can never be recorded: headers are built separately
+(`build_headers()`) and `build_body()` copies only whitelisted option keys. Retention
+rides the existing `prautoblogger_request_json_retention_days` prune unchanged.
+
+**Two re-run primitives, both chained-cron (never synchronous):** the dossier AJAX layer
+(`Dossier_Actions`) only validates + queues; the cron handlers (`Rerun_Executor`)
+re-validate eligibility UNDER the generation lock before mutating anything.
+
+1. **Replay** — one governed chat call from the latest edited input fork
+   (`stage_inputs`, INSERT-only versions). `Stage_Replay::options_from_body()` is the
+   exact inverse of `build_body()`+`apply_reasoning_budget()` (reasoning headroom
+   subtracted back out; reasoning pinned explicitly so global-setting drift cannot
+   reshape a replay). The call goes through `send_chat_completion`, so the cost
+   governor reserves against the SAME run ledger row (guardrail 4), with the normal
+   retry/empty-completion machinery. Output lands in the stage's run_stages snapshot —
+   the same place downstream rebuilds read from.
+2. **Rebuild ("re-run from here")** — demotes the target + downstream chain stages to
+   `pending` and re-enters `Article_Worker` with the idea reconstructed from the stored
+   seed (`stage_inputs`, source='seed', persisted at worker start because re-deriving
+   the idea from post fields could break the item_key hash and duplicate a post).
+   Upstream done stages are reused (never re-charged); demoted stages rebuild their
+   prompts from CURRENT upstream snapshots — this is how an edit propagates downstream.
+
+**Stale is a column, not a status.** A stale stage stays `done`, so
+resume-without-recharge logic can never silently re-run it — guardrail 3 (no silent
+auto-rerun; each downstream re-run is a deliberate operator action) holds by
+construction. Only `Run_Stage_Writes::done()` clears `stale`; only
+`Run_Stage_Rerun_State` (operator-action paths) may demote a done row. `human_modified`
+is sticky for the life of the run (set when a fork enters execution, surfaced as header/
+stage chips in the dossier, a board-card chip, and a Review Queue link-chip — the
+run-list-level visibility the product AC requires).
+
+**Run reopening.** `Run_State::reopen()` is the atomic terminal→running gate for re-run
+spend; it RE-SNAPSHOTS `ceiling_usd` from the current setting (a deliberate re-run
+adopts the operator's current per-run policy, exactly like a new run) and never resets
+reserved/settled — re-runs are new spend on the same run. Handlers always restore a
+terminal status (or record failed/halted) so the run-reaper's stuck-running sweep stays
+meaningful; jobs hold the global generation lock and ride the M1 status transient, so
+board/dossier polling shows queued → pickup → result and the existing R2/R3 orphan
+recovery covers dead re-run processes unchanged.
+
+**Eligibility (guardrail 5).** Posts with status publish/future/private freeze their
+run server-side (and `Publisher` refuses to touch them: re-run output refreshes only
+UNPUBLISHED posts, preserving their status — re-runs never publish). Editable stages
+are the item-scoped writer chat stages (outline/draft/polish); review/publish re-run
+via rebuild (their inputs are derived), run-level and image stages are excluded with
+visible in-UI reasons. Phase-2b stages inherit the mechanism when they exist as
+item-scoped chat calls.
+
+**F2/F3 (QA M2):** the sidebar consolidates per-stage model/pv/role; image (and other
+log-only) stages render from generation_log + the `_prautoblogger_image_role`
+attachment set — wiring the dossier to real data was deliberately chosen over teaching
+the live image pipeline to write run_stages (that belongs to the Phase-2b restructure).
 
 ## Cross-System LLM Budget Coordination
 

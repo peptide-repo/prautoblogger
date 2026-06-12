@@ -237,9 +237,35 @@ class PRAutoBlogger_Run_Stage_State {
 		return is_array( $rows ) ? $rows : array();
 	}
 
-	/** Reset per-request caches (tests). */	/** Reset per-request caches (tests). */
+	/**
+	 * Which of the given runs carry at least one stale stage (batched --
+	 * feeds the Review Queue warning chips without N+1; CPO product AC:
+	 * a stale flag is present at publish). Self-healing: missing table
+	 * or column returns [].
+	 *
+	 * @param array<string> $run_ids Run UUIDs.
+	 * @return array<string> Subset of $run_ids having stale stages.
+	 */
+	public static function runs_with_stale_stages( array $run_ids ): array {
+		$run_ids = array_values( array_filter( array_map( 'strval', $run_ids ) ) );
+		if ( empty( $run_ids ) || ! self::is_available() ) {
+			return array();
+		}
+		global $wpdb;
+		$table        = self::table_name();
+		$placeholders = implode( ',', array_fill( 0, count( $run_ids ), '%s' ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared -- $placeholders is a fixed %s list.
+		$rows = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT run_id FROM {$table} WHERE stale = 1 AND run_id IN ({$placeholders})",
+				$run_ids
+			)
+		);
+		return is_array( $rows ) ? array_map( 'strval', $rows ) : array();
+	}
+
+	/** Reset per-request caches (tests). */
 	public static function flush_cache(): void {
 		self::$table_ok = null;
 	}
-
 }

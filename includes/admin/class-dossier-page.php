@@ -119,6 +119,42 @@ class PRAutoBlogger_Dossier_Page {
 			PRAUTOBLOGGER_VERSION,
 			true
 		);
+
+		// M3: edit + re-run layer (separate files; dossier.css is not grown).
+		wp_enqueue_style(
+			'prautoblogger-dossier-edit',
+			PRAUTOBLOGGER_PLUGIN_URL . 'assets/css/dossier-edit.css',
+			array( 'prautoblogger-dossier' ),
+			PRAUTOBLOGGER_VERSION
+		);
+		wp_enqueue_script(
+			'prautoblogger-dossier-edit',
+			PRAUTOBLOGGER_PLUGIN_URL . 'assets/js/dossier-edit.js',
+			array(),
+			PRAUTOBLOGGER_VERSION,
+			true
+		);
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only context resolution for script config.
+		$post_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
+		wp_localize_script(
+			'prautoblogger-dossier-edit',
+			'prabDossierEdit',
+			array(
+				'ajaxUrl'      => admin_url( 'admin-ajax.php' ),
+				'nonce'        => wp_create_nonce( PRAutoBlogger_Dossier_Actions::NONCE_ACTION ),
+				'postId'       => $post_id,
+				// Settings read at point of use -- same poll setting as the board.
+				'pollInterval' => max( 3, (int) get_option( 'prautoblogger_board_poll_interval', 5 ) ),
+				'strings'      => array(
+					'saving'         => __( 'Saving…', 'prautoblogger' ),
+					'error'          => __( 'Request failed — try again.', 'prautoblogger' ),
+					'queued'         => __( 'Queued…', 'prautoblogger' ),
+					'rerunFromLabel' => __( 'Re-run from here', 'prautoblogger' ),
+					'confirmReplay'  => __( 'Queue a re-run of this stage with your edited input? This makes a new LLM call billed against this run\'s ceiling, and all downstream stages will be marked stale (nothing re-runs automatically).', 'prautoblogger' ),
+					'confirmRerunFrom' => __( 'Queue a re-run of this stage AND every stage after it? Each re-run stage makes new LLM calls billed against this run\'s ceiling. The article draft will be refreshed; published posts are never touched.', 'prautoblogger' ),
+				),
+			)
+		);
 	}
 
 	/**
