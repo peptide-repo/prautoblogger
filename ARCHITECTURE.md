@@ -119,9 +119,11 @@ prautoblogger/
 │   │   └── OFL.txt                    # SIL Open Font License
 │   ├── css/
 │   │   ├── admin.css                  # Admin page styles (wp-admin conventions)
+│   │   ├── board.css                  # Kanban board styles -- warm editorial palette (v0.19.0)
 │   │   └── posts-widget.css           # Frontend posts widget styles (uses theme CSS vars)
 │   └── js/
 │       ├── admin.js                   # Admin page interactivity (vanilla JS / Alpine.js)
+│       ├── board.js                   # Board poller: AJAX poll + DOM updates + backoff (v0.19.0)
 │       └── posts-widget.js            # React component for frontend post cards (wp.element)
 │
 ├── includes/
@@ -137,6 +139,9 @@ prautoblogger/
 │   ├── class-autoloader.php           # PSR-4-style autoloader for plugin classes
 │   │
 │   ├── admin/
+│   │   ├── class-board-page.php       # Kanban board -- primary landing screen (v0.19.0)
+│   │   ├── class-board-data-provider.php # Board orchestrator: 4-column snapshot, delegates gen_log queries (v0.19.0)
+│   │   ├── class-board-gen-log-query.php # Board gen_log queries: Generating + Failed column raw DB reads (v0.19.0)
 │   │   ├── class-admin-page.php       # Main settings page (tabbed SaaS-style UI)
 │   │   ├── class-settings-fields.php  # Declarative settings: sections + core fields (API/Models/Content/Sources)
 │   │   ├── class-settings-fields-extended.php # Operational fields: schedule, publishing, display, analytics, images
@@ -239,6 +244,7 @@ prautoblogger/
 │
 ├── templates/
 │   └── admin/
+│       ├── board-page.php             # Kanban board template (4-column editorial layout) (v0.19.0)
 │       ├── settings-page.php          # Settings page template (tabbed sidebar layout)
 │       ├── metrics-page.php           # Metrics/cost dashboard template
 │       ├── review-queue.php           # Review queue table template
@@ -608,6 +614,8 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_image_compose_variants` | Comma list of composed variants for Image A (default 'og,square'; whitelisted at point of use) |
 | `prautoblogger_image_featured_mark_enabled` | Toggle: subtle corner mark on featured images (default '1') |
 | `prautoblogger_image_compose_capability` | Cached capability probe `{fingerprint, capability}`; fingerprint = PHP version + imagick/gd presence, so it auto-invalidates on host changes |
+| `prautoblogger_board_poll_interval`     | Kanban board poll interval in seconds (default 5, min 3). Localized into board.js. |
+| `prautoblogger_board_published_window_days` | Days back to show in the Published column (default 7). |
 
 ### Post Meta
 
@@ -850,6 +858,22 @@ multi-step publish paths. Four subsystems:
 
 Tests use Brain\Monkey for WordPress function mocking (no database required). The BaseTestCase singleton handles setup/teardown of Monkey stubs and provides fixture helpers for common data shapes (SourceData, ArticleIdea, GenerationLog, etc.). All WordPress functions used by the plugin are stubbed in BaseTestCase::setUp() so individual test classes only override what they need. In v0.10.1, missing stubs for `post_type_exists()` were added to support PeptideLinker's PR-Core guards. All 1,362 WordPress-Core coding-standards violations (short array syntax, line length, spacing) were auto-fixed via phpcbf and the CI gate was flipped to strict mode — PHPCS failures now block CI. This prevents future regressions on the code style front.
 
+
+
+### #22b: Kanban board as primary admin landing screen (v0.19.0)
+
+The primary admin screen is now a kanban board (Direction C "Editorial Record") with four
+columns: Generating | In Review | Published | Failed. A separate `class-board-page.php`
+registers the `Board` submenu first so it appears before Settings in the nav.
+`class-board-data-provider.php` orchestrates the four columns and handles WP_Query columns
+(In Review, Published). Raw `prab_generation_log` queries (Generating, Failed) are in the
+extracted `class-board-gen-log-query.php` (split for 300-line compliance) -- no new schema
+required for M1. The data provider uses the `prautoblogger_generation_status` transient
+(written by the Executor for manual/daily runs) as the primary active-run signal, with a
+secondary query on recent `prab_generation_log` run_ids that have no linked post as a
+fallback. M2 will rename Runs & Audit -> Articles and wire board cards to the Article Dossier.
+Poll interval and published window are settings-backed, localized into board.js, never
+hardcoded.
 
 ## Cross-System LLM Budget Coordination
 

@@ -103,12 +103,17 @@ if ( ! defined( 'OBJECT' ) ) {
 /**
  * Minimal WP_Query stub for unit tests.
  *
- * IdeaScorer uses WP_Query to check for existing posts.
- * This stub returns empty results by default.
+ * IdeaScorer uses WP_Query to check for existing posts with empty results.
+ * Board data provider tests inject posts via WP_Query::$_test_posts_queue
+ * (static FIFO): push arrays of WP_Post objects before instantiating the
+ * provider, and each new WP_Query() call will dequeue one batch.
  */
 if ( ! class_exists( 'WP_Query' ) ) {
     // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound
     class WP_Query {
+        /** @var array<int, array> FIFO queue of post-arrays for tests. */
+        public static $_test_posts_queue = [];
+
         /** @var array */
         public $posts = [];
         /** @var int */
@@ -117,7 +122,11 @@ if ( ! class_exists( 'WP_Query' ) ) {
         public $have_posts = false;
 
         public function __construct( $args = [] ) {
-            // No-op for testing — returns no posts.
+            if ( ! empty( self::$_test_posts_queue ) ) {
+                $this->posts       = array_shift( self::$_test_posts_queue );
+                $this->found_posts = count( $this->posts );
+                $this->have_posts  = $this->found_posts > 0;
+            }
         }
 
         public function have_posts(): bool {
@@ -162,6 +171,37 @@ if ( ! class_exists( 'WP_Error' ) ) {
                 $code = $this->get_error_code();
             }
             return isset( $this->errors[ $code ] ) ? $this->errors[ $code ][0] : '';
+        }
+    }
+}
+
+/**
+ * Minimal WP_Post stub for unit tests.
+ *
+ * Board data provider tests return WP_Post instances from WP_Query.
+ * Class defined here so instanceof checks in production code work correctly.
+ */
+if ( ! class_exists( 'WP_Post' ) ) {
+    // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound
+    class WP_Post {
+        /** @var int */
+        public $ID = 0;
+        /** @var string */
+        public $post_title = '';
+        /** @var string */
+        public $post_status = 'publish';
+        /** @var string */
+        public $post_date_gmt = '';
+        /** @var string */
+        public $post_modified_gmt = '';
+
+        /**
+         * @param array<string, mixed> $data
+         */
+        public function __construct( array $data = [] ) {
+            foreach ( $data as $key => $value ) {
+                $this->$key = $value;
+            }
         }
     }
 }

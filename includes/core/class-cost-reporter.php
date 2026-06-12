@@ -36,8 +36,9 @@ class PRAutoBlogger_Cost_Reporter {
 		$first_of_month = gmdate( 'Y-m-01 00:00:00' );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$result = $wpdb->get_var(
-			$wpdb->prepare(  // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->prepare(
 				"SELECT COALESCE(SUM(estimated_cost), 0) FROM {$table} WHERE created_at >= %s AND response_status = 'success'",
 				$first_of_month
 			)
@@ -64,8 +65,8 @@ class PRAutoBlogger_Cost_Reporter {
 		$start_date = gmdate( 'Y-m-d', time() - ( $days * DAY_IN_SECONDS ) );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$results = $wpdb->get_results(
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$wpdb->prepare(
 				"SELECT DATE(created_at) as day, SUM(estimated_cost) as total_cost
 				FROM {$table}
@@ -102,8 +103,8 @@ class PRAutoBlogger_Cost_Reporter {
 		$table = $wpdb->prefix . 'prautoblogger_generation_log';
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$results = $wpdb->get_results(
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$wpdb->prepare(
 				"SELECT stage,
 					SUM(estimated_cost) as total_cost,
@@ -142,6 +143,7 @@ class PRAutoBlogger_Cost_Reporter {
 		}
 		return ( $this->get_monthly_spend() / $budget ) * 100.0;
 	}
+
 	/**
 	 * Get average input/output token counts for given stages over a time period.
 	 *

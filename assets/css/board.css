@@ -1,0 +1,249 @@
+/**
+ * PRAutoBlogger — Kanban Board Styles
+ *
+ * Warm editorial style (Proposal C / Direction C).
+ * Inside wp-admin chrome; uses WP admin vars where available.
+ * No build step — plain CSS, no preprocessor.
+ *
+ * Palette:
+ *   Teal     #1B8A92   (brand primary — Generating pill, spinner)
+ *   Cream    #FAF6EE   (card background)
+ *   Ink      #0D0D0D   (primary text)
+ *   Orange   #FF8A3D   (In Review pill)
+ *   Lime     #7FD600   (Published pill — success)
+ *   Red      #D94F4F   (Failed pill)
+ *   Mid-grey #8A8A8A   (meta text, border)
+ *
+ * @see templates/admin/board-page.php  — Rendered HTML structure.
+ * @see assets/js/board.js              — DOM updates that match these selectors.
+ */
+
+/* ── Page wrapper ──────────────────────────────────────────────────────── */
+.prab-board-wrap {
+	padding: 0;
+}
+
+.prab-board-heading {
+	font-size: 1.4rem;
+	font-weight: 700;
+	color: #0d0d0d;
+	margin: 20px 0 18px 0;
+	padding: 0 20px;
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+}
+
+.prab-board-heading-sub {
+	font-size: 1rem;
+	font-weight: 400;
+	color: #8a8a8a;
+}
+
+/* ── Four-column board grid ────────────────────────────────────────────── */
+.prab-board {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 16px;
+	padding: 0 20px 24px;
+	align-items: start;
+}
+
+@media (max-width: 1200px) {
+	.prab-board {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (max-width: 720px) {
+	.prab-board {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* ── Column ────────────────────────────────────────────────────────────── */
+.prab-board-column {
+	background: #f8f7f5;
+	border: 1px solid #e2ddd6;
+	border-radius: 8px;
+	min-height: 180px;
+}
+
+.prab-col-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 12px 14px 10px;
+	border-bottom: 1px solid #e2ddd6;
+}
+
+.prab-col-title {
+	font-size: 0.82rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: #4a4540;
+}
+
+.prab-col-cards {
+	padding: 10px 10px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.prab-col-empty {
+	font-size: 0.82rem;
+	color: #b0a898;
+	text-align: center;
+	padding: 20px 0;
+	margin: 0;
+}
+
+/* ── Status pills ──────────────────────────────────────────────────────── */
+.prab-pill {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1px 8px;
+	border-radius: 12px;
+	font-size: 0.75rem;
+	font-weight: 600;
+	line-height: 1.5;
+	color: #fff;
+	min-width: 24px;
+}
+
+.prab-pill--generating {
+	background: #1b8a92;
+}
+
+.prab-pill--review {
+	background: #ff8a3d;
+}
+
+.prab-pill--published {
+	background: #5a9e28;
+}
+
+.prab-pill--failed {
+	background: #d94f4f;
+}
+
+/* ── Card ──────────────────────────────────────────────────────────────── */
+.prab-board-card {
+	background: #faf6ee;
+	border: 1px solid #e0d8cc;
+	border-radius: 6px;
+	padding: 11px 12px 10px;
+	position: relative;
+	transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.prab-board-card:hover {
+	box-shadow: 0 2px 8px rgba(27, 138, 146, 0.12);
+	border-color: #b8cfd2;
+}
+
+.prab-board-card--generating {
+	border-left: 3px solid #1b8a92;
+}
+
+.prab-card-title {
+	font-size: 0.875rem;
+	font-weight: 500;
+	color: #0d0d0d;
+	line-height: 1.4;
+	margin-bottom: 6px;
+	padding-right: 20px; /* room for spinner */
+}
+
+.prab-card-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 5px;
+}
+
+.prab-card-cost {
+	font-size: 0.75rem;
+	color: #5a8a50;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.prab-card-stage {
+	font-size: 0.74rem;
+	color: #1b8a92;
+	font-weight: 500;
+	margin-bottom: 5px;
+}
+
+.prab-card-error {
+	font-size: 0.74rem;
+	color: #d94f4f;
+	margin-bottom: 5px;
+	font-style: italic;
+}
+
+.prab-card-actions {
+	margin-top: 8px;
+}
+
+.prab-card-link {
+	display: inline-block;
+	font-size: 0.75rem;
+	color: #1b8a92;
+	text-decoration: none;
+	font-weight: 500;
+	border: 1px solid #b8d8db;
+	border-radius: 4px;
+	padding: 2px 8px;
+	transition: background 0.1s ease;
+}
+
+.prab-card-link:hover {
+	background: #e8f4f5;
+	color: #136870;
+	border-color: #8ac4c9;
+}
+
+/* ── Generating spinner ────────────────────────────────────────────────── */
+.prab-card-spinner {
+	position: absolute;
+	top: 11px;
+	right: 11px;
+	width: 14px;
+	height: 14px;
+	border: 2px solid #c8e6e8;
+	border-top-color: #1b8a92;
+	border-radius: 50%;
+	animation: prab-spin 0.9s linear infinite;
+}
+
+@keyframes prab-spin {
+	to { transform: rotate(360deg); }
+}
+
+/* ── Board footer ──────────────────────────────────────────────────────── */
+.prab-board-footer {
+	padding: 0 20px 16px;
+	font-size: 0.78rem;
+	color: #a0998f;
+}
+
+/* ── Poll-error banner ─────────────────────────────────────────────────── */
+.prab-board-error {
+	background: #fff4f4;
+	border: 1px solid #f5c4c4;
+	color: #8b2020;
+	border-radius: 6px;
+	padding: 8px 14px;
+	margin: 0 20px 12px;
+	font-size: 0.82rem;
+	display: none;
+}
+
+.prab-board-error.is-visible {
+	display: block;
+}

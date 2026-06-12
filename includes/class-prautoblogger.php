@@ -7,19 +7,19 @@ declare(strict_types=1);
  * Main orchestrator for the PRAutoBlogger plugin.
  *
  * Registers all WordPress hooks (actions and filters) and wires up dependencies.
- * This is the ONLY place hooks are registered — individual classes contain only
+ * This is the ONLY place hooks are registered -- individual classes contain only
  * business logic, not hook registration.
  *
  * Triggered by: prautoblogger() singleton in prautoblogger.php, called on `plugins_loaded`.
  * Dependencies: All other plugin classes (loaded via autoloader), PRAutoBlogger_Executor.
  *
- * @see prautoblogger.php                     — Plugin bootstrap that instantiates this class.
- * @see class-executor.php                    — Cron/AJAX handlers for generation, model registry.
- * @see class-ajax-handlers.php               — Non-generation AJAX endpoints (images, models, test).
- * @see class-generation-lock.php             — DB mutex for single-writer generation.
- * @see core/class-pipeline-runner.php         — Executes the generation pipeline.
- * @see ARCHITECTURE.md                        — Data flow diagram showing how classes interact.
- * @see CONVENTIONS.md                         — Hook naming conventions.
+ * @see prautoblogger.php                     -- Plugin bootstrap that instantiates this class.
+ * @see class-executor.php                    -- Cron/AJAX handlers for generation, model registry.
+ * @see class-ajax-handlers.php               -- Non-generation AJAX endpoints (images, models, test).
+ * @see class-generation-lock.php             -- DB mutex for single-writer generation.
+ * @see core/class-pipeline-runner.php         -- Executes the generation pipeline.
+ * @see ARCHITECTURE.md                        -- Data flow diagram showing how classes interact.
+ * @see CONVENTIONS.md                         -- Hook naming conventions.
  */
 class PRAutoBlogger {
 
@@ -46,7 +46,7 @@ class PRAutoBlogger {
 		$this->ajax_handlers = new PRAutoBlogger_Ajax_Handlers( $this->executor->get_model_registry() );
 
 		add_action( 'admin_init', array( $this, 'on_check_db_version' ) );
-		// v0.18.0: cron requests must also self-heal the schema — after a
+		// v0.18.0: cron requests must also self-heal the schema -- after a
 		// deploy, scheduled generation can run before any admin page load,
 		// and new-column inserts would silently fail on the old schema.
 		add_action( 'init', array( $this, 'on_check_db_version_for_cron' ) );
@@ -67,6 +67,11 @@ class PRAutoBlogger {
 
 	/** Register admin-only hooks (settings, notices, metabox, dashboard widget). */
 	private function register_admin_hooks(): void {
+		// Kanban board -- registered first so it appears as the first submenu item.
+		$board_page = new PRAutoBlogger_Board_Page();
+		add_action( 'admin_menu', array( $board_page, 'on_register_menu' ) );
+		add_action( 'admin_enqueue_scripts', array( $board_page, 'on_enqueue_assets' ) );
+
 		$admin_page = new PRAutoBlogger_Admin_Page();
 		add_action( 'admin_menu', array( $admin_page, 'on_register_menu' ) );
 		add_action( 'admin_init', array( $admin_page, 'on_register_settings' ) );
@@ -86,7 +91,7 @@ class PRAutoBlogger {
 
 		( new PRAutoBlogger_Post_List_Columns() )->register();
 
-		// Block false update notifications — our slug collides with another plugin.
+		// Block false update notifications -- our slug collides with another plugin.
 		add_filter( 'site_transient_update_plugins', array( $this, 'filter_block_false_updates' ) );
 	}
 
@@ -111,7 +116,7 @@ class PRAutoBlogger {
 		// Hostinger's 120-second web-server connection timeout.
 		add_action( 'prautoblogger_manual_generation', array( $this->executor, 'on_manual_generation' ) );
 
-		// Chained article generation — each queued article fires as its own
+		// Chained article generation -- each queued article fires as its own
 		// cron event so it gets a fresh PHP process and execution time budget.
 		add_action(
 			PRAutoBlogger_Pipeline_Runner::CRON_ACTION,
@@ -197,6 +202,12 @@ class PRAutoBlogger {
 
 		add_action( 'wp_ajax_prautoblogger_clear_logs', array( new PRAutoBlogger_Log_Viewer(), 'on_ajax_clear_logs' ) );
 
+		// Board status polling AJAX (nonce: prautoblogger_board).
+		add_action(
+			'wp_ajax_' . PRAutoBlogger_Board_Page::AJAX_ACTION,
+			array( new PRAutoBlogger_Board_Page(), 'on_ajax_board_status' )
+		);
+
 		$ideas = new PRAutoBlogger_Ideas_Browser();
 		add_action( 'wp_ajax_prautoblogger_generate_from_idea', array( $ideas, 'on_ajax_generate_from_idea' ) );
 		add_action( 'wp_ajax_prautoblogger_idea_gen_status', array( $ideas, 'on_ajax_idea_gen_status' ) );
@@ -280,7 +291,7 @@ class PRAutoBlogger {
 		// value into a deprecated-keyed option for one version cycle (so a
 		// customised value is recoverable / auditable) and seed the new
 		// template with its editorial default. The old option is intentionally
-		// NOT deleted this cycle. See docs/proposals/2026-05-29-image-pipeline-in-plugin-brief.md §8 Commit 1.
+		// NOT deleted this cycle. See docs/proposals/2026-05-29-image-pipeline-in-plugin-brief.md paragraph 8 Commit 1.
 		if ( ! get_option( 'prautoblogger_migrated_style_template_v0160' ) ) {
 			$old_suffix = get_option( 'prautoblogger_image_style_suffix', '' );
 			if ( '' !== $old_suffix && false === get_option( 'prautoblogger_image_style_suffix_deprecated', false ) ) {
@@ -293,7 +304,7 @@ class PRAutoBlogger {
 			update_option( 'prautoblogger_migrated_style_template_v0160', '1' );
 		}
 
-		// v0.9.0 — Runware as default image model. v0.10.0 — remove CF Workers AI.
+		// v0.9.0 -- Runware as default image model. v0.10.0 -- remove CF Workers AI.
 		PRAutoBlogger_Activator::migrate_default_image_v090();
 		PRAutoBlogger_Migrate_Remove_Cloudflare_V0100::run();
 
@@ -311,9 +322,11 @@ class PRAutoBlogger {
 	}
 
 	/**
-	 * Run the db-version check on cron requests (admin_init never fires
-	 * there). Gated to wp_doing_cron() so normal frontend requests pay
-	 * nothing beyond one autoloaded option read.
+	 * Run schema migrations during cron requests.
+	 *
+	 * Wraps on_check_db_version() so it only fires during WP-Cron execution.
+	 * After a deploy, the daily generation cron can fire before any admin page
+	 * load -- without this, new-column inserts would silently fail.
 	 *
 	 * Side effects: may run the same migrations as on_check_db_version().
 	 *
@@ -363,7 +376,7 @@ class PRAutoBlogger {
 		return $this->executor;
 	}
 
-	// ── Backward-compatible proxies ──
+	// -- Backward-compatible proxies --
 
 	/** @see PRAutoBlogger_Executor::on_daily_generation() */
 	public function on_daily_generation(): void {
