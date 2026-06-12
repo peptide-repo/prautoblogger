@@ -5,6 +5,20 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.20.1] - 2026-06-12
+
+### Fixed
+- **Restore three bootstrap constants deleted by the v0.19.0 constants-block regression**
+  (`PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD` 0.50, `PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS` 14,
+  `PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS` 2048 — verbatim v0.18.3 values). PR #156 (v0.19.0)
+  dropped them from `prautoblogger.php`; the gap was latent because `tests/bootstrap.php` defines
+  its own fallbacks (CI green) and no exercised v0.19.x runtime path read them (prod reasoning
+  disabled). v0.20.0's activator defaults + run-state ceiling read them on the admin
+  migration path -> fatal 500 on all plugin admin pages immediately after the v0.20.0 deploy
+  (2026-06-12; front-of-site unaffected; hot-patched on prod within minutes, this commit makes
+  it canonical). Follow-up owed: CI guard asserting every referenced PRAUTOBLOGGER_* constant
+  is production-defined or defined()-guarded (maintenance thread).
+
 ## [0.20.0] - 2026-06-12
 
 ### Added
