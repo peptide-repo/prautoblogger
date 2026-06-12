@@ -25,6 +25,9 @@ class BoardDataProviderTest extends BaseTestCase {
 		$this->wpdb         = $this->create_mock_wpdb();
 		$GLOBALS['wpdb']    = $this->wpdb;
 
+		// Reset WP_Query test queue before each test.
+		\WP_Query::$_test_posts_queue = [];
+
 		Functions\when( 'get_option' )->alias(
 			function ( string $name, $default = false ) {
 				$map = array(
@@ -37,9 +40,6 @@ class BoardDataProviderTest extends BaseTestCase {
 
 		// Transient stub: by default no active run.
 		Functions\when( 'get_transient' )->justReturn( false );
-
-		// WP_Query stub: return empty by default; individual tests override.
-		Functions\when( 'WP_Query' )->justReturn( (object) array( 'posts' => array() ) );
 
 		// Admin URL stub.
 		Functions\when( 'admin_url' )->alias(
@@ -55,6 +55,7 @@ class BoardDataProviderTest extends BaseTestCase {
 	}
 
 	protected function tearDown(): void {
+		\WP_Query::$_test_posts_queue = [];
 		unset( $GLOBALS['wpdb'] );
 		parent::tearDown();
 	}
@@ -139,15 +140,14 @@ class BoardDataProviderTest extends BaseTestCase {
 	 * Draft posts with the _prautoblogger_generated meta appear in In Review.
 	 */
 	public function test_in_review_cards_from_draft_posts(): void {
-		$post        = new \stdClass();
-		$post->ID    = 42;
-		$post->post_title    = 'Test Draft Post';
-		$post->post_date_gmt = '2026-06-12 10:00:00';
+		$post                 = new \WP_Post();
+		$post->ID             = 42;
+		$post->post_title     = 'Test Draft Post';
+		$post->post_date_gmt  = '2026-06-12 10:00:00';
+		$post->post_status    = 'draft';
 
-		// WP_Query returns our fake post.
-		Functions\when( 'WP_Query' )->justReturn(
-			(object) array( 'posts' => array( $post ) )
-		);
+		// Inject post into WP_Query queue: first WP_Query() call returns this post.
+		\WP_Query::$_test_posts_queue[] = array( $post );
 
 		Functions\when( 'get_post_meta' )->alias(
 			function ( $post_id, $key, $single ) use ( $post ) {
@@ -183,14 +183,14 @@ class BoardDataProviderTest extends BaseTestCase {
 	 * Published posts within the window appear in Published.
 	 */
 	public function test_published_cards_within_window(): void {
-		$post             = new \stdClass();
-		$post->ID         = 77;
-		$post->post_title     = 'Published Article';
-		$post->post_date_gmt  = gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS );
+		$post                = new \WP_Post();
+		$post->ID            = 77;
+		$post->post_title    = 'Published Article';
+		$post->post_date_gmt = gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS );
+		$post->post_status   = 'publish';
 
-		Functions\when( 'WP_Query' )->justReturn(
-			(object) array( 'posts' => array( $post ) )
-		);
+		// Inject post into WP_Query queue: first WP_Query() call returns this post.
+		\WP_Query::$_test_posts_queue[] = array( $post );
 
 		Functions\when( 'get_post_meta' )->alias(
 			function ( $post_id, $key, $single ) use ( $post ) {
@@ -269,8 +269,6 @@ class BoardDataProviderTest extends BaseTestCase {
 		$this->wpdb->method( 'prepare' )->willReturn( 'SELECT 1' );
 		$this->wpdb->method( 'get_results' )->willReturn( array() );
 
-		Functions\when( 'WP_Query' )->justReturn( (object) array( 'posts' => array() ) );
-
 		$provider = new \PRAutoBlogger_Board_Data_Provider();
 		$snapshot = $provider->get_board_snapshot();
 
@@ -285,8 +283,6 @@ class BoardDataProviderTest extends BaseTestCase {
 
 		$this->wpdb->method( 'prepare' )->willReturn( 'SELECT 1' );
 		$this->wpdb->method( 'get_results' )->willReturn( array() );
-
-		Functions\when( 'WP_Query' )->justReturn( (object) array( 'posts' => array() ) );
 
 		$provider = new \PRAutoBlogger_Board_Data_Provider();
 		$snapshot = $provider->get_board_snapshot();
