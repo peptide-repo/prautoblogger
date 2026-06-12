@@ -340,6 +340,19 @@ class ImageComposerTest extends BaseTestCase {
 		$renderer->expects( $this->never() )->method( 'compose_og' );
 		$renderer->expects( $this->never() )->method( 'compose_square' );
 
+		// Stub the WP functions that cover_crop() calls inside the GD rung.
+		// get_temp_dir() is called first; wp_get_image_editor() returning WP_Error
+		// makes cover_crop() return null for every role → compose_variants() returns []
+		// → the GD rung emits only the pass-through featured (array_merge($passthrough, [])).
+		// This is the real degradation-to-passthrough path the test is designed to assert.
+		Functions\when( 'get_temp_dir' )->justReturn( sys_get_temp_dir() . '/' );
+		Functions\when( 'wp_get_image_editor' )->justReturn(
+			new \WP_Error( 'no_editor', 'Mock: no GD editor in test environment' )
+		);
+		Functions\when( 'is_wp_error' )->alias( static function ( $val ) {
+			return $val instanceof \WP_Error;
+		} );
+
 		$composer = new \PRAutoBlogger_Image_Composer( $renderer );
 		$variants = $composer->compose( $this->image_data, $this->context() );
 
