@@ -78,6 +78,13 @@ class PRAutoBlogger_OpenRouter_Provider implements PRAutoBlogger_LLM_Provider_In
 		// reasoning token cap + completion headroom — lives in the builder.
 		$body = $builder->build_body( $messages, $model, $options );
 
+		// v0.20.0 (B1): stash the outgoing request body so the next
+		// log_api_call() persists it to generation_log.request_json.
+		// Only the BODY is recorded -- Authorization lives exclusively in
+		// build_headers()' return and can never reach the recorder.
+		// Recorded BEFORE dispatch so error/timeout rows carry it too.
+		PRAutoBlogger_Request_Recorder::record( $body );
+
 		// Whether the outgoing request has reasoning enabled — drives the
 		// empty-completion retry decision after parse.
 		$reasoning_active = isset( $body['reasoning'] ) && false !== ( $body['reasoning']['enabled'] ?? true );
