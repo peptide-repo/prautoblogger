@@ -91,7 +91,9 @@ class PRAutoBlogger_Post_Assembler {
 	 * are generated. Its cost is logged with the run_id but no post_id. After all
 	 * articles finish, this method divides the research cost evenly and inserts
 	 * one 'llm_research' row per article so the cost breakdown popover includes
-	 * the amortized research overhead.
+	 * the amortized research overhead. The audit fields prompt_version and
+	 * agent_role are carried from the original research row (v0.19.4 fix;
+	 * prior builds left them NULL/empty — see phase-1 thread seq 49).
 	 *
 	 * Side effects: database SELECT, INSERT, DELETE on generation_log.
 	 *
@@ -109,7 +111,7 @@ class PRAutoBlogger_Post_Assembler {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$research_row = $wpdb->get_row(
 			$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				"SELECT id, estimated_cost, provider, model, prompt_tokens, completion_tokens
+				"SELECT id, estimated_cost, provider, model, prompt_tokens, completion_tokens, prompt_version, agent_role
 				FROM {$table}
 				WHERE run_id = %s AND stage = 'llm_research' AND post_id IS NULL
 				LIMIT 1",
@@ -158,6 +160,8 @@ class PRAutoBlogger_Post_Assembler {
 					'estimated_cost'    => $amortized_cost,
 					'response_status'   => 'success',
 					'error_message'     => '',
+					'prompt_version'    => $research_row->prompt_version,
+					'agent_role'        => $research_row->agent_role ?? '',
 					'created_at'        => current_time( 'mysql' ),
 				)
 			);

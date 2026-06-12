@@ -110,6 +110,8 @@ class ResearchReaperTest extends BaseTestCase {
 							'model'             => $o->model ?? 'gemini-flash',
 							'prompt_tokens'     => $o->prompt_tokens ?? 1000,
 							'completion_tokens' => $o->completion_tokens ?? 500,
+							'prompt_version'    => $o->prompt_version ?? null,
+							'agent_role'        => $o->agent_role ?? '',
 						];
 					}
 				}
