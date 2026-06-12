@@ -67,15 +67,22 @@ class PRAutoBlogger {
 
 	/** Register admin-only hooks (settings, notices, metabox, dashboard widget). */
 	private function register_admin_hooks(): void {
-		// Kanban board -- registered first so it appears as the first submenu item.
-		$board_page = new PRAutoBlogger_Board_Page();
-		add_action( 'admin_menu', array( $board_page, 'on_register_menu' ) );
-		add_action( 'admin_enqueue_scripts', array( $board_page, 'on_enqueue_assets' ) );
-
+		// Parent top-level menu first (priority 10), then Board submenu (priority 11).
+		// WHY: WordPress computes the page hookname via get_plugin_page_hookname() at
+		// add_submenu_page() time. If add_menu_page() has not yet fired, the parent
+		// slot in $admin_page_hooks is unset and WP falls back to the `admin_page_*`
+		// hookname. At request time WP recomputes the hookname as `prautoblogger_page_*`
+		// and finds no registered callback -> wp_die 404. Fixing priority ensures the
+		// parent slot is populated before the submenu call. See ARCHITECTURE.md §Board.
 		$admin_page = new PRAutoBlogger_Admin_Page();
-		add_action( 'admin_menu', array( $admin_page, 'on_register_menu' ) );
+		add_action( 'admin_menu', array( $admin_page, 'on_register_menu' ), 10 );
 		add_action( 'admin_init', array( $admin_page, 'on_register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $admin_page, 'on_enqueue_assets' ) );
+
+		// Board at priority 11 -- fires AFTER add_menu_page, so hookname is correct.
+		$board_page = new PRAutoBlogger_Board_Page();
+		add_action( 'admin_menu', array( $board_page, 'on_register_menu' ), 11 );
+		add_action( 'admin_enqueue_scripts', array( $board_page, 'on_enqueue_assets' ) );
 
 		add_action( 'admin_notices', array( new PRAutoBlogger_Admin_Notices(), 'on_display_notices' ) );
 		add_action( 'add_meta_boxes', array( new PRAutoBlogger_Post_Metabox(), 'on_register_metabox' ) );

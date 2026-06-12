@@ -5,6 +5,26 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.19.1] - 2026-06-12
+
+### Fixed
+- **Board admin submenu 404 (P0 hotfix).** `PRAutoBlogger_Board_Page::on_register_menu`
+  was hooked at `admin_menu` priority 10, identical to
+  `PRAutoBlogger_Admin_Page::on_register_menu`. Because the board hook was
+  registered first in `register_admin_hooks()`, `add_submenu_page()` fired while
+  `$admin_page_hooks['prautoblogger-settings']` was still unset. WordPress fell back
+  to the `admin_page_prautoblogger-board` hookname; at request time it recomputed
+  `prautoblogger_page_prautoblogger-board`, found no registered callback, and called
+  `wp_die()` with "Invalid plugin page". Board CSS/JS also never loaded (same
+  enqueue-gate mismatch). Fix: parent menu hook stays at priority 10; board submenu
+  hook moves to priority 11, guaranteeing `add_menu_page()` fires first. Board is
+  kept as the first submenu item via explicit `$submenu` reorder in
+  `PRAutoBlogger_Board_Page::on_register_menu()`.
+- **Regression test added:** `tests/unit/Admin/BoardMenuRegistrationTest.php` —
+  three assertions covering priority relationship, execution order, and parent-slug
+  correctness. Includes a "documents the bug" test that fires the unfixed hook order
+  to prove the broken state.
+
 ## [0.19.0] - 2026-06-12
 
 ### Added

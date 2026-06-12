@@ -860,11 +860,11 @@ Tests use Brain\Monkey for WordPress function mocking (no database required). Th
 
 
 
-### #22b: Kanban board as primary admin landing screen (v0.19.0)
+### #22b: Kanban board as primary admin landing screen (v0.19.0 / v0.19.1)
 
 The primary admin screen is now a kanban board (Direction C "Editorial Record") with four
 columns: Generating | In Review | Published | Failed. A separate `class-board-page.php`
-registers the `Board` submenu first so it appears before Settings in the nav.
+registers the `Board` submenu and a `$submenu` reorder makes it the first (primary) entry.
 `class-board-data-provider.php` orchestrates the four columns and handles WP_Query columns
 (In Review, Published). Raw `prab_generation_log` queries (Generating, Failed) are in the
 extracted `class-board-gen-log-query.php` (split for 300-line compliance) -- no new schema
@@ -874,6 +874,18 @@ secondary query on recent `prab_generation_log` run_ids that have no linked post
 fallback. M2 will rename Runs & Audit -> Articles and wire board cards to the Article Dossier.
 Poll interval and published window are settings-backed, localized into board.js, never
 hardcoded.
+
+**Menu-ordering constraint (v0.19.1 hotfix):** `PRAutoBlogger_Board_Page::on_register_menu`
+MUST be hooked at `admin_menu` priority 11 (or higher), AFTER
+`PRAutoBlogger_Admin_Page::on_register_menu` which runs at priority 10. Reason: WordPress
+computes the page hookname via `get_plugin_page_hookname()` at `add_submenu_page()` call
+time. If `add_menu_page()` has not yet run, `$admin_page_hooks['prautoblogger-settings']`
+is unset and WordPress falls back to the `admin_page_*` hookname. At HTTP request time WP
+recomputes the hookname as `prautoblogger_page_prautoblogger-board` and finds no registered
+callback -> `wp_die("Invalid plugin page")` 404. The enqueue-gate in `on_enqueue_assets()`
+checks `prautoblogger_page_prautoblogger-board` and would similarly never fire with the
+wrong hookname (board.css/board.js would silently not load). Regression test:
+`tests/unit/Admin/BoardMenuRegistrationTest.php`.
 
 ## Cross-System LLM Budget Coordination
 

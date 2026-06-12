@@ -42,6 +42,14 @@ class PRAutoBlogger_Board_Page {
 	 * submenu duplicate of the top-level page; we name it "Board" so the
 	 * first click goes to the board, not the raw settings page.
 	 *
+	 * Registration order note: this method is hooked at admin_menu priority 11
+	 * so that PRAutoBlogger_Admin_Page::on_register_menu() (priority 10) has
+	 * already called add_menu_page(). This ensures WordPress has populated
+	 * $admin_page_hooks['prautoblogger-settings'] before add_submenu_page()
+	 * runs here, so get_plugin_page_hookname() resolves to the correct
+	 * 'prautoblogger_page_prautoblogger-board' suffix rather than the fallback
+	 * 'admin_page_prautoblogger-board'. See ARCHITECTURE.md §Board.
+	 *
 	 * @return void
 	 */
 	public function on_register_menu(): void {
@@ -54,6 +62,30 @@ class PRAutoBlogger_Board_Page {
 			self::PAGE_SLUG,
 			array( $this, 'render_page' )
 		);
+
+		// Reorder submenu so Board is the FIRST entry (primary click target).
+		// WordPress auto-appended a duplicate of the top-level page as submenu
+		// index 0; our Board was appended at index 1. We swap them so the
+		// top-level PRAutoBlogger click lands on the Board page, not Settings.
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- intentional submenu reorder.
+		global $submenu;
+		if ( isset( $submenu['prautoblogger-settings'] ) ) {
+			$items = $submenu['prautoblogger-settings'];
+			// Find the Board entry and move it to position 0.
+			$board_idx = null;
+			foreach ( $items as $i => $item ) {
+				if ( isset( $item[2] ) && self::PAGE_SLUG === $item[2] ) {
+					$board_idx = $i;
+					break;
+				}
+			}
+			if ( null !== $board_idx && $board_idx > 0 ) {
+				$board_item = $items[ $board_idx ];
+				unset( $items[ $board_idx ] );
+				// Prepend board item at position 0 while preserving remaining order.
+				$submenu['prautoblogger-settings'] = array_merge( array( $board_item ), array_values( $items ) );
+			}
+		}
 	}
 
 	/**
