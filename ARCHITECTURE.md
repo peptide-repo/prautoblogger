@@ -128,7 +128,8 @@ prautoblogger/
 │   ├── class-prautoblogger.php        # Main orchestrator — registers all hooks, delegates execution
 │   ├── class-pipeline-schema-installer.php # v0.18.0 substrate tables (prompts, run_sources, run_decisions, runs, run_stages)
 │   ├── class-migrate-prompt-seed-v0180.php # One-shot v0.18.0 prompt-registry seed migration
-│   ├── class-executor.php             # Cron handlers, generation AJAX (start + status), model registry
+│   ├── class-executor.php             # Cron handlers, generation AJAX (delegates start + status to poller), model registry
+│   ├── class-generation-status-poller.php # Generation AJAX handlers: status transient renewal, lock-age orphan detection (R2b/R3), abort_orphaned_run
 │   ├── class-ajax-handlers.php        # Non-generation AJAX: images, models, test connections
 │   ├── class-generation-lock.php      # DB-level atomic mutex for single-writer generation
 │   ├── class-activator.php            # Activation: create DB tables, set defaults, schedule cron
@@ -213,6 +214,8 @@ prautoblogger/
 │   │   ├── class-runware-image-pricing.php      # FLUX schnell/dev cost table + resolver
 │   │   ├── class-runware-image-support.php      # Key, response parsing, retry, dimension snap
 │   │   ├── class-runware-image-batch.php        # True parallel curl_multi batch dispatcher
+│   │   ├── class-runware-model-catalog.php      # Live model catalog sync: modelSearch pagination, cache v2, failure cooldown
+│   │   ├── class-runware-catalog-fetcher.php    # HTTP fetch + normalize_models for Runware modelSearch (extracted for 300-line rule)
 │   │   └── (new providers go here — see CONVENTIONS.md)
 │   │
 │   ├── services/
@@ -337,11 +340,19 @@ Hostinger's 120-second LiteSpeed connection timeout. The frontend polls for stat
 └──────────────────────────────┘
 ```
 
-**Fallback detection:** If Hostinger kills the PHP process before it updates the
-transient (despite `ignore_user_abort`), the status endpoint detects the orphan after
-180 seconds by checking for recently-created posts with `_prautoblogger_run_id` meta.
-It also releases any stale generation lock. After 600 seconds (STATUS_TTL), it gives
-up unconditionally and reports a timeout.
+**Fallback detection (v0.18.3 R2b/R3):** The status transient is renewed on every stage
+transition via `update_generation_stage()` (`Pipeline_Status::broadcast()`), so its TTL
+always counts from the last activity rather than run start. When a status poll finds the
+transient absent:
+
+- **Lock within TTL (`lock_age ≤ STATUS_TTL = 600s`):** the background process is still alive
+  but has not broadcast yet (or the transient was evicted). `handle_missing_transient()` returns
+  `status: running` (R3) — button stays in-progress, no state change.
+- **Lock exceeded TTL (`lock_age > STATUS_TTL`):** background process died without releasing the
+  lock. `abort_orphaned_run()` marks the `runs` row `failed`, releases the generation lock, deletes
+  the status transient and queue option, and returns `status: error` with "infrastructure timeout"
+  (R2b). A daily `Run_Reaper::sweep_stuck_runs()` at 2× `EXPECTED_RUN_SECONDS` (~3600s) remains
+  the backstop for runs the poll path never sees.
 
 ---
 
