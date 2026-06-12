@@ -103,7 +103,7 @@ class PRAutoBlogger_Article_Worker {
 			$review = $this->review_with_state( $editor, $content, $idea, $run_id, $item );
 
 			PRAutoBlogger_Pipeline_Status::broadcast( __( 'Saving and publishing…', 'prautoblogger' ) );
-			PRAutoBlogger_Run_Stage_State::start( $run_id, 'publish', '', $item );
+			PRAutoBlogger_Run_Stage_State::start( $run_id, 'publish', (string) PRAutoBlogger_Stage_Display_Map::default_agent_role( 'publish' ), $item );
 			$this->publish_or_draft(
 				$content,
 				$idea,
@@ -174,7 +174,7 @@ class PRAutoBlogger_Article_Worker {
 					return new PRAutoBlogger_Editorial_Review( $data );
 				}
 			}
-			PRAutoBlogger_Run_Stage_State::start( $run_id, 'review', '', $item );
+			PRAutoBlogger_Run_Stage_State::start( $run_id, 'review', (string) PRAutoBlogger_Stage_Display_Map::default_agent_role( 'review' ), $item );
 		}
 
 		$review = $editor->review( $content, $idea );

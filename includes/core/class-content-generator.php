@@ -194,7 +194,7 @@ class PRAutoBlogger_Content_Generator {
 				);
 				return $cached;
 			}
-			PRAutoBlogger_Run_Stage_State::start( $this->run_id, $stage, '', $this->item_key );
+			PRAutoBlogger_Run_Stage_State::start( $this->run_id, $stage, (string) PRAutoBlogger_Stage_Display_Map::default_agent_role( $stage ), $this->item_key );
 		}
 
 		// v0.18.1: stage metadata for the provider's empty-completion

@@ -76,8 +76,33 @@ class PRAutoBlogger_Source_Collector {
 					'collector'
 				);
 			} catch ( \Throwable $e ) {
-				PRAutoBlogger_Logger::instance()->error( sprintf( 'Collection %s from %s: %s', get_class( $e ), $source_type, $e->getMessage() ), 'collector' );
-				// Continue with other sources — one failure shouldn't stop everything.
+				// Structured failure meta: model slug, HTTP status (parsed from message),
+				// and first ~200 chars of the error body — enables post-incident diagnosis
+				// without needing to re-run the failing collection. Added v0.18.2.
+				$config_for_log = $this->get_config_for_source( $source_type );
+				$model_slug     = (string) ( $config_for_log['model'] ?? '' );
+				$err_msg        = $e->getMessage();
+				// Extract HTTP status from "OpenRouter API error (HTTP NNN): ..." pattern.
+				$http_status = 0;
+				if ( preg_match( '/HTTP (\d{3})/', $err_msg, $m ) ) {
+					$http_status = (int) $m[1];
+				}
+				PRAutoBlogger_Logger::instance()->error(
+					sprintf(
+						'Collection %s from %s: %s',
+						get_class( $e ),
+						$source_type,
+						$e->getMessage()
+					),
+					'collector',
+					array(
+						'source'      => $source_type,
+						'model'       => $model_slug,
+						'http_status' => $http_status,
+						'error_body'  => mb_substr( $err_msg, 0, 200 ),
+					)
+				);
+				// Continue with other sources — one failure should not stop everything.
 			}
 		}
 

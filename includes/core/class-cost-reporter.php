@@ -65,8 +65,9 @@ class PRAutoBlogger_Cost_Reporter {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$results = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$wpdb->prepare(
-				"SELECT DATE(created_at) as day, SUM(estimated_cost) as total_cost  // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT DATE(created_at) as day, SUM(estimated_cost) as total_cost
 				FROM {$table}
 				WHERE created_at >= %s AND response_status = 'success'
 				GROUP BY DATE(created_at)
@@ -102,11 +103,12 @@ class PRAutoBlogger_Cost_Reporter {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$results = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$wpdb->prepare(
 				"SELECT stage,
 					SUM(estimated_cost) as total_cost,
 					SUM(prompt_tokens + completion_tokens) as total_tokens,
-					COUNT(*) as call_count  // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					COUNT(*) as call_count
 				FROM {$table}
 				WHERE created_at BETWEEN %s AND %s AND response_status = 'success'
 				GROUP BY stage",
