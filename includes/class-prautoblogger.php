@@ -362,3 +362,15 @@ class PRAutoBlogger {
 		$this->executor->on_collect_metrics(); }
 
 	/** @see PRAutoBlogger_Execut
+	/** @see PRAutoBlogger_Executor::on_ajax_generate_now() */
+	public function on_ajax_generate_now(): void {
+		$this->executor->on_ajax_generate_now(); }
+
+	/** @see PRAutoBlogger_Ajax_Handlers::on_ajax_test_connection() */
+	public function on_ajax_test_connection(): void {
+		$this->ajax_handlers->on_ajax_test_connection(); }
+
+	/** @see PRAutoBlogger_Executor::get_model_registry() */
+	public function get_model_registry(): PRAutoBlogger_OpenRouter_Model_Registry {
+		return $this->executor->get_model_registry(); }
+}

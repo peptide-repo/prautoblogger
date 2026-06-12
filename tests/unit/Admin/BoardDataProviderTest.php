@@ -292,3 +292,6 @@ class BoardDataProviderTest extends BaseTestCase {
 		$snapshot = $provider->get_board_snapshot();
 
 		$this->assertFalse( $snapshot[
+			$this->assertFalse( $snapshot['has_active_runs'] );
+		}
+	}

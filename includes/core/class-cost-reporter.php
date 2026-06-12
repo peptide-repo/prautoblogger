@@ -142,3 +142,5 @@ class PRAutoBlogger_Cost_Reporter {
 		}
 		return ( $this->get_monthly_spend() / $budget ) * 100.0;
 	}
+
+}

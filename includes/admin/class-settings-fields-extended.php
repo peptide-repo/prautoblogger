@@ -291,3 +291,21 @@ class PRAutoBlogger_Settings_Fields_Extended {
 			array(
 				'id'          => 'prautoblogger_image_compose_variants',
 				'label'       => __( 'Composed Variant Set', 'prautoblogge
+				array(
+					'id'          => 'prautoblogger_image_featured_mark_enabled',
+					'label'       => __( 'Featured Image Corner Mark', 'prautoblogger' ),
+					'type'        => 'toggle',
+					'section'     => 'prautoblogger_images',
+					'default'     => '1',
+					'description' => __( 'Overlay a small semi-transparent Peptide Repo mark in the bottom-right corner of featured images, so scraped or re-shared images carry attribution.', 'prautoblogger' ),
+				),
+				array(
+					'id'          => 'prautoblogger_runware_model_catalog',
+					'label'       => __( 'Runware Model Catalog', 'prautoblogger' ),
+					'type'        => 'runware_catalog_sync',
+					'section'     => 'prautoblogger_images',
+					'description' => __( 'Live model catalog sync status and on-demand refresh.', 'prautoblogger' ),
+				),
+			);
+		}
+	}
