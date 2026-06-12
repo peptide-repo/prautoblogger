@@ -5,6 +5,37 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.19.3] - 2026-06-12
+
+### Fixed
+- **Dossier page 403 (P0 hotfix).** `PRAutoBlogger_Dossier_Page::on_register_menu` registered the
+  dossier as a hidden submenu under `prautoblogger-settings` then called `unset($submenu[...])` to
+  hide it from the nav. This is the **hide-by-unset anti-pattern**: at registration time WP records
+  the render callback under hookname `prautoblogger_page_prautoblogger-dossier`; at request time
+  `get_admin_page_parent()` scans `$submenu`, finds the slug absent (it was unset), returns false,
+  and WP recomputes the hookname under the orphan `admin_page_*` namespace -- no handler registered
+  there -- `wp_die(403)`. Same hookname-mismatch class as the board 404 (v0.19.1), different vector.
+  **Fix:** register under parent `options.php` (canonical hidden-page pattern). Hookname is
+  `admin_page_prautoblogger-dossier` at both registration and request time. No `$submenu` mutation
+  required or permitted. Asset enqueue gate updated to match (`admin_page_*` prefix).
+  Deep-link URLs (`admin.php?page=prautoblogger-dossier&post_id=N`) are parent-agnostic and
+  unchanged. Board cards and the post metabox link continue to work without modification.
+
+### Changed
+- **Regression test upgraded to request-time faithful** (`DossierMenuRegistrationTest`).
+  New `test_request_time_hookname_matches_registration_hookname` simulates
+  `get_admin_page_parent()` against the post-registration `$submenu` state and asserts it
+  equals the registration-time hookname. FAILS on hide-by-unset (4 failures on v0.19.2 code,
+  captured in test evidence). PASSES on options.php-parent. New
+  `test_hide_by_unset_would_fail_request_time_check` documents the broken pattern inline.
+- **CONVENTIONS.md §Hidden Admin Pages** added: options.php-parent is the only permitted
+  pattern for hidden admin pages; `$submenu` mutation after registration is explicitly
+  prohibited; full incident history (board 404 + dossier 403) and test methodology documented.
+- **ARCHITECTURE.md §22b** updated with hidden-page convention cross-reference.
+  **§23** updated to reflect options.php-parent registration and the v0.19.2→v0.19.3 fix.
+- **tests/bootstrap.php**: added `PRAUTOBLOGGER_PLUGIN_URL` and `PRAUTOBLOGGER_VERSION`
+  constants so admin enqueue tests resolve without "Undefined constant" errors.
+
 ## [0.19.2] - 2026-06-12
 
 ### Added

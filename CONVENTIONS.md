@@ -502,3 +502,73 @@ public function my_operation( $input ) {
 ```
 
 That's it. No config, no feature-flag checks, no try/catch needed.
+
+---
+
+## Hidden Admin Pages (v0.19.3 convention, codified after two incidents)
+
+### Rule: use options.php as parent; NEVER unset/remove registered pages from $submenu
+
+When a WordPress admin page must be accessible by URL but hidden from the nav menu, use the
+**options.php-parent pattern** exclusively:
+
+```php
+add_submenu_page(
+    'options.php',                     // parent: built-in WP page; pages hidden by construction
+    __( 'My Page', 'prautoblogger' ),  // page title
+    __( 'My Page', 'prautoblogger' ),  // menu title (never shown; options.php is hidden)
+    'manage_options',                  // capability
+    'my-page-slug',                    // page slug
+    array( $this, 'render_page' ),     // callback
+);
+// No $submenu manipulation. options.php-parent pages are hidden from nav by construction.
+```
+
+The resulting hookname is `admin_page_my-page-slug` at BOTH registration time and request time.
+
+### Why the hide-by-unset pattern causes 403 (the incident class)
+
+WordPress computes the page hookname at two distinct moments:
+
+**Registration time** (inside `add_submenu_page`):
+WP resolves the parent slug against `$admin_page_hooks`. If found, hookname = `{parent_key}_page_{slug}`. WP registers the render callback and `$_registered_pages` entry under that name.
+
+**Request time** (inside `wp-admin/admin.php`):
+WP calls `get_admin_page_parent()` which scans `$submenu` for the page slug. If found, it derives the hookname the same way as (1). If **not found** (e.g., because the entry was unset), it falls back to `admin_page_{slug}`.
+
+When these two hooknames diverge, WP dispatches the request to a hookname with no registered callback → `wp_die(403)`.
+
+**Why options.php avoids this:** `options.php` is a built-in page that WordPress always keeps intact in `$admin_page_hooks` and `$submenu`. For its children, `get_admin_page_parent()` returns `options.php` consistently at both moments, so both produce `admin_page_{slug}`. No mutation required.
+
+### Incident history
+
+| Version | Symptom | Root cause | Fix |
+|---------|---------|------------|-----|
+| v0.19.1 | Board page 404 | Board submenu registered at same priority as parent (both 10) — add_submenu_page fired before add_menu_page → wrong hookname at registration time | Board moved to priority 11, after parent at 10 |
+| v0.19.3 | Dossier page 403 | Dossier registered under `prautoblogger-settings` parent (priority 12, after parent ✓) but post-registration `unset($submenu[...])` removed the slug → get_admin_page_parent() returned false at request time → orphan `admin_page_*` hookname → no handler → 403 | Switched to `options.php` parent; removed all $submenu mutation |
+
+Both incidents are in the same **hookname-mismatch class**: registration-time hookname ≠ request-time hookname.
+
+### Test pattern
+
+The `DossierMenuRegistrationTest::test_request_time_hookname_matches_registration_hookname` test
+replicates the request-time resolution algorithm (scan `$submenu` for the slug; if found derive
+hookname; if absent return `admin_page_*`) and asserts it equals the registration-time hookname.
+This test FAILS on hide-by-unset implementations and passes on the options.php-parent pattern.
+Apply the same test strategy to any new hidden admin page.
+
+### Asset enqueue gate
+
+For `options.php`-parent pages, the hook suffix passed to `admin_enqueue_scripts` is
+`admin_page_{slug}`. For plugin-parent pages it would be `{parent_key}_page_{slug}`. Always
+match the asset enqueue gate to the actual hookname for the chosen parent pattern:
+
+```php
+// options.php parent → 'admin_page_{slug}'
+public function on_enqueue_assets( string $hook_suffix ): void {
+    if ( $hook_suffix !== 'admin_page_' . self::PAGE_SLUG ) {
+        return;
+    }
+    // ... enqueue
+}
+```

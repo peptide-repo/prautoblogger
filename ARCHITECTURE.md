@@ -145,7 +145,7 @@ prautoblogger/
 │   │   ├── class-board-page.php       # Kanban board -- primary landing screen (v0.19.0)
 │   │   ├── class-board-data-provider.php # Board orchestrator: 4-column snapshot + dossier deep-links (v0.19.0, v0.19.2)
 │   │   ├── class-board-gen-log-query.php # Board gen_log queries: Generating + Failed column raw DB reads (v0.19.0)
-│   │   ├── class-dossier-page.php     # Article dossier admin page: hidden-submenu, priority 12, enqueue, nonce (v0.19.2)
+│   │   ├── class-dossier-page.php     # Article dossier admin page: options.php-parent hidden-page, priority 12, enqueue, nonce (v0.19.3)
 │   │   ├── class-dossier-data-assembler.php # 5-query view-model builder: runs+stages+gen_log+decisions+meta (v0.19.2)
 │   │   ├── class-dossier-gen-log-query.php  # Dossier gen_log queries: per-stage cost receipt + raw trace (v0.19.2)
 │   │   ├── class-admin-page.php       # Main settings page (tabbed SaaS-style UI)
@@ -871,6 +871,8 @@ Tests use Brain\Monkey for WordPress function mocking (no database required). Th
 
 ### #22b: Kanban board as primary admin landing screen (v0.19.0 / v0.19.1)
 
+**Hidden admin page convention (v0.19.3):** See CONVENTIONS.md §Hidden Admin Pages for the full rule. Summary: hidden admin pages (link-accessed only, not visible in nav) MUST use `options.php` as the `add_submenu_page()` parent. NEVER unset/remove registered pages from `$submenu` after registration -- doing so causes `get_admin_page_parent()` to fail at request time, which makes WP recompute the hookname in the `admin_page_*` orphan namespace, find no registered handler, and call `wp_die(403)`. This is the dossier 403 incident (v0.19.2→v0.19.3). Same hookname-mismatch class as the board 404 (v0.19.0→v0.19.1); the only difference is that the board bug was a priority-ordering issue at registration time while the dossier bug was a post-registration $submenu mutation.
+
 The primary admin screen is now a kanban board (Direction C "Editorial Record") with four
 columns: Generating | In Review | Published | Failed. A separate `class-board-page.php`
 registers the `Board` submenu and a `$submenu` reorder makes it the first (primary) entry.
@@ -904,14 +906,25 @@ a single post: generation run, stage I/O, cost receipts, raw-trace toggles, edit
 decisions, and image A/B pairs. It is link-accessed only (hidden submenu) — no navigation
 entry appears in the WP sidebar.
 
-**Page registration** (`class-dossier-page.php`): registered as a hidden submenu under
-`prautoblogger-settings` at `admin_menu` priority **12**, one step after the board (priority
-11), which is itself after the parent menu (priority 10). The page is immediately removed
-from `$submenu` so it does not appear in the WP admin sidebar, but remains reachable by
-direct URL. URL shape: `admin.php?page=prautoblogger-dossier&post_id=<int>`. Secured by
-`manage_options` capability + nonce (`prautoblogger_dossier`). Static `url_for_post(int
-$post_id): string` provides the canonical deep-link. Regression test:
-`tests/unit/Admin/DossierMenuRegistrationTest.php`.
+**Page registration** (`class-dossier-page.php`): uses the canonical hidden-admin-page
+pattern -- registered under parent **`options.php`** at `admin_menu` priority **12**. The
+hookname is `admin_page_prautoblogger-dossier` at BOTH registration time and request time,
+so there is no hookname mismatch and no need to manipulate `$submenu`. The page does not
+appear in the WP admin sidebar (options.php-parent pages are hidden by construction).
+URL shape: `admin.php?page=prautoblogger-dossier&post_id=<int>` (unchanged from v0.19.2 --
+deep-link URLs are parent-agnostic). Secured by `manage_options` capability. Static
+`url_for_post(int $post_id): string` provides the canonical deep-link.
+
+v0.19.2 used `prautoblogger-settings` as parent with post-registration `unset($submenu[...])` to
+hide the page. This caused `get_admin_page_parent()` to fail at request time -> orphan
+`admin_page_*` hookname -> no handler registered -> `wp_die(403)`. Fixed in v0.19.3 by switching
+to `options.php` parent and removing all `$submenu` mutation. See CONVENTIONS.md §Hidden Admin
+Pages for the full rule and ARCHITECTURE.md §22b for both incident records.
+
+Regression test: `tests/unit/Admin/DossierMenuRegistrationTest.php` -- the
+`test_request_time_hookname_matches_registration_hookname` test replicates the request-time
+resolution algorithm (simulate `get_admin_page_parent()`) so it FAILS on hide-by-unset and
+PASSES on options.php-parent.
 
 **5-query data assembly** (`class-dossier-data-assembler.php`):
 
