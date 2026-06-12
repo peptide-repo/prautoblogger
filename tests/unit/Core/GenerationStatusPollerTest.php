@@ -48,6 +48,8 @@ class GenerationStatusPollerTest extends BaseTestCase {
 		$this->lock_acquired_at = null;
 
 		$this->wpdb          = $this->create_mock_wpdb();
+		// Generation_Lock uses $wpdb->options in acquire/release/get_acquired_at.
+		$this->wpdb->options = 'wp_options';
 		$GLOBALS['wpdb']     = $this->wpdb;
 
 		// Stub nonce check and capability check (always pass in unit tests).
