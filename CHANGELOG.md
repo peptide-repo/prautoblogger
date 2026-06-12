@@ -5,6 +5,33 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.18.2] - 2026-06-12
+
+Four confirmed-live maintenance fixes (CTO thread `2026-06-pipeline-v2-phase1` seq 25).
+
+### Fixed
+- **Cost-reporter SQL (P2)**: `phpcs:ignore` annotations were embedded inside two SQL string
+  literals in `class-cost-reporter.php` (`get_daily_spend` and `get_spend_by_stage`). MariaDB
+  received the comment text as literal SQL and rejected both queries, breaking the Metrics &
+  Costs admin page. Annotations moved above the `$wpdb->prepare()` calls. Regression tests
+  added to `CostReporterTest` asserting no `// phpcs:ignore` text appears in the SQL passed
+  to `prepare()`.
+- **Collector failure observability (P2)**: `RuntimeException` catch in
+  `Source_Collector::collect_from_all_sources()` now logs structured meta — model slug,
+  HTTP status parsed from the exception message, and the first 200 chars of the error body —
+  so a 27-day outage like the seq-22 llm_research 404 incident is diagnosable after the fact.
+  No behaviour change; logging only.
+- **`run_stages.agent_role` back-write (P3)**: `Pipeline_Runner`, `Article_Worker`, and
+  `Content_Generator` were calling `Run_Stage_State::start()` with `agent_role = ''`. All four
+  stage-start call sites now pass `Stage_Display_Map::default_agent_role( $stage )` so the run
+  timeline is self-describing. Role is written at INSERT only (the `start()` call); the
+  `ON DUPLICATE KEY UPDATE` path does not include `agent_role`, preserving the
+  `run_id+stage+agent_role+item_key` idempotency-key semantics on resume.
+- **Runware float deprecation (P3)**: `normalize_seed()` in `class-runware-image-support.php`
+  applied the modulo operator to a float (`microtime(true) * 1000`), triggering
+  `Deprecated: Implicit conversion from float … to int` on every image generation. Fixed
+  with `(int) round(...)` before the `%` operator.
+
 ## [0.18.1] - 2026-06-11
 
 Empty-draft hotfix (CTO diagnosis: convo thread `2026-06-pipeline-v2-phase1` seq 12; prod run

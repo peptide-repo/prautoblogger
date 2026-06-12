@@ -185,14 +185,14 @@ class PRAutoBlogger_Pipeline_Runner {
 		$source_labels = is_array( $enabled ) ? implode( ', ', $enabled ) : 'reddit';
 		/* translators: %s is a comma-separated list of enabled source names, e.g. "reddit, llm_research". */
 		PRAutoBlogger_Pipeline_Status::broadcast( sprintf( __( 'Collecting sources from %s…', 'prautoblogger' ), $source_labels ) );
-		PRAutoBlogger_Run_Stage_State::start( $run_id, 'research' );
+		PRAutoBlogger_Run_Stage_State::start( $run_id, 'research', (string) PRAutoBlogger_Stage_Display_Map::default_agent_role( 'research' ) );
 		( new PRAutoBlogger_Source_Collector() )
 			->set_cost_tracker( $cost_tracker )
 			->collect_from_all_sources();
 		PRAutoBlogger_Run_Stage_State::done( $run_id, 'research' );
 
 		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Analyzing topics and scoring…', 'prautoblogger' ) );
-		PRAutoBlogger_Run_Stage_State::start( $run_id, 'analysis' );
+		PRAutoBlogger_Run_Stage_State::start( $run_id, 'analysis', (string) PRAutoBlogger_Stage_Display_Map::default_agent_role( 'analysis' ) );
 		$llm      = new PRAutoBlogger_OpenRouter_Provider();
 		$analyzer = new PRAutoBlogger_Content_Analyzer( $llm, $cost_tracker );
 		$analysis = $analyzer->analyze_recent_data( max( $target * 2, 6 ) );

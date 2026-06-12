@@ -90,4 +90,60 @@ class CostReporterTest extends BaseTestCase {
         $this->assertIsFloat( $utilization );
         $this->assertGreaterThanOrEqual( 0.0, $utilization );
     }
+
+    /**
+     * Regression: get_daily_spend SQL must not embed phpcs:ignore inside the
+     * string literal (MariaDB would receive the comment as literal SQL text and
+     * reject the query). Captures the first argument passed to prepare() and
+     * asserts the SQL is clean.
+     *
+     * @see includes/core/class-cost-reporter.php — fixed in v0.18.2
+     */
+    public function test_get_daily_spend_sql_contains_no_inline_phpcs_ignore(): void {
+        $captured_sql = null;
+        $this->wpdb->method( 'prepare' )->willReturnCallback(
+            function ( $sql, ...$args ) use ( &$captured_sql ) {
+                $captured_sql = $sql;
+                return 'prepared';
+            }
+        );
+        $this->wpdb->method( 'get_results' )->willReturn( [] );
+
+        $reporter = new \PRAutoBlogger_Cost_Reporter();
+        $reporter->get_daily_spend( 7 );
+
+        $this->assertNotNull( $captured_sql, 'prepare() was not called' );
+        $this->assertStringNotContainsString(
+            '// phpcs:ignore',
+            (string) $captured_sql,
+            'SQL string must not contain phpcs:ignore comment — MariaDB rejects it'
+        );
+    }
+
+    /**
+     * Regression: get_spend_by_stage SQL must not embed phpcs:ignore inside
+     * the string literal.
+     *
+     * @see includes/core/class-cost-reporter.php — fixed in v0.18.2
+     */
+    public function test_get_spend_by_stage_sql_contains_no_inline_phpcs_ignore(): void {
+        $captured_sql = null;
+        $this->wpdb->method( 'prepare' )->willReturnCallback(
+            function ( $sql, ...$args ) use ( &$captured_sql ) {
+                $captured_sql = $sql;
+                return 'prepared';
+            }
+        );
+        $this->wpdb->method( 'get_results' )->willReturn( [] );
+
+        $reporter = new \PRAutoBlogger_Cost_Reporter();
+        $reporter->get_spend_by_stage( '2026-06-01', '2026-06-30' );
+
+        $this->assertNotNull( $captured_sql, 'prepare() was not called' );
+        $this->assertStringNotContainsString(
+            '// phpcs:ignore',
+            (string) $captured_sql,
+            'SQL string must not contain phpcs:ignore comment — MariaDB rejects it'
+        );
+    }
 }

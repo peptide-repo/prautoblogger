@@ -181,7 +181,8 @@ class PRAutoBlogger_Runware_Image_Support {
 	 */
 	public function normalize_seed( ?int $seed ): int {
 		if ( null === $seed || $seed < 1 ) {
-			$derived = (int) ( ( microtime( true ) * 1000 ) % 2147483647 );
+			// Cast to int before modulo — float % int is deprecated in PHP 8 (v0.18.2).
+			$derived = (int) round( microtime( true ) * 1000 ) % 2147483647;
 			return $derived > 0 ? $derived : 1;
 		}
 		return $seed;
