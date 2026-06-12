@@ -451,7 +451,7 @@ jobs:
               if rev.get("concerns"):
                   lines.append("**Concerns:**")
                   for c in rev["concerns"]:
-                      sev = c["severity"].upper()
+                      sev = c.get("severity", "UNKNOWN").upper()
                       f = f"`{c['file']}`" if c.get("file") else ""
                       lines.append(f"- **{sev}** {f} — {c['issue']}")
                   lines.append("")
