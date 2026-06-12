@@ -13,15 +13,19 @@ declare(strict_types=1);
  * PRAutoBlogger_Board_Gen_Log_Query. WP_Query columns (In Review, Published)
  * are handled here.
  *
+ * M2: cards now include `dossier_url` so board.js can deep-link to the
+ * Article Dossier instead of the old per-column destinations.
+ *
  * No schema changes -- all data comes from tables that already exist.
  *
  * Triggered by: PRAutoBlogger_Board_Page::on_ajax_board_status().
- * Dependencies: PRAutoBlogger_Board_Gen_Log_Query, WordPress WP_Query, get_option().
+ * Dependencies: PRAutoBlogger_Board_Gen_Log_Query, PRAutoBlogger_Dossier_Page,
+ *               WordPress WP_Query, get_option().
  *
- * @see admin/class-board-gen-log-query.php -- Raw generation-log queries (Generating/Failed).
+ * @see admin/class-board-gen-log-query.php -- Raw gen_log queries (Generating/Failed).
  * @see admin/class-board-page.php          -- Calls get_board_snapshot().
- * @see core/class-cost-reporter.php        -- Parallel cost-query pattern.
- * @see ARCHITECTURE.md                     -- Database schema (generation_log, post meta).
+ * @see admin/class-dossier-page.php        -- Provides url_for_post() for deep-links.
+ * @see ARCHITECTURE.md                     -- Database schema.
  */
 class PRAutoBlogger_Board_Data_Provider {
 
@@ -37,9 +41,6 @@ class PRAutoBlogger_Board_Data_Provider {
 
 	/**
 	 * Return the full board snapshot consumed by the AJAX poller.
-	 *
-	 * Each column is an array of card objects. Cards contain only the data
-	 * needed to render the board card and provide click-throughs.
 	 *
 	 * @return array{
 	 *   generating: array<int, array<string, mixed>>,
@@ -66,7 +67,6 @@ class PRAutoBlogger_Board_Data_Provider {
 
 	/**
 	 * Cards for runs that are currently in-progress.
-	 * Delegates to PRAutoBlogger_Board_Gen_Log_Query.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
@@ -76,7 +76,6 @@ class PRAutoBlogger_Board_Data_Provider {
 
 	/**
 	 * Cards for generation runs that ended in an error state.
-	 * Delegates to PRAutoBlogger_Board_Gen_Log_Query.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
@@ -86,6 +85,7 @@ class PRAutoBlogger_Board_Data_Provider {
 
 	/**
 	 * Cards for generated draft posts awaiting human review.
+	 * M2: cards include dossier_url for deep-linking.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
@@ -120,7 +120,8 @@ class PRAutoBlogger_Board_Data_Provider {
 				'title'        => $post->post_title,
 				'cost_total'   => $cost_total,
 				'created_at'   => strtotime( $post->post_date_gmt ),
-				'click_action' => 'review',
+				'click_action' => 'dossier',
+				'dossier_url'  => PRAutoBlogger_Dossier_Page::url_for_post( $post->ID ),
 				'review_url'   => admin_url( 'admin.php?page=prautoblogger-review-queue' ),
 				'edit_url'     => get_edit_post_link( $post->ID, 'raw' ),
 			);
@@ -131,6 +132,7 @@ class PRAutoBlogger_Board_Data_Provider {
 
 	/**
 	 * Cards for published posts within the configured window.
+	 * M2: cards include dossier_url for deep-linking.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
@@ -174,7 +176,8 @@ class PRAutoBlogger_Board_Data_Provider {
 				'title'        => $post->post_title,
 				'cost_total'   => $cost_total,
 				'published_at' => strtotime( $post->post_date_gmt ),
-				'click_action' => 'edit',
+				'click_action' => 'dossier',
+				'dossier_url'  => PRAutoBlogger_Dossier_Page::url_for_post( $post->ID ),
 				'edit_url'     => get_edit_post_link( $post->ID, 'raw' ),
 				'post_url'     => get_permalink( $post->ID ),
 			);
