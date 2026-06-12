@@ -141,6 +141,11 @@ class PRAutoBlogger {
 			new PRAutoBlogger_Opik_Settings();
 		}
 
+		// v0.20.0 (M3): operator re-run jobs — chained-cron, never synchronous.
+		$rerun_executor = new PRAutoBlogger_Rerun_Executor();
+		add_action( PRAutoBlogger_Rerun_Executor::REPLAY_ACTION, array( $rerun_executor, 'on_replay_job' ), 10, 5 );
+		add_action( PRAutoBlogger_Rerun_Executor::REBUILD_ACTION, array( $rerun_executor, 'on_rebuild_job' ), 10, 4 );
+
 		add_action( 'prautoblogger_generate_from_idea', array( 'PRAutoBlogger_Ideas_Browser', 'on_cron_generate_from_idea' ) );
 		add_action( 'prautoblogger_reap_orphan_research_rows', array( 'PRAutoBlogger_Research_Reaper', 'on_cron' ) );
 		add_action( 'prautoblogger_reap_orphan_research_rows', array( 'PRAutoBlogger_Run_Reaper', 'on_cron' ) );

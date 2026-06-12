@@ -58,6 +58,13 @@ class PRAutoBlogger_Article_Worker {
 		$run_id = (string) ( $this->cost_tracker->get_run_id() ?? '' );
 		$item   = PRAutoBlogger_Run_Stage_State::item_key_for_idea( $idea );
 
+		// v0.20.0: persist the EXACT idea payload once per item so
+		// re-run-from-here can reconstruct it (rebuilding from post
+		// fields would risk an item_key hash mismatch -> duplicate post).
+		if ( '' !== $run_id ) {
+			PRAutoBlogger_Stage_Input_Store::save_seed( $run_id, $item, (string) wp_json_encode( $idea->to_array() ) );
+		}
+
 		$result = array(
 			'generated' => 0,
 			'published' => 0,

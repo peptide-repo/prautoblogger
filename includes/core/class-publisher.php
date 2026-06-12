@@ -107,11 +107,11 @@ class PRAutoBlogger_Publisher {
 		if ( null !== $run_id && '' !== $run_id ) {
 			$existing_id = $this->find_existing_post( $run_id, $idea_hash );
 			if ( $existing_id > 0 ) {
-				PRAutoBlogger_Logger::instance()->info(
-					sprintf( 'Post for run %s / idea %s already exists (ID=%d) — skipping duplicate insert.', $run_id, $idea_hash, $existing_id ),
-					'publisher'
-				);
-				return $existing_id;
+				// v0.20.0: a re-run's regenerated content must land on the
+				// existing UNPUBLISHED post (otherwise re-runs silently
+				// discard their output). Published posts stay frozen
+				// (CPO guardrail 5) — refresh skips them untouched.
+				return $this->refresh_unpublished_post( $existing_id, $content, $idea, $review );
 			}
 		}
 
@@ -153,6 +153,60 @@ class PRAutoBlogger_Publisher {
 		);
 
 		do_action( 'prautoblogger_post_created', $post_id, $post_status, $idea, $review );
+
+		return $post_id;
+	}
+
+	/**
+	 * Refresh an existing post from re-run output — unpublished only.
+	 *
+	 * Idempotent-resume calls land here too (same content in = same
+	 * content out, so behavior is unchanged for plain resumes). The post
+	 * keeps its CURRENT status: a re-run never publishes an unpublished
+	 * post — publication stays an explicit Review Queue / WP editor
+	 * action. Published (and scheduled/private) posts are returned
+	 * untouched: the run is frozen (CPO guardrail 5).
+	 *
+	 * Side effects: wp_update_post + post meta updates (unpublished only).
+	 *
+	 * @param int                            $post_id Existing post ID.
+	 * @param string                         $content Regenerated HTML content.
+	 * @param PRAutoBlogger_Article_Idea     $idea    The idea.
+	 * @param PRAutoBlogger_Editorial_Review $review  The fresh review.
+	 * @return int The post ID.
+	 */
+	private function refresh_unpublished_post( int $post_id, string $content, PRAutoBlogger_Article_Idea $idea, PRAutoBlogger_Editorial_Review $review ): int {
+		$post = get_post( $post_id );
+		if ( PRAutoBlogger_Rerun_Eligibility::post_frozen( $post ) ) {
+			PRAutoBlogger_Logger::instance()->info(
+				sprintf( 'Post %d already exists and is published — frozen, skipping content refresh.', $post_id ),
+				'publisher'
+			);
+			return $post_id;
+		}
+
+		// Same sanitize chain as create_post().
+		$clean_content  = PRAutoBlogger_Post_Assembler::sanitize_llm_content( $content );
+		$linked_content = PRAutoBlogger_Peptide_Linker::inject_links( $clean_content );
+
+		wp_update_post(
+			array(
+				'ID'           => $post_id,
+				'post_title'   => sanitize_text_field( $idea->get_suggested_title() ),
+				'post_content' => wp_kses_post( $linked_content ),
+			)
+		);
+
+		update_post_meta( $post_id, '_prautoblogger_editor_verdict', $review->get_verdict() );
+		update_post_meta( $post_id, '_prautoblogger_editor_notes', $review->get_notes() );
+		update_post_meta( $post_id, '_prautoblogger_quality_score', $review->get_quality_score() );
+		update_post_meta( $post_id, '_prautoblogger_seo_score', $review->get_seo_score() );
+		update_post_meta( $post_id, '_prautoblogger_generated_at', gmdate( 'c' ) );
+
+		PRAutoBlogger_Logger::instance()->info(
+			sprintf( 'Post %d refreshed from re-run output (status preserved: %s).', $post_id, (string) ( $post->post_status ?? '' ) ),
+			'publisher'
+		);
 
 		return $post_id;
 	}

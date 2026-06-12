@@ -145,4 +145,28 @@ class PRAutoBlogger_Run_Stage_Rerun_State {
 		);
 		return is_numeric( $updated ) ? (int) $updated : 0;
 	}
+	/**
+	 * Whether any stage row of this item carries the human_modified flag
+	 * (drives derived-decision flagging during rebuilds — guardrail 2).
+	 *
+	 * @param string $run_id   Run UUID.
+	 * @param string $item_key Item key.
+	 * @return bool
+	 */
+	public static function item_has_human_modified( string $run_id, string $item_key ): bool {
+		if ( '' === $run_id || ! PRAutoBlogger_Run_Stage_State::is_available() ) {
+			return false;
+		}
+		global $wpdb;
+		$table = PRAutoBlogger_Run_Stage_State::table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$found = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT 1 FROM {$table} WHERE run_id = %s AND item_key = %s AND human_modified = 1 LIMIT 1",
+				$run_id,
+				$item_key
+			)
+		);
+		return null !== $found;
+	}
 }
