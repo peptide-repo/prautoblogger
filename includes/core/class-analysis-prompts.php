@@ -76,9 +76,9 @@ class PRAutoBlogger_Analysis_Prompts {
 		global $wpdb;
 		$scores_table = $wpdb->prefix . 'prautoblogger_content_scores';
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$top_posts = $wpdb->get_results(
-			"SELECT cs.post_id, cs.composite_score, p.post_title  // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT cs.post_id, cs.composite_score, p.post_title
 			FROM {$scores_table} cs
 			JOIN {$wpdb->posts} p ON p.ID = cs.post_id
 			WHERE cs.composite_score > 0

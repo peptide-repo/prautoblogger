@@ -5,6 +5,43 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.18.3] - 2026-06-12
+
+GA4-context SQL fix, manual-run resilience, and honest status on transient expiry
+(CTO thread `2026-06-pipeline-v2-phase1` seq 38).
+
+### Fixed
+- **Analysis-prompts SQL / GA4 self-improvement loop (R1 — P2)**: `phpcs:ignore` annotation
+  was embedded inside the SQL string literal in `class-analysis-prompts.php:81` (same pattern
+  as the v0.18.2 cost-reporter fix). MariaDB rejected the query on every pipeline run,
+  causing `get_performance_context()` to always return `''` — the LLM research/analysis
+  stage has had no historical performance context since v0.16.0. Annotation moved to the
+  `// phpcs:ignore` pragma above `get_results()`. Sibling occurrence also fixed in
+  `class-post-assembler.php:112` (same pattern). Regression + behavioral tests added to
+  `AnalysisPromptsTest`.
+- **Manual-run resilience — transient renewal (R2a)**: `update_generation_stage()` in the
+  new `PRAutoBlogger_Generation_Status_Poller` now renews the STATUS_TTL on every stage
+  update, ensuring the status transient outlasts any single LLM call even when `Pipeline_
+  Status::broadcast()` is delayed by a long model call.
+- **Manual-run resilience — stuck-run detection (R2b)**: `on_ajax_generation_status()`
+  now detects when the status transient is absent but the generation lock has been held
+  longer than STATUS_TTL seconds — indicative of a Hostinger background-process kill.
+  Marks the stuck run `failed` in the audit ledger, releases the lock, and returns
+  `status: error` with an "infrastructure timeout" message instead of silently resetting
+  to idle.
+- **Honest status when transient gone but lock held (R3)**: when the status transient is
+  absent but the lock is held within TTL, `on_ajax_generation_status()` now returns
+  `status: running` with `started_at` from the lock timestamp (rather than `status: idle`)
+  so the Generate Now button reflects reality during long background runs.
+
+### Changed
+- **Executor split (300-line rule)**: `class-executor.php` was at 351 lines. AJAX generation
+  handlers (`on_ajax_generate_now`, `on_ajax_generation_status`, `abort_orphaned_run`,
+  `update_generation_stage`) extracted to new `class-generation-status-poller.php` (260 lines).
+  Executor retains cron handlers and delegates AJAX calls to the poller. Public API unchanged.
+- **Generation_Lock**: new `get_acquired_at()` method returns the Unix timestamp when the
+  lock was set, used by R2b/R3 to determine lock age without touching the pipeline run table.
+
 ## [0.18.2] - 2026-06-12
 
 Four confirmed-live maintenance fixes (CTO thread `2026-06-pipeline-v2-phase1` seq 25).
