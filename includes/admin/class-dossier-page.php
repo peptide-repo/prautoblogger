@@ -19,7 +19,7 @@ declare(strict_types=1);
  *   → at request time get_admin_page_parent() no longer finds the slug in $submenu
  *   → WP recomputes hookname in the 'admin_page_*' orphan namespace
  *   → no callback registered there → wp_die(403).
- * See ARCHITECTURE.md §22c + CONVENTIONS.md §Hidden Admin Pages for the full incident
+ * See ARCHITECTURE.md §22b + CONVENTIONS.md §Hidden Admin Pages for the full incident
  * history (board 404 v0.19.1, dossier 403 v0.19.2).
  *
  * Board cards and post-metabox deep-link here via
@@ -34,7 +34,7 @@ declare(strict_types=1);
  *
  * @see admin/class-dossier-data-assembler.php -- Builds the view model.
  * @see templates/admin/dossier-page.php       -- HTML template.
- * @see ARCHITECTURE.md                         -- §22c (hidden admin page convention).
+ * @see ARCHITECTURE.md                         -- §22b (hidden admin page convention).
  * @see CONVENTIONS.md                          -- §Hidden Admin Pages.
  */
 class PRAutoBlogger_Dossier_Page {
