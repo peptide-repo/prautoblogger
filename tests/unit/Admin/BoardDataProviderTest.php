@@ -173,7 +173,13 @@ class BoardDataProviderTest extends BaseTestCase {
 		$this->assertCount( 1, $cards );
 		$this->assertSame( 42, $cards[0]['post_id'] );
 		$this->assertSame( 'Test Draft Post', $cards[0]['title'] );
-		$this->assertSame( 'review', $cards[0]['click_action'] );
+		// M2: primary click_action is dossier (deep-link) for all card types.
+		$this->assertSame( 'dossier', $cards[0]['click_action'] );
+		$this->assertStringContainsString( 'prautoblogger-dossier', $cards[0]['dossier_url'] );
+		$this->assertStringContainsString( 'post_id=42', $cards[0]['dossier_url'] );
+		// Secondary URLs still present for review and edit shortcuts.
+		$this->assertArrayHasKey( 'review_url', $cards[0] );
+		$this->assertArrayHasKey( 'edit_url', $cards[0] );
 		$this->assertEqualsWithDelta( 0.012, $cards[0]['cost_total'], 0.0001 );
 	}
 
@@ -216,7 +222,13 @@ class BoardDataProviderTest extends BaseTestCase {
 
 		$this->assertCount( 1, $cards );
 		$this->assertSame( 77, $cards[0]['post_id'] );
-		$this->assertSame( 'edit', $cards[0]['click_action'] );
+		// M2: primary click_action is dossier (deep-link) for all card types.
+		$this->assertSame( 'dossier', $cards[0]['click_action'] );
+		$this->assertStringContainsString( 'prautoblogger-dossier', $cards[0]['dossier_url'] );
+		$this->assertStringContainsString( 'post_id=77', $cards[0]['dossier_url'] );
+		// Secondary URLs still present for edit and post view shortcuts.
+		$this->assertArrayHasKey( 'edit_url', $cards[0] );
+		$this->assertArrayHasKey( 'post_url', $cards[0] );
 	}
 
 	// ── Failed cards ────────────────────────────────────────────────────────
