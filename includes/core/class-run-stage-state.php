@@ -97,7 +97,12 @@ class PRAutoBlogger_Run_Stage_State {
 					attempt = IF(status = 'done', attempt, attempt + 1),
 					status = IF(status = 'done', 'done', 'running'),
 					updated_at = VALUES(updated_at)",
-				$run_id, $stage, $agent_role, $item_key, $now, $now
+				$run_id,
+				$stage,
+				$agent_role,
+				$item_key,
+				$now,
+				$now
 			)
 		);
 	}
@@ -133,7 +138,15 @@ class PRAutoBlogger_Run_Stage_State {
 					meta_json = VALUES(meta_json),
 					updated_at = VALUES(updated_at),
 					finished_at = VALUES(finished_at)",
-				$run_id, $stage, $agent_role, $item_key, $cost_usd, $meta, $now, $now, $now
+				$run_id,
+				$stage,
+				$agent_role,
+				$item_key,
+				$cost_usd,
+				$meta,
+				$now,
+				$now,
+				$now
 			)
 		);
 	}
@@ -159,7 +172,12 @@ class PRAutoBlogger_Run_Stage_State {
 			$wpdb->prepare(
 				"UPDATE {$table} SET status = 'failed', updated_at = %s, finished_at = %s
 				WHERE run_id = %s AND stage = %s AND agent_role = %s AND item_key = %s AND status != 'done'",
-				$now, $now, $run_id, $stage, $agent_role, $item_key
+				$now,
+				$now,
+				$run_id,
+				$stage,
+				$agent_role,
+				$item_key
 			)
 		);
 	}
@@ -185,7 +203,10 @@ class PRAutoBlogger_Run_Stage_State {
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT * FROM {$table} WHERE run_id = %s AND stage = %s AND agent_role = %s AND item_key = %s",
-				$run_id, $stage, $agent_role, $item_key
+				$run_id,
+				$stage,
+				$agent_role,
+				$item_key
 			),
 			ARRAY_A
 		);
@@ -199,7 +220,9 @@ class PRAutoBlogger_Run_Stage_State {
 			$legacy = $wpdb->get_row(
 				$wpdb->prepare(
 					"SELECT * FROM {$table} WHERE run_id = %s AND stage = %s AND agent_role = '' AND item_key = %s",
-					$run_id, $stage, $item_key
+					$run_id,
+					$stage,
+					$item_key
 				),
 				ARRAY_A
 			);
@@ -258,7 +281,10 @@ class PRAutoBlogger_Run_Stage_State {
 			$wpdb->prepare(
 				"UPDATE {$table} SET status = 'failed', updated_at = %s, finished_at = %s
 				WHERE run_id = %s AND item_key = %s AND status IN ('pending','running')",
-				$now, $now, $run_id, $item_key
+				$now,
+				$now,
+				$run_id,
+				$item_key
 			)
 		);
 	}
