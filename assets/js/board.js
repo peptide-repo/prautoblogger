@@ -93,7 +93,10 @@
 		// Click-through link.
 		var linkUrl  = '';
 		var linkText = '';
-		if ( card.click_action === 'review' && card.review_url ) {
+		if ( card.click_action === 'dossier' && card.dossier_url ) {
+			linkUrl  = card.dossier_url;
+			linkText = cfg.strings.view;
+		} else if ( card.click_action === 'review' && card.review_url ) {
 			linkUrl  = card.review_url;
 			linkText = cfg.strings.view;
 		} else if ( card.click_action === 'edit' && card.edit_url ) {

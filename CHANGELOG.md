@@ -5,6 +5,42 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.19.2] - 2026-06-12
+
+### Added
+- **Article Dossier page (M2).** Per-article read-only inspection page at
+  `admin.php?page=prautoblogger-dossier&post_id=<id>`. Accessible via board card
+  deep-links and the slim post metabox link. Shows: header (title, verdict pill, tier,
+  status), sidebar (run metadata, per-stage cost receipt with model + prompt-version),
+  vertical stage sections (rendered output default, per-stage raw-trace toggle exposing
+  `generation_log` request JSON + tokens + cost + role), editorial decisions rationale,
+  image A/B pair sections.
+- **Board card deep-links.** All Kanban cards now deep-link directly to the article
+  dossier page (`dossier_url` on card data; `click_action = dossier` in board JS).
+- **Slim post metabox.** `PRAutoBlogger_Post_Metabox` now renders a single "View
+  generation dossier →" link (was a verbose generation-metadata dump).
+- **Dossier CSS/JS.** `assets/css/dossier.css` (warm editorial palette, verdict pills,
+  cost receipt, raw-trace toggle) + `assets/js/dossier.js` (vanilla JS toggle,
+  `aria-expanded` / `aria-controls` accessible).
+- **Menu registration test coverage.** `DossierMenuRegistrationTest.php` — asserts
+  dossier hook fires at priority > board (> parent), uses hidden-submenu pattern,
+  correct slug, and `url_for_post()` URL shape. Mirrors `BoardMenuRegistrationTest`.
+- **Raw-trace credential check (binding 4).** `request_json` column contains only
+  OpenRouter request bodies (model, messages, temperature — no Authorization headers
+  per architecture). All model output escaped via `esc_html()` / `wp_kses_post()`;
+  treated as untrusted HTML throughout the render path.
+- **Legacy graceful state (binding 5).** Posts with no run record (pre-v0.18.0) render
+  a clean "No generation record" notice — no notices, no fatals. Amortized research
+  rows (pv=null, role='') render model as "—" with no raw-trace toggle.
+
+### Changed
+- **`class-prautoblogger.php` → `class-db-migrations.php` split (binding 1).**
+  All DB-migration methods extracted byte-identically into new static class
+  `PRAutoBlogger_DB_Migrations` (`includes/class-db-migrations.php`, 129 lines).
+  `class-prautoblogger.php` shrinks from 407 → 258 lines; delegates via thin proxy.
+  Loaded via explicit `require_once` in `prautoblogger.php` (autoloader filename
+  collision avoidance — see ARCHITECTURE.md §File Naming Notes).
+
 ## [0.19.1] - 2026-06-12
 
 ### Fixed

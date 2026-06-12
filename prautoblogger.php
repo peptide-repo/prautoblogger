@@ -9,7 +9,7 @@
  * Plugin Name:       PRAutoBlogger
  * Plugin URI:        https://peptiderepo.com/prautoblogger
  * Description:       Monitors social media for trending topics, generates SEO-friendly blog posts using AI, and publishes them on a daily schedule with full cost tracking and self-improvement metrics.
- * Version:           0.19.1
+ * Version:           0.19.2
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            PeptideRepo
@@ -35,7 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 | Defined here so every file in the plugin can reference paths, versions,
 | and limits without magic strings.
 */
-define( 'PRAUTOBLOGGER_VERSION', '0.19.1' );
+define( 'PRAUTOBLOGGER_VERSION', '0.19.2' );
 define( 'PRAUTOBLOGGER_DB_VERSION', '1.1.0' );
 define( 'PRAUTOBLOGGER_PLUGIN_FILE', __FILE__ );
 define( 'PRAUTOBLOGGER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
@@ -107,6 +107,7 @@ PRAutoBlogger_Autoloader::register();
 // The main orchestrator class is loaded explicitly because its CamelCase name
 // (PRAutoBlogger) doesn't map cleanly to a filename via the autoloader's
 // kebab-case convention (it would look for class-pr-auto-blogger.php).
+require_once PRAUTOBLOGGER_PLUGIN_DIR . 'includes/class-db-migrations.php'; // Loaded explicitly: DB_Migrations -> class-d-b-migrations.php via autoloader
 require_once PRAUTOBLOGGER_PLUGIN_DIR . 'includes/class-prautoblogger.php';
 /*
 |--------------------------------------------------------------------------

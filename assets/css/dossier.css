@@ -1,0 +1,441 @@
+/**
+ * PRAutoBlogger Article Dossier styles (M2).
+ *
+ * Design contract: Proposal C "Editorial Record" -- warm editorial,
+ * generous whitespace, typographic hierarchy, verdict pills, receipt
+ * sidebar. Scoped to .prab-dossier-wrap to avoid WP admin conflicts.
+ *
+ * @see admin/class-dossier-page.php
+ * @see templates/admin/dossier-page.php
+ */
+
+/* ── Layout ──────────────────────────────────────────────────────────── */
+
+.prab-dossier-wrap {
+	max-width: 1400px;
+}
+
+.prab-dossier-back {
+	margin-bottom: 12px;
+}
+
+.prab-dossier-back a {
+	color: #1B8A92;
+	text-decoration: none;
+}
+
+.prab-dossier-back a:hover {
+	text-decoration: underline;
+}
+
+.prab-dossier--empty {
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	padding: 32px;
+}
+
+.prab-dossier-empty-notice h2 {
+	font-size: 1.3em;
+	margin: 0 0 12px;
+	color: #444;
+}
+
+.prab-dossier {
+	background: #fff;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.prab-dossier-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	padding: 24px 28px 20px;
+	border-bottom: 1px solid #e8e0d8;
+	background: #FAF6EE;
+	border-radius: 4px 4px 0 0;
+}
+
+.prab-dossier-title {
+	font-size: 1.6em;
+	margin: 0 0 8px;
+	color: #1a1a1a;
+	line-height: 1.3;
+}
+
+.prab-dossier-header-meta {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+/* ── Body: two-column ─────────────────────────────────────────────────── */
+
+.prab-dossier-body {
+	display: flex;
+	align-items: flex-start;
+	gap: 0;
+}
+
+.prab-dossier-main {
+	flex: 1;
+	min-width: 0;
+	padding: 24px 28px;
+}
+
+.prab-dossier-sidebar {
+	width: 260px;
+	flex-shrink: 0;
+	padding: 24px 20px;
+	border-left: 1px solid #e8e0d8;
+}
+
+/* ── Verdict pills ────────────────────────────────────────────────────── */
+
+.prab-verdict-pill {
+	display: inline-block;
+	padding: 3px 10px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.prab-verdict-pill--approved  { background: #e6f5ee; color: #1a7a45; }
+.prab-verdict-pill--revised   { background: #fff4e0; color: #a06000; }
+.prab-verdict-pill--rejected  { background: #fde8e8; color: #b91c1c; }
+.prab-verdict-pill--halted    { background: #f0f0f0; color: #555; }
+.prab-verdict-pill--pending   { background: #e8f0fe; color: #1a55a0; }
+
+/* ── Status pills ─────────────────────────────────────────────────────── */
+
+.prab-dossier-tier {
+	font-size: 12px;
+	color: #666;
+	padding: 2px 8px;
+	border: 1px solid #ddd;
+	border-radius: 10px;
+}
+
+.prab-dossier-status {
+	font-size: 12px;
+	color: #777;
+}
+
+/* ── Stage sections ───────────────────────────────────────────────────── */
+
+.prab-dossier-section {
+	margin-bottom: 28px;
+	border: 1px solid #e5ddd5;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.prab-dossier-section--stage {
+	border-left: 4px solid #ccc;
+}
+
+.prab-stage-status--done    { border-left-color: #1B8A92; }
+.prab-stage-status--running { border-left-color: #FF8A3D; }
+.prab-stage-status--failed  { border-left-color: #e53e3e; }
+.prab-stage-status--pending { border-left-color: #a0aec0; }
+
+.prab-stage-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 12px 16px;
+	background: #faf8f5;
+	border-bottom: 1px solid #ede6dd;
+}
+
+.prab-section-title {
+	font-size: 1em;
+	font-weight: 600;
+	margin: 0;
+	color: #2d2d2d;
+}
+
+.prab-stage-role {
+	font-weight: 400;
+	color: #888;
+	font-size: 0.9em;
+	margin-left: 4px;
+}
+
+.prab-stage-header-meta {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 12px;
+	color: #666;
+}
+
+.prab-stage-status-pill {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.prab-stage-status-pill--done    { background: #e6f5ee; color: #1a7a45; }
+.prab-stage-status-pill--running { background: #fff4e0; color: #a06000; }
+.prab-stage-status-pill--failed  { background: #fde8e8; color: #b91c1c; }
+.prab-stage-status-pill--pending { background: #f0f0f0; color: #555; }
+
+.prab-stage-cost {
+	color: #1B8A92;
+	font-weight: 600;
+}
+
+.prab-stage-pv {
+	background: #f0f0f0;
+	padding: 1px 6px;
+	border-radius: 8px;
+	font-size: 11px;
+}
+
+/* ── Stage output ─────────────────────────────────────────────────────── */
+
+.prab-stage-output {
+	padding: 16px;
+	line-height: 1.7;
+}
+
+.prab-stage-output-rendered {
+	font-size: 14px;
+	color: #333;
+	max-height: 480px;
+	overflow-y: auto;
+}
+
+.prab-output-pruned,
+.prab-output-absent {
+	color: #888;
+	font-style: italic;
+	margin: 0;
+}
+
+/* ── Raw trace toggle ─────────────────────────────────────────────────── */
+
+.prab-stage-trace {
+	padding: 0 16px 12px;
+	border-top: 1px solid #f0ece6;
+}
+
+.prab-trace-toggle {
+	font-size: 12px;
+	color: #1B8A92;
+	cursor: pointer;
+	padding: 6px 0;
+	background: none;
+	border: none;
+}
+
+.prab-trace-toggle:hover {
+	color: #0d6066;
+}
+
+.prab-trace-detail {
+	margin-top: 8px;
+}
+
+.prab-trace-entry {
+	background: #f7f4ef;
+	border: 1px solid #e5ddd5;
+	border-radius: 4px;
+	padding: 10px 12px;
+	margin-bottom: 8px;
+}
+
+.prab-trace-meta {
+	display: flex;
+	gap: 12px;
+	font-size: 11px;
+	color: #666;
+	margin-bottom: 6px;
+	flex-wrap: wrap;
+}
+
+.prab-trace-status--success { color: #1a7a45; }
+.prab-trace-status--error   { color: #b91c1c; }
+
+.prab-trace-request summary {
+	font-size: 12px;
+	cursor: pointer;
+	color: #888;
+	padding: 4px 0;
+}
+
+.prab-trace-pre {
+	background: #1a1a1a;
+	color: #e2e8f0;
+	padding: 10px;
+	border-radius: 3px;
+	font-size: 11px;
+	overflow-x: auto;
+	max-height: 300px;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.prab-trace-error {
+	color: #b91c1c;
+	font-size: 12px;
+	margin: 4px 0 0;
+}
+
+/* ── Stage timestamps ─────────────────────────────────────────────────── */
+
+.prab-stage-timestamps {
+	padding: 4px 16px 10px;
+	font-size: 11px;
+	color: #aaa;
+}
+
+.prab-ts-sep {
+	margin: 0 4px;
+}
+
+/* ── Decisions section ───────────────────────────────────────────────── */
+
+.prab-dossier-section--decisions {
+	padding: 16px;
+}
+
+.prab-dossier-section--decisions .prab-section-title {
+	font-size: 1.1em;
+	margin-bottom: 12px;
+}
+
+.prab-decision-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-bottom: 12px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid #f0ece6;
+}
+
+.prab-decision-row:last-child {
+	border-bottom: none;
+	margin-bottom: 0;
+	padding-bottom: 0;
+}
+
+.prab-decision-stage {
+	font-weight: 600;
+	font-size: 13px;
+	min-width: 120px;
+}
+
+.prab-decision-rationale {
+	margin: 4px 0 0;
+	width: 100%;
+	color: #555;
+	font-size: 13px;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+
+.prab-sidebar-card {
+	background: #faf8f5;
+	border: 1px solid #e5ddd5;
+	border-radius: 4px;
+	padding: 14px 16px;
+	margin-bottom: 16px;
+}
+
+.prab-sidebar-heading {
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: #888;
+	margin: 0 0 10px;
+}
+
+.prab-sidebar-dl {
+	margin: 0;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 4px 10px;
+	font-size: 12px;
+}
+
+.prab-sidebar-dl dt {
+	color: #888;
+	white-space: nowrap;
+}
+
+.prab-sidebar-dl dd {
+	margin: 0;
+	color: #333;
+	word-break: break-all;
+}
+
+.prab-run-id {
+	font-family: monospace;
+	font-size: 10px;
+}
+
+/* ── Cost receipt ─────────────────────────────────────────────────────── */
+
+.prab-receipt-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+
+.prab-receipt-table td {
+	padding: 3px 0;
+}
+
+.prab-receipt-stage {
+	color: #555;
+}
+
+.prab-receipt-cost {
+	text-align: right;
+	color: #1B8A92;
+	font-family: monospace;
+}
+
+.prab-receipt-total {
+	border-top: 1px solid #ddd;
+	font-weight: 700;
+}
+
+.prab-receipt-total td {
+	padding-top: 6px;
+}
+
+/* ── Run status ───────────────────────────────────────────────────────── */
+
+.prab-run-status {
+	font-size: 12px;
+}
+
+.prab-run-status--done    { color: #1a7a45; }
+.prab-run-status--running { color: #a06000; }
+.prab-run-status--failed  { color: #b91c1c; }
+
+/* ── No stages ─────────────────────────────────────────────────────────── */
+
+.prab-dossier-no-stages {
+	padding: 24px 0;
+	color: #888;
+}
+
+/* ── Metabox ──────────────────────────────────────────────────────────── */
+
+.prab-metabox-dossier .prab-run-id-label {
+	font-size: 11px;
+	color: #999;
+	margin-top: 4px;
+}

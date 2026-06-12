@@ -120,14 +120,17 @@ prautoblogger/
 │   ├── css/
 │   │   ├── admin.css                  # Admin page styles (wp-admin conventions)
 │   │   ├── board.css                  # Kanban board styles -- warm editorial palette (v0.19.0)
+│   │   ├── dossier.css                # Article dossier page styles: verdict pills, cost receipt, trace toggle (v0.19.2)
 │   │   └── posts-widget.css           # Frontend posts widget styles (uses theme CSS vars)
 │   └── js/
 │       ├── admin.js                   # Admin page interactivity (vanilla JS / Alpine.js)
 │       ├── board.js                   # Board poller: AJAX poll + DOM updates + backoff (v0.19.0)
+│       ├── dossier.js                 # Per-stage raw-trace toggle: aria-expanded / aria-controls (v0.19.2)
 │       └── posts-widget.js            # React component for frontend post cards (wp.element)
 │
 ├── includes/
-│   ├── class-prautoblogger.php        # Main orchestrator — registers all hooks, delegates execution
+│   ├── class-prautoblogger.php        # Main orchestrator — registers all hooks, delegates execution (258 lines; split v0.19.2)
+│   ├── class-db-migrations.php        # DB migration methods extracted from class-prautoblogger.php (v0.19.2 split, binding 1)
 │   ├── class-pipeline-schema-installer.php # v0.18.0 substrate tables (prompts, run_sources, run_decisions, runs, run_stages)
 │   ├── class-migrate-prompt-seed-v0180.php # One-shot v0.18.0 prompt-registry seed migration
 │   ├── class-executor.php             # Cron handlers, generation AJAX (delegates start + status to poller), model registry
@@ -140,8 +143,11 @@ prautoblogger/
 │   │
 │   ├── admin/
 │   │   ├── class-board-page.php       # Kanban board -- primary landing screen (v0.19.0)
-│   │   ├── class-board-data-provider.php # Board orchestrator: 4-column snapshot, delegates gen_log queries (v0.19.0)
+│   │   ├── class-board-data-provider.php # Board orchestrator: 4-column snapshot + dossier deep-links (v0.19.0, v0.19.2)
 │   │   ├── class-board-gen-log-query.php # Board gen_log queries: Generating + Failed column raw DB reads (v0.19.0)
+│   │   ├── class-dossier-page.php     # Article dossier admin page: hidden-submenu, priority 12, enqueue, nonce (v0.19.2)
+│   │   ├── class-dossier-data-assembler.php # 5-query view-model builder: runs+stages+gen_log+decisions+meta (v0.19.2)
+│   │   ├── class-dossier-gen-log-query.php  # Dossier gen_log queries: per-stage cost receipt + raw trace (v0.19.2)
 │   │   ├── class-admin-page.php       # Main settings page (tabbed SaaS-style UI)
 │   │   ├── class-settings-fields.php  # Declarative settings: sections + core fields (API/Models/Content/Sources)
 │   │   ├── class-settings-fields-extended.php # Operational fields: schedule, publishing, display, analytics, images
@@ -245,11 +251,14 @@ prautoblogger/
 ├── templates/
 │   └── admin/
 │       ├── board-page.php             # Kanban board template (4-column editorial layout) (v0.19.0)
+│       ├── dossier-page.php           # Article dossier: two-column layout, sidebar, stage sections (v0.19.2)
+│       ├── dossier-stage-section.php  # Per-stage block: rendered output + raw-trace toggle + cost receipt (v0.19.2)
+│       ├── metabox-dossier-link.php   # Slim post metabox: "View generation dossier →" link (v0.19.2)
 │       ├── settings-page.php          # Settings page template (tabbed sidebar layout)
 │       ├── metrics-page.php           # Metrics/cost dashboard template
 │       ├── review-queue.php           # Review queue table template
 │       ├── log-viewer.php             # Activity log viewer template
-│       └── metabox-generation-info.php# Post metabox template
+│       └── metabox-generation-info.php# Post metabox template (superseded by metabox-dossier-link.php in v0.19.2)
 │
 ├── languages/
 │   └── prautoblogger.pot              # i18n translation template
@@ -886,6 +895,61 @@ callback -> `wp_die("Invalid plugin page")` 404. The enqueue-gate in `on_enqueue
 checks `prautoblogger_page_prautoblogger-board` and would similarly never fire with the
 wrong hookname (board.css/board.js would silently not load). Regression test:
 `tests/unit/Admin/BoardMenuRegistrationTest.php`.
+
+
+### #23: Article Dossier page — per-article inspection (v0.19.2)
+
+The dossier is a read-only per-article admin page that exposes the full substrate view for
+a single post: generation run, stage I/O, cost receipts, raw-trace toggles, editorial
+decisions, and image A/B pairs. It is link-accessed only (hidden submenu) — no navigation
+entry appears in the WP sidebar.
+
+**Page registration** (`class-dossier-page.php`): registered as a hidden submenu under
+`prautoblogger-settings` at `admin_menu` priority **12**, one step after the board (priority
+11), which is itself after the parent menu (priority 10). The page is immediately removed
+from `$submenu` so it does not appear in the WP admin sidebar, but remains reachable by
+direct URL. URL shape: `admin.php?page=prautoblogger-dossier&post_id=<int>`. Secured by
+`manage_options` capability + nonce (`prautoblogger_dossier`). Static `url_for_post(int
+$post_id): string` provides the canonical deep-link. Regression test:
+`tests/unit/Admin/DossierMenuRegistrationTest.php`.
+
+**5-query data assembly** (`class-dossier-data-assembler.php`):
+
+```
+1. wp_prautoblogger_runs       WHERE run_id = %s             -- 1 row (run metadata)
+2. wp_prautoblogger_run_stages WHERE run_id = %s             -- N rows (per-stage status/cost)
+3. wp_prautoblogger_generation_log WHERE run_id = %s         -- N rows (model/pv/tokens/request)
+4. wp_prautoblogger_run_decisions WHERE run_id = %s          -- N rows (editorial rationale)
+5. get_post_meta($post_id)                                    -- WP object cache hit
+```
+
+All queries are keyed on `run_id` (indexed). No N+1. Stage output is reconstructed from
+`run_stages.meta_json → json_decode → meta['output']` (same path as `Run_Stage_State::
+get_output()`). The dossier assembler does NOT call `Run_Stage_State` directly; it performs
+its own raw queries so the view is not coupled to the cache layer.
+
+**Legacy graceful state (binding 5):** Posts published before v0.18.0 (no runs/run_stages
+rows) and posts where `_prautoblogger_run_id` is absent or blank return `['has_run' => false]`.
+The template renders a clean "No generation record for this article" notice. No PHP notices
+or fatals.
+
+**Amortized research rows:** `generation_log` rows with `prompt_version = NULL` and
+`agent_role = ''` (from the `llm_research` stage orphan-reaper path) are rendered with
+model shown as "—" and no raw-trace toggle (request_json may be NULL). No fatal/notice.
+
+**Raw-trace security (binding 4):** `request_json` stores the OpenRouter request body —
+model identifier, messages array, temperature. Authorization headers are never logged (the
+outbound HTTP client strips them before logging, per the original architecture decision on
+`wp_prautoblogger_generation_log`). The dossier template renders `request_json` via
+`esc_html()` inside a `<pre>` block. All model-generated text rendered via `wp_kses_post()`
+(rendered view) or `esc_html()` (raw trace). Both paths treat content as untrusted HTML.
+
+**File naming note:** `PRAutoBlogger_DB_Migrations` is loaded via explicit `require_once`
+in `prautoblogger.php` (not the autoloader). The autoloader converts `DB_Migrations` to the
+kebab segment `d-b-migrations`, producing `class-d-b-migrations.php` — which does not match
+the file `class-db-migrations.php`. Explicit loading is the canonical pattern for classes
+whose names do not round-trip cleanly through the kebab converter. `class-prautoblogger.php`
+uses the same pattern (also explicitly required in `prautoblogger.php`).
 
 ## Cross-System LLM Budget Coordination
 
