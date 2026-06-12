@@ -4,18 +4,30 @@ declare(strict_types=1);
 /**
  * phpcs:ignore WordPress.Files.FileName.InvalidClassFileName -- class naming convention differs from WordPress standard
  *
- * Runware model catalog sync — fetches live model list via Runware's /v1 endpoint,
- * filters to text-to-image tasks, caches normalized results, and falls back to
- * hardcoded list on API failure.
+ * Runware model catalog sync — orchestrates periodic fetching, caching, failure
+ * cooldown, and fallback for the Runware model list.
  *
- * What: Syncs Runware's model catalog periodically (daily cron + on-demand AJAX),
- *       caches the results in WP options, and merges pricing data from the pricing
- *       class when Runware's API doesn't expose it.
+ * What: Syncs Runware's model catalog (daily cron + on-demand AJAX), caches
+ *       normalized results in WP options (v2 schema key — see below), merges
+ *       pricing, and enforces a per-failure cooldown to stop admin-page-load
+ *       cascades when the API is broken or the key is misconfigured.
  * Who triggers it: Daily cron (prautoblogger_sync_runware_models), AJAX "Sync now"
  *                  button in PRAdmin, and lazy-load via PRAutoBlogger_Image_Model_Registry.
- * Dependencies: PRAutoBlogger_Logger, PRAutoBlogger_Runware_Image_Pricing,
- *               PRAutoBlogger_Image_Model_Registry.
+ * Dependencies: PRAutoBlogger_Runware_Catalog_Fetcher, PRAutoBlogger_Logger,
+ *               PRAutoBlogger_Runware_Image_Pricing, PRAutoBlogger_Image_Model_Registry.
  *
+ * Cache schema note: option key is prautoblogger_runware_model_cache_v2 (bumped
+ * from v1) to cleanly invalidate cached rows that used the old taskType:models
+ * response shape (taskType/requiresImage fields). The v1 option is left in place
+ * and will be purged by the next WP options cleanup pass.
+ *
+ * Failure cooldown: prautoblogger_runware_catalog_last_failure_at records the
+ * last failure timestamp. is_in_failure_cooldown() checks it against
+ * prautoblogger_runware_catalog_failure_cooldown_seconds (default 3600s). This
+ * caps errors from admin page loads to ~24/day (24h / 1h cooldown) rather than
+ * 40+/day from every Settings/picker page load triggering a live sync.
+ *
+ * @see class-runware-catalog-fetcher.php      — Pagination + normalize (extracted for 300-line rule).
  * @see class-runware-image-pricing.php        — Authoritative pricing source & fallback models.
  * @see admin/class-image-model-registry.php   — Caller; merges Runware + OpenRouter lists.
  * @see class-prautoblogger.php                — Registers daily cron + AJAX hook.
@@ -23,20 +35,27 @@ declare(strict_types=1);
  */
 class PRAutoBlogger_Runware_Model_Catalog {
 
-	private const RUNWARE_API_URL = 'https://api.runware.ai/v1';
 	private const CACHE_TTL_SECONDS = 86400;
-	private const HTTP_TIMEOUT_SECONDS = 30;
 
 	/**
-	 * Fetch the Runware model catalog, normalize to the Image_Model_Registry
-	 * shape, and write to WP options cache. Returns true on success, false on
-	 * API failure or parse error.
+	 * Option key for the v2 normalized model cache (air-identifier schema).
+	 * Bumped from v1 (prautoblogger_runware_model_cache) to force re-sync.
+	 */
+	private const CACHE_OPTION      = 'prautoblogger_runware_model_cache_v2';
+	private const CACHE_TS_OPTION   = 'prautoblogger_runware_model_cache_updated_at';
+	private const FAILURE_TS_OPTION = 'prautoblogger_runware_catalog_last_failure_at';
+	private const COOLDOWN_SETTING  = 'prautoblogger_runware_catalog_failure_cooldown_seconds';
+	private const COOLDOWN_DEFAULT  = 3600;
+
+	/**
+	 * Fetch, normalize, merge pricing, and cache the Runware model catalog.
+	 * On success: writes cache + clears failure timestamp. Returns true.
+	 * On failure: writes failure timestamp for cooldown. Returns false.
 	 *
-	 * Side effects: makes HTTP request to Runware API, writes WP options.
 	 * Error handling: logs via PRAutoBlogger_Logger, never throws, always
-	 *                 returns bool to allow fallback to cached list.
+	 *                 returns bool to allow fallback to cached/hardcoded list.
 	 *
-	 * @return bool True on successful fetch and cache update; false on API or parse error.
+	 * @return bool True on successful fetch and cache update; false otherwise.
 	 */
 	public function sync(): bool {
 		try {
@@ -49,16 +68,19 @@ class PRAutoBlogger_Runware_Model_Catalog {
 				return false;
 			}
 
-			$raw_models = $this->fetch_models_from_api( $api_key );
+			$fetcher    = new PRAutoBlogger_Runware_Catalog_Fetcher();
+			$raw_models = $fetcher->fetch_all_text_to_image( $api_key );
+
 			if ( empty( $raw_models ) ) {
 				PRAutoBlogger_Logger::instance()->warning(
 					'Runware model catalog fetch returned empty list. Using cached/fallback models.',
 					'runware-catalog'
 				);
+				$this->record_failure();
 				return false;
 			}
 
-			$normalized = $this->normalize_models( $raw_models );
+			$normalized   = $fetcher->normalize_models( $raw_models );
 			$with_pricing = $this->merge_pricing( $normalized );
 
 			if ( empty( $with_pricing ) ) {
@@ -66,11 +88,13 @@ class PRAutoBlogger_Runware_Model_Catalog {
 					'Runware model catalog normalization resulted in empty list. Using cached/fallback models.',
 					'runware-catalog'
 				);
+				$this->record_failure();
 				return false;
 			}
 
-			update_option( 'prautoblogger_runware_model_cache', $with_pricing, false );
-			update_option( 'prautoblogger_runware_model_cache_updated_at', time(), false );
+			update_option( self::CACHE_OPTION, $with_pricing, false );
+			update_option( self::CACHE_TS_OPTION, time(), false );
+			delete_option( self::FAILURE_TS_OPTION );
 
 			PRAutoBlogger_Logger::instance()->info(
 				sprintf( 'Runware model catalog synced: %d models cached.', count( $with_pricing ) ),
@@ -82,38 +106,37 @@ class PRAutoBlogger_Runware_Model_Catalog {
 				sprintf( 'Runware model catalog sync failed: %s (%s)', $e->getMessage(), get_class( $e ) ),
 				'runware-catalog'
 			);
+			$this->record_failure();
 			return false;
 		}
 	}
 
 	/**
-	 * Get the normalized model list, with smart caching logic:
-	 * - If cache is fresh (< 24h), return it.
-	 * - If cache is stale or absent, trigger a sync.
-	 * - If sync fails, return the last-known-good cache.
-	 * - If no cache exists, return the hardcoded fallback (never empty).
+	 * Return the normalized model list, using smart cache + fallback logic:
+	 * fresh cache → cached; stale + not in cooldown → sync; stale cache fallback;
+	 * no cache → hardcoded fallback (never empty).
 	 *
 	 * @return array<int, array<string, mixed>> Normalized model list.
 	 */
 	public function get_models(): array {
 		if ( ! $this->is_stale() ) {
-			$cached = get_option( 'prautoblogger_runware_model_cache', array() );
+			$cached = get_option( self::CACHE_OPTION, array() );
 			if ( is_array( $cached ) && ! empty( $cached ) ) {
 				return $cached;
 			}
 		}
 
-		if ( $this->sync() ) {
-			$cached = get_option( 'prautoblogger_runware_model_cache', array() );
+		if ( ! $this->is_in_failure_cooldown() && $this->sync() ) {
+			$cached = get_option( self::CACHE_OPTION, array() );
 			if ( is_array( $cached ) && ! empty( $cached ) ) {
 				return $cached;
 			}
 		}
 
-		$cached = get_option( 'prautoblogger_runware_model_cache', array() );
+		$cached = get_option( self::CACHE_OPTION, array() );
 		if ( is_array( $cached ) && ! empty( $cached ) ) {
 			PRAutoBlogger_Logger::instance()->info(
-				'Using stale Runware model cache (live sync failed).',
+				'Using stale Runware model cache (live sync failed or suppressed by cooldown).',
 				'runware-catalog'
 			);
 			return $cached;
@@ -131,12 +154,12 @@ class PRAutoBlogger_Runware_Model_Catalog {
 	}
 
 	/**
-	 * Get the Unix timestamp of the last successful sync, or null if never synced.
+	 * Unix timestamp of the last successful sync, or null if never synced.
 	 *
-	 * @return int|null Unix timestamp, or null if never synced.
+	 * @return int|null
 	 */
 	public function get_last_synced_at(): ?int {
-		$ts = get_option( 'prautoblogger_runware_model_cache_updated_at', null );
+		$ts = get_option( self::CACHE_TS_OPTION, null );
 		if ( null === $ts ) {
 			return null;
 		}
@@ -145,9 +168,23 @@ class PRAutoBlogger_Runware_Model_Catalog {
 	}
 
 	/**
-	 * Check if the cache is stale (older than 24h) or absent.
+	 * Unix timestamp of the last sync failure, or null if no failure on record.
 	 *
-	 * @return bool True if cache should be refreshed; false if still fresh.
+	 * @return int|null
+	 */
+	public function get_last_failure_at(): ?int {
+		$ts = get_option( self::FAILURE_TS_OPTION, null );
+		if ( null === $ts ) {
+			return null;
+		}
+		$ts = (int) $ts;
+		return $ts > 0 ? $ts : null;
+	}
+
+	/**
+	 * Whether the cache is stale (older than 24h) or absent.
+	 *
+	 * @return bool True if a refresh is warranted; false if still fresh.
 	 */
 	public function is_stale(): bool {
 		$updated_at = $this->get_last_synced_at();
@@ -158,123 +195,51 @@ class PRAutoBlogger_Runware_Model_Catalog {
 	}
 
 	/**
-	 * Fetch the raw model list from Runware's /v1 endpoint via a models task.
+	 * Whether a sync attempt should be suppressed due to a recent failure.
 	 *
-	 * @param string $api_key Decrypted Runware API key.
-	 * @return array Raw model list (may be empty).
-	 * @throws \RuntimeException On HTTP error or malformed response.
+	 * The cooldown window is read from prautoblogger_runware_catalog_failure_cooldown_seconds
+	 * (default 3600s). This prevents admin-page-load cascades (40+ errors/day)
+	 * when the API endpoint or key is broken. A successful sync clears it.
+	 *
+	 * @return bool True if a sync should be suppressed; false if retry is permitted.
 	 */
-	private function fetch_models_from_api( string $api_key ): array {
-		$body = wp_json_encode(
-			array(
-				array(
-					'taskType' => 'models',
-					'apiKey'   => $api_key,
-				),
-			)
-		);
-
-		$response = wp_remote_post(
-			self::RUNWARE_API_URL,
-			array(
-				'timeout' => self::HTTP_TIMEOUT_SECONDS,
-				'headers' => array( 'Content-Type' => 'application/json' ),
-				'body'    => $body,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			throw new \RuntimeException(
-				sprintf( 'Runware models endpoint unreachable: %s', $response->get_error_message() )
-			);
+	public function is_in_failure_cooldown(): bool {
+		$last_failure = $this->get_last_failure_at();
+		if ( null === $last_failure ) {
+			return false;
 		}
-
-		$status = (int) wp_remote_retrieve_response_code( $response );
-		if ( 200 !== $status ) {
-			$raw = wp_remote_retrieve_body( $response );
-			throw new \RuntimeException(
-				sprintf( 'Runware models endpoint returned HTTP %d', $status )
-			);
+		$cooldown = (int) get_option( self::COOLDOWN_SETTING, self::COOLDOWN_DEFAULT );
+		if ( $cooldown <= 0 ) {
+			$cooldown = self::COOLDOWN_DEFAULT;
 		}
-
-		$raw = (string) wp_remote_retrieve_body( $response );
-		$decoded = json_decode( $raw, true );
-
-		if ( ! is_array( $decoded ) ) {
-			throw new \RuntimeException( 'Runware models response is not valid JSON.' );
-		}
-
-		if ( isset( $decoded['errors'] ) && is_array( $decoded['errors'] ) && ! empty( $decoded['errors'] ) ) {
-			throw new \RuntimeException( 'Runware API returned an error.' );
-		}
-
-		$data = $decoded['data'] ?? array();
-		return is_array( $data ) ? $data : array();
+		return ( time() - $last_failure ) < $cooldown;
 	}
 
 	/**
-	 * Normalize raw Runware model objects to the PRAutoBlogger_Image_Model_Registry
-	 * shape: id, name, provider, cost_per_image, capabilities, description.
-	 *
-	 * Filters to taskType='imageInference' (text-to-image only), excluding
-	 * inpainting (imageInference + requiresImage=true), img2img, video, upscalers.
-	 *
-	 * @param array<int, array<string, mixed>> $raw_models Raw API response.
-	 * @return array<int, array<string, mixed>> Normalized models.
-	 */
-	private function normalize_models( array $raw_models ): array {
-		$normalized = array();
-
-		foreach ( $raw_models as $raw ) {
-			if ( ! is_array( $raw ) ) {
-				continue;
-			}
-
-			$task_type = $raw['taskType'] ?? '';
-			if ( 'imageInference' !== $task_type ) {
-				continue;
-			}
-
-			if ( isset( $raw['requiresImage'] ) && true === $raw['requiresImage'] ) {
-				continue;
-			}
-
-			$model_id = (string) ( $raw['id'] ?? '' );
-			if ( '' === $model_id ) {
-				continue;
-			}
-
-			$normalized[] = array(
-				'id'             => $model_id,
-				'name'           => (string) ( $raw['name'] ?? $model_id ),
-				'provider'       => 'runware',
-				'cost_per_image' => null,
-				'capabilities'   => array( 'image_generation' ),
-				'description'    => (string) ( $raw['description'] ?? '' ),
-			);
-		}
-
-		return $normalized;
-	}
-
-	/**
-	 * Merge pricing data from PRAutoBlogger_Runware_Image_Pricing into the
-	 * normalized catalog. Models without pricing data get cost_per_image=null.
+	 * Merge pricing from PRAutoBlogger_Runware_Image_Pricing into normalized models.
+	 * Models without a pricing entry get cost_per_image=null.
 	 *
 	 * @param array<int, array<string, mixed>> $normalized Normalized models.
 	 * @return array<int, array<string, mixed>> Models with pricing merged.
 	 */
 	private function merge_pricing( array $normalized ): array {
 		$pricing_table = PRAutoBlogger_Runware_Image_Pricing::get_model_costs();
-
 		foreach ( $normalized as &$model ) {
 			$model_id = $model['id'] ?? '';
 			if ( isset( $pricing_table[ $model_id ] ) ) {
 				$model['cost_per_image'] = (float) $pricing_table[ $model_id ];
 			}
 		}
-
 		return $normalized;
+	}
+
+	/**
+	 * Record the current time as the last sync failure timestamp.
+	 *
+	 * @return void
+	 */
+	private function record_failure(): void {
+		update_option( self::FAILURE_TS_OPTION, time(), false );
 	}
 
 	/**
@@ -287,12 +252,10 @@ class PRAutoBlogger_Runware_Model_Catalog {
 		if ( '' === $stored ) {
 			return '';
 		}
-
 		if ( PRAutoBlogger_Encryption::is_encrypted( $stored ) ) {
 			$decrypted = PRAutoBlogger_Encryption::decrypt( $stored );
 			return '' === $decrypted ? '' : $decrypted;
 		}
-
 		return $stored;
 	}
 }

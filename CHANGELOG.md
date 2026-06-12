@@ -42,6 +42,30 @@ GA4-context SQL fix, manual-run resilience, and honest status on transient expir
 - **Generation_Lock**: new `get_acquired_at()` method returns the Unix timestamp when the
   lock was set, used by R2b/R3 to determine lock age without touching the pipeline run table.
 
+### Added
+- **Runware catalog `modelSearch` migration**: `class-runware-model-catalog.php` migrated
+  from the retired `taskType:models` endpoint to the current `taskType:modelSearch` API.
+  Payload format: `[{taskType:authentication,apiKey:...},{taskType:modelSearch,
+  taskUUID:<uuid4>,offset:N,limit:N}]`. Response normalization updated for the new shape:
+  `air` identifier replaces `id`, `capabilities[]` array replaces `taskType`/`requiresImage`
+  (filter: entry must contain `"io:text-to-image"`), `comment` field maps to `description`.
+  Logic extracted to `class-runware-catalog-fetcher.php` companion (300-line rule). Cache
+  option key bumped to `prautoblogger_runware_model_cache_v2` to cleanly invalidate v1 rows.
+- **Pagination for `modelSearch`**: fetcher paginates via `offset`/`limit` up to 5 pages of
+  100 results = 500 models inspected. Runware's catalog has 320k+ entries (mostly community
+  checkpoints); 5 pages reliably captures all curated text-to-image models. A page-cap
+  warning is logged if the cap is reached before exhausting `totalResults`. Client-side
+  `io:text-to-image` capability filter applied — no server-side filter is available.
+- **Negative-result failure cooldown**: `sync()` records a failure timestamp in
+  `prautoblogger_runware_catalog_last_failure_at` on every error path. `get_models()`
+  gates re-trigger through `is_in_failure_cooldown()`, which respects a configurable
+  window from `prautoblogger_runware_catalog_failure_cooldown_seconds` (default 3600s / 1h,
+  never hardcoded at point of use). A successful sync clears the timestamp. This caps the
+  admin-page-load cascade (42 errors/day observed) to ~24/day even when the cache is absent.
+- **Hardcoded fallback list preserved**: unchanged; carried prod through the entire
+  `taskType:models` outage. Tests verify it is always non-empty and correctly priced.
+
+
 ## [0.18.2] - 2026-06-12
 
 Four confirmed-live maintenance fixes (CTO thread `2026-06-pipeline-v2-phase1` seq 25).
