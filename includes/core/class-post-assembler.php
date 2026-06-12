@@ -111,7 +111,7 @@ class PRAutoBlogger_Post_Assembler {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$research_row = $wpdb->get_row(
 			$wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				"SELECT id, estimated_cost, provider, model, prompt_tokens, completion_tokens
+				"SELECT id, estimated_cost, provider, model, prompt_tokens, completion_tokens, prompt_version, agent_role
 				FROM {$table}
 				WHERE run_id = %s AND stage = 'llm_research' AND post_id IS NULL
 				LIMIT 1",
