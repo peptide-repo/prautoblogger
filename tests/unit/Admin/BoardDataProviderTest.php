@@ -291,7 +291,6 @@ class BoardDataProviderTest extends BaseTestCase {
 		$provider = new \PRAutoBlogger_Board_Data_Provider();
 		$snapshot = $provider->get_board_snapshot();
 
-		$this->assertFalse( $snapshot[
-			$this->assertFalse( $snapshot['has_active_runs'] );
-		}
+		$this->assertFalse( $snapshot['has_active_runs'] );
 	}
+}
