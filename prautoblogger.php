@@ -107,6 +107,7 @@ PRAutoBlogger_Autoloader::register();
 // The main orchestrator class is loaded explicitly because its CamelCase name
 // (PRAutoBlogger) doesn't map cleanly to a filename via the autoloader's
 // kebab-case convention (it would look for class-pr-auto-blogger.php).
+require_once PRAUTOBLOGGER_PLUGIN_DIR . 'includes/class-db-migrations.php'; // Loaded explicitly: DB_Migrations -> class-d-b-migrations.php via autoloader
 require_once PRAUTOBLOGGER_PLUGIN_DIR . 'includes/class-prautoblogger.php';
 /*
 |--------------------------------------------------------------------------
