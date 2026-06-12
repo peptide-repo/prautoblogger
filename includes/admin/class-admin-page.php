@@ -62,6 +62,7 @@ class PRAutoBlogger_Admin_Page {
 	public function on_enqueue_assets( string $hook_suffix ): void {
 		$pages = array(
 			'toplevel_page_' . self::PAGE_SLUG,
+			'prautoblogger_page_prautoblogger-board',
 			'prautoblogger_page_prautoblogger-metrics',
 			'prautoblogger_page_prautoblogger-review-queue',
 			'prautoblogger_page_prautoblogger-ideas',
@@ -323,7 +324,7 @@ class PRAutoBlogger_Admin_Page {
 			return wp_json_encode( array_values( array_map( 'sanitize_text_field', $items ) ) );
 		}
 
-		$numeric = array( 'prautoblogger_daily_article_target', 'prautoblogger_monthly_budget_usd', 'prautoblogger_min_word_count', 'prautoblogger_max_word_count', 'prautoblogger_default_author', 'prautoblogger_default_category', 'prautoblogger_pullpush_cache_ttl', 'prautoblogger_reddit_posts_per_subreddit', 'prautoblogger_reasoning_max_tokens' );
+		$numeric = array( 'prautoblogger_daily_article_target', 'prautoblogger_monthly_budget_usd', 'prautoblogger_min_word_count', 'prautoblogger_max_word_count', 'prautoblogger_default_author', 'prautoblogger_default_category', 'prautoblogger_pullpush_cache_ttl', 'prautoblogger_reddit_posts_per_subreddit', 'prautoblogger_board_poll_interval', 'prautoblogger_board_published_window_days' );
 		if ( in_array( $option_name, $numeric, true ) ) {
 			return is_numeric( $value ) ? $value : 0;
 		}
@@ -346,7 +347,4 @@ class PRAutoBlogger_Admin_Page {
 			update_option( 'prautoblogger_image_provider', $provider );
 			return $candidate;
 		}
-		add_settings_error( 'prautoblogger_image_model', 'prautoblogger_image_model_unknown', sprintf( esc_html__( 'Image model "%s" is not in the registry. Keeping the previous selection.', 'prautoblogger' ), esc_html( $candidate ) ) );
-		return (string) get_option( 'prautoblogger_image_model', PRAUTOBLOGGER_DEFAULT_IMAGE_MODEL );
-	}
-}
+		add_settings_error( 'prautoblogger_image_model', 'prautoblogger_image_model_unknown', sprintf( esc_html__( 'Image model "%s" is not in the registry. Keeping the previous selection.', 'prautoblogger' ), es

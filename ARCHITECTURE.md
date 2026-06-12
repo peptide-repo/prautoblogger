@@ -119,17 +119,16 @@ prautoblogger/
 │   │   └── OFL.txt                    # SIL Open Font License
 │   ├── css/
 │   │   ├── admin.css                  # Admin page styles (wp-admin conventions)
+│   │   ├── board.css                  # Kanban board styles — warm editorial palette (v0.19.0)
 │   │   └── posts-widget.css           # Frontend posts widget styles (uses theme CSS vars)
 │   └── js/
 │       ├── admin.js                   # Admin page interactivity (vanilla JS / Alpine.js)
+│       ├── board.js                   # Board poller: AJAX poll + DOM updates + backoff (v0.19.0)
 │       └── posts-widget.js            # React component for frontend post cards (wp.element)
 │
 ├── includes/
 │   ├── class-prautoblogger.php        # Main orchestrator — registers all hooks, delegates execution
-│   ├── class-pipeline-schema-installer.php # v0.18.0 substrate tables (prompts, run_sources, run_decisions, runs, run_stages)
-│   ├── class-migrate-prompt-seed-v0180.php # One-shot v0.18.0 prompt-registry seed migration
-│   ├── class-executor.php             # Cron handlers, generation AJAX (delegates start + status to poller), model registry
-│   ├── class-generation-status-poller.php # Generation AJAX handlers: status transient renewal, lock-age orphan detection (R2b/R3), abort_orphaned_run
+│   ├── class-executor.php             # Cron handlers, generation AJAX (start + status), model registry
 │   ├── class-ajax-handlers.php        # Non-generation AJAX: images, models, test connections
 │   ├── class-generation-lock.php      # DB-level atomic mutex for single-writer generation
 │   ├── class-activator.php            # Activation: create DB tables, set defaults, schedule cron
@@ -137,6 +136,8 @@ prautoblogger/
 │   ├── class-autoloader.php           # PSR-4-style autoloader for plugin classes
 │   │
 │   ├── admin/
+│   │   ├── class-board-page.php       # Kanban board — primary landing screen (v0.19.0)
+│   │   ├── class-board-data-provider.php # Board data: 4-column card snapshots from gen_log + post meta (v0.19.0)
 │   │   ├── class-admin-page.php       # Main settings page (tabbed SaaS-style UI)
 │   │   ├── class-settings-fields.php  # Declarative settings: sections + core fields (API/Models/Content/Sources)
 │   │   ├── class-settings-fields-extended.php # Operational fields: schedule, publishing, display, analytics, images
@@ -174,19 +175,6 @@ prautoblogger/
 │   │   ├── class-image-attacher.php        # Sideload + cost log + variant meta-linking + caption prepend
 │   │   ├── class-image-media-sideloader.php # Imports images into WordPress media library
 │   │   ├── class-cost-tracker.php     # Logs all API costs, enforces budget limits
-│   │   ├── class-stage-display-map.php # Stage vocabulary: labels + default roles + prompt keys (old + new + image stages)
-│   │   ├── class-prompt-registry.php  # Versioned prompt registry, read side (render, pins, self-healing fallback)
-│   │   ├── class-prompt-registry-writer.php # Registry write side (create version, activate, seed) — versions immutable
-│   │   ├── class-prompt-defaults.php  # Canonical v1 bodies: content.* + analysis.* (seed + fallback single source)
-│   │   ├── class-prompt-defaults-editorial.php # Canonical v1 bodies: editor.* / research.system / image.* (composer seam)
-│   │   ├── class-run-context.php      # Per-process active run id (set by Cost_Tracker::set_run_id)
-│   │   ├── class-run-state.php        # runs-table ledger + lifecycle row (ceiling/reserved/settled, pins, status)
-│   │   ├── class-cost-governor.php    # Per-run reserve-before-call enforcement (atomic conditional UPDATE)
-│   │   ├── class-cost-ceiling-exception.php # Thrown on ceiling breach (run already halted)
-│   │   ├── class-run-stage-state.php  # Per-run per-stage state machine (idempotent resume, output snapshots)
-│   │   ├── class-run-reaper.php       # Stuck-run sweep + audit-payload retention (rides the #19 cron)
-│   │   ├── class-audit-writer.php     # run_sources / run_decisions insert layer
-│   │   ├── class-pipeline-status.php  # Status-transient + summary helpers (extracted from runner/worker)
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)
 │   │   ├── class-article-worker.php   # Single-article generation (content + edit + publish)
 │   │   ├── class-pipeline-runner.php  # Orchestrates pipeline; chains per-article cron jobs
@@ -196,7 +184,6 @@ prautoblogger/
 │   ├── providers/
 │   │   ├── interface-llm-provider.php    # Contract for any LLM provider
 │   │   ├── class-open-router-provider.php # OpenRouter API implementation (chat completions)
-│   │   ├── class-open-router-completion-guard.php # Empty-completion guard: warn on finish_reason=length, one reasoning-off retry, audited failure (v0.18.1)
 │   │   ├── class-open-router-embedding-provider.php # Text embeddings for semantic dedup
 │   │   ├── class-open-router-pricing.php  # Model pricing lookup and cost estimation
 │   │   ├── interface-source-provider.php # Contract for any social media source
@@ -209,13 +196,11 @@ prautoblogger/
 │   │   ├── class-open-router-image-support.php   # API key, response parsing, retry/backoff helpers
 │   │   ├── class-open-router-image-pricing.php   # Model resolution + per-image cost estimation
 │   │   ├── class-open-router-config.php          # API base URL (direct vs AI Gateway)
-│   │   ├── class-open-router-request-builder.php # Request body assembly + reasoning token cap/headroom (v0.18.1) + headers + Hostinger cURL auth workaround
+│   │   ├── class-open-router-request-builder.php # Header building + Hostinger cURL auth workaround
 │   │   ├── class-runware-image-provider.php     # Runware FLUX.1 (default v0.9.0+)
 │   │   ├── class-runware-image-pricing.php      # FLUX schnell/dev cost table + resolver
 │   │   ├── class-runware-image-support.php      # Key, response parsing, retry, dimension snap
 │   │   ├── class-runware-image-batch.php        # True parallel curl_multi batch dispatcher
-│   │   ├── class-runware-model-catalog.php      # Live model catalog sync: modelSearch pagination, cache v2, failure cooldown
-│   │   ├── class-runware-catalog-fetcher.php    # HTTP fetch + normalize_models for Runware modelSearch (extracted for 300-line rule)
 │   │   └── (new providers go here — see CONVENTIONS.md)
 │   │
 │   ├── services/
@@ -239,6 +224,7 @@ prautoblogger/
 │
 ├── templates/
 │   └── admin/
+│       ├── board-page.php             # Kanban board template (4-column editorial layout) (v0.19.0)
 │       ├── settings-page.php          # Settings page template (tabbed sidebar layout)
 │       ├── metrics-page.php           # Metrics/cost dashboard template
 │       ├── review-queue.php           # Review queue table template
@@ -340,19 +326,11 @@ Hostinger's 120-second LiteSpeed connection timeout. The frontend polls for stat
 └──────────────────────────────┘
 ```
 
-**Fallback detection (v0.18.3 R2b/R3):** The status transient is renewed on every stage
-transition via `update_generation_stage()` (`Pipeline_Status::broadcast()`), so its TTL
-always counts from the last activity rather than run start. When a status poll finds the
-transient absent:
-
-- **Lock within TTL (`lock_age ≤ STATUS_TTL = 600s`):** the background process is still alive
-  but has not broadcast yet (or the transient was evicted). `handle_missing_transient()` returns
-  `status: running` (R3) — button stays in-progress, no state change.
-- **Lock exceeded TTL (`lock_age > STATUS_TTL`):** background process died without releasing the
-  lock. `abort_orphaned_run()` marks the `runs` row `failed`, releases the generation lock, deletes
-  the status transient and queue option, and returns `status: error` with "infrastructure timeout"
-  (R2b). A daily `Run_Reaper::sweep_stuck_runs()` at 2× `EXPECTED_RUN_SECONDS` (~3600s) remains
-  the backstop for runs the poll path never sees.
+**Fallback detection:** If Hostinger kills the PHP process before it updates the
+transient (despite `ignore_user_abort`), the status endpoint detects the orphan after
+180 seconds by checking for recently-created posts with `_prautoblogger_run_id` meta.
+It also releases any stale generation lock. After 600 seconds (STATUS_TTL), it gives
+up unconditionally and reports a timeout.
 
 ---
 
@@ -406,7 +384,7 @@ All tables use `$wpdb->prefix` + `prautoblogger_` prefix.
 | id                | BIGINT UNSIGNED   | Auto-increment PK                             |
 | post_id           | BIGINT UNSIGNED   | WordPress post ID (nullable, set after publish)|
 | run_id            | VARCHAR(36)       | UUID linking all entries from one pipeline run |
-| stage             | VARCHAR(50)       | See "Stage vocabulary" below. Canonical edit-stage name is **'polish'** (this doc previously said 'edit'; the code always wrote 'polish') |
+| stage             | VARCHAR(50)       | 'analysis', 'outline', 'draft', 'edit', 'review' |
 | provider          | VARCHAR(50)       | 'openrouter'                                  |
 | model             | VARCHAR(100)      | Model identifier used                         |
 | prompt_tokens     | INT               | Input tokens consumed                         |
@@ -415,26 +393,12 @@ All tables use `$wpdb->prefix` + `prautoblogger_` prefix.
 | request_json      | LONGTEXT          | Full request payload (for debugging)          |
 | response_status   | VARCHAR(20)       | 'success', 'error', 'timeout'                 |
 | error_message     | TEXT              | Error details if failed (nullable)             |
-| agent_role        | VARCHAR(50)       | v0.18.0, nullable. Role that made the call ('writer', 'editor', 'analyst', 'researcher', 'illustrator', …). Historical rows stay NULL |
-| prompt_version    | VARCHAR(20)       | v0.18.0, nullable. Pinned prompt-registry version the call rendered with. Historical rows stay NULL |
 | created_at        | DATETIME          | When the API call was made                    |
 
 - INDEX: `post_id`
 - INDEX: `run_id`
 - INDEX: `created_at`
 - INDEX: `stage`
-
-**Stage vocabulary.** `stage` is a VARCHAR, not a SQL enum; the vocabulary lives in
-`PRAutoBlogger_Stage_Display_Map` (PHP), which renders historical and new values coherently
-and maps each stage to its default agent role + primary prompt-registry key:
-
-- **Historical values (exist on prod):** `analysis`, `outline`, `draft`, `polish`, `review`,
-  `llm_research`, `image_a`, `image_b`, `image_prompt_rewrite`, `opik_eval_judge`.
-  Note: single-pass generation logs its one call as `draft` (no `outline` row — that absence
-  is how single-pass and multi-step runs are told apart in cost reporting).
-- **Pipeline v2 values (new runs may write):** `research`, `curate`, `draft`, `editorial`,
-  `seo`, `publish`.
-- Unknown values render via a humanizing fallback — the audit view never renders blank.
 
 #### `prab_event_log` — Structured application logging
 
@@ -468,97 +432,6 @@ and maps each stage to its default agent role + primary prompt-registry key:
 - INDEX: `measured_at`
 - INDEX: `composite_score`
 
-#### Pipeline v2 substrate tables (v0.18.0, db 1.2.0)
-
-Real table names use the standard prefix, e.g. `wp_prautoblogger_prompts` (the plan-of-record's
-`prab_*` names are shorthand). Created by `PRAutoBlogger_Pipeline_Schema_Installer`; all are
-dropped on uninstall.
-
-##### `prautoblogger_prompts` — versioned prompt registry
-
-| Column      | Type            | Description                                              |
-|-------------|-----------------|----------------------------------------------------------|
-| id          | BIGINT UNSIGNED | Auto-increment PK                                        |
-| prompt_key  | VARCHAR(64)     | Registry key, e.g. 'content.single_pass' (`key` is reserved SQL) |
-| version     | INT UNSIGNED    | Monotonic per key; **rows are immutable** — edits create new versions |
-| body        | LONGTEXT        | Prompt template; `{{ token }}` placeholders filled at render time |
-| model       | VARCHAR(100)    | Optional model hint (informational in Phase 1)           |
-| params_json | LONGTEXT        | Optional params snapshot (temperature, max_tokens, …)     |
-| author      | VARCHAR(100)    | Who created the version ('seed:v0.18.0', wp user login, agent) |
-| created_at  | DATETIME        | Version creation time                                    |
-| active      | TINYINT(1)      | Exactly one active row per key                           |
-
-- UNIQUE: `prompt_key, version` · INDEX: `prompt_key, active`
-
-##### `prautoblogger_run_sources` — per-run source audit
-
-| Column        | Type         | Description                                  |
-|---------------|--------------|----------------------------------------------|
-| id            | BIGINT UNSIGNED | Auto-increment PK                         |
-| run_id        | VARCHAR(36)  | Pipeline run UUID                            |
-| agent_role    | VARCHAR(50)  | Role that surfaced the source               |
-| source_url    | VARCHAR(500) | Source URL (nullable)                        |
-| doi           | VARCHAR(255) | DOI when known (nullable)                    |
-| kept          | TINYINT(1)   | Keep/discard decision                        |
-| reason        | TEXT         | Why kept or discarded (nullable)             |
-| quality_score | FLOAT        | Source quality weighting (nullable)          |
-| created_at    | DATETIME     | Row creation time                            |
-
-- INDEX: `run_id` — consolidates the old `source_ids_json` + `_prautoblogger_research_sources`
-  scatter for **new** runs; historical runs are not backfilled.
-
-##### `prautoblogger_run_decisions` — per-stage decision audit
-
-| Column         | Type        | Description                                   |
-|----------------|-------------|-----------------------------------------------|
-| id             | BIGINT UNSIGNED | Auto-increment PK                         |
-| run_id         | VARCHAR(36) | Pipeline run UUID                             |
-| stage          | VARCHAR(50) | Stage that decided (see stage vocabulary)     |
-| verdict        | VARCHAR(50) | e.g. 'approved', 'revised', 'rejected', 'halted' |
-| rationale      | TEXT        | Decision rationale (nullable)                 |
-| citation_score | FLOAT       | Nullable until the Phase-2 editorial loop computes it |
-| created_at     | DATETIME    | Row creation time                             |
-
-- INDEX: `run_id`
-
-##### `prautoblogger_runs` — run ledger + lifecycle
-
-| Column              | Type          | Description                                 |
-|---------------------|---------------|---------------------------------------------|
-| run_id              | VARCHAR(36)   | PK — pipeline run UUID                      |
-| status              | VARCHAR(20)   | pending / running / done / failed / halted  |
-| ceiling_usd         | DECIMAL(10,6) | Per-run cost ceiling snapshotted at run start |
-| reserved_usd        | DECIMAL(10,6) | Outstanding reserve-before-call holds       |
-| settled_usd         | DECIMAL(10,6) | Actual settled spend                        |
-| overage_usd         | DECIMAL(10,6) | Amount the breaching reservation exceeded the ceiling by |
-| pinned_prompts_json | LONGTEXT      | Map of prompt_key → version frozen at run start |
-| started_at          | DATETIME      | Run start                                   |
-| updated_at          | DATETIME      | Last ledger/state write                     |
-| finished_at         | DATETIME      | Set on done/failed/halted (nullable)        |
-
-- INDEX: `status` — the Cost_Governor's reserve is a single conditional UPDATE against this
-  row (same atomic discipline as the #10 generation lock), so concurrent `curl_multi`
-  writers cannot slip past the ceiling between check and call.
-
-##### `prautoblogger_run_stages` — per-run per-stage state machine
-
-| Column      | Type            | Description                                        |
-|-------------|-----------------|----------------------------------------------------|
-| id          | BIGINT UNSIGNED | Auto-increment PK                                  |
-| run_id      | VARCHAR(36)     | Pipeline run UUID                                  |
-| stage       | VARCHAR(50)     | Stage name (see stage vocabulary)                  |
-| agent_role  | VARCHAR(50)     | Fan-out dimension. Populated in Phase 1 from `Stage_Display_Map::default_agent_role()` (e.g. 'writer', 'editor', 'publisher'). Phase-2 quorum passes multiple roles for the same stage. |
-| item_key    | VARCHAR(64)     | Scopes article-level stages within multi-article runs ('' for run-level) |
-| status      | VARCHAR(20)     | pending / running / done / failed / halted         |
-| attempt     | SMALLINT UNSIGNED | Re-entry counter                                 |
-| cost_usd    | DECIMAL(10,6)   | Cost attributed to the stage                       |
-| meta_json   | LONGTEXT        | Stage output snapshot — lets resume reuse a done stage instead of re-charging it (payload pruned on the retention cron) |
-| started_at  | DATETIME        | First entry                                        |
-| updated_at  | DATETIME        | Last transition                                    |
-| finished_at | DATETIME        | Set on done/failed (nullable)                      |
-
-- UNIQUE: `run_id, stage, agent_role, item_key` (the idempotency key) · INDEX: `status, updated_at`
-
 ### WordPress Options (`wp_options`)
 
 All prefixed with `prautoblogger_`:
@@ -573,14 +446,11 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_analysis_model`         | OpenRouter model for analysis (default: cheap)        |
 | `prautoblogger_writing_model`          | OpenRouter model for writing (default: quality)       |
 | `prautoblogger_editor_model`           | OpenRouter model for chief editor (default: quality)  |
-| `prautoblogger_reasoning_max_tokens`   | v0.18.1 — hard cap on thinking tokens per call when reasoning is enabled; sent as OpenRouter `reasoning.max_tokens` (replaces `effort` when active) and the request `max_tokens` is raised by the cap so reasoning can never consume the visible-content budget; 0 = legacy uncapped effort mode. Default `PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS` (2048) |
 | `prautoblogger_daily_article_target`   | Number of articles per day (1-10, default: 1)         |
 | `prautoblogger_writing_pipeline`       | 'single_pass' or 'multi_step' (default: multi_step)  |
 | `prautoblogger_niche_description`      | Text description of the site's niche                  |
 | `prautoblogger_target_subreddits`      | JSON array of subreddits to monitor                   |
 | `prautoblogger_monthly_budget_usd`     | Monthly API spend limit in USD                        |
-| `prautoblogger_per_run_cost_ceiling_usd` | v0.18.0 — per-run hard cost ceiling (USD); reserve-before-call enforced; snapshotted onto the runs row at run start; 0 = disabled. Default `PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD` ($0.50) |
-| `prautoblogger_request_json_retention_days` | v0.18.0 — days before heavy audit payloads (generation_log.request_json, run_stages.meta_json) are NULLed by the daily cleanup cron; 0 = keep forever. Default `PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS` (14) |
 | `prautoblogger_tone`                   | Content tone (informational, conversational, etc.)    |
 | `prautoblogger_min_word_count`         | Minimum article word count (default: 800)             |
 | `prautoblogger_max_word_count`         | Maximum article word count (default: 2000)            |
@@ -608,6 +478,8 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_image_compose_variants` | Comma list of composed variants for Image A (default 'og,square'; whitelisted at point of use) |
 | `prautoblogger_image_featured_mark_enabled` | Toggle: subtle corner mark on featured images (default '1') |
 | `prautoblogger_image_compose_capability` | Cached capability probe `{fingerprint, capability}`; fingerprint = PHP version + imagick/gd presence, so it auto-invalidates on host changes |
+| `prautoblogger_board_poll_interval`     | Kanban board poll interval in seconds (default 5, min 3). Localized into board.js. |
+| `prautoblogger_board_published_window_days` | Days back to show in the Published column (default 7). |
 
 ### Post Meta
 
@@ -626,7 +498,6 @@ Stored on every PRAutoBlogger-generated post:
 | `_prautoblogger_editor_notes`         | Chief editor's review notes                   |
 | `_prautoblogger_generated_at`         | ISO 8601 timestamp of generation              |
 | `_prautoblogger_research_sources`     | JSON array of source URLs used                |
-| `_prautoblogger_idea_hash`            | v0.18.0 — stable hash of the idea (title|topic); with `_prautoblogger_run_id` forms the post-creation idempotency key |
 | `_prautoblogger_og_image_id`          | Attachment ID of the composed 1200×630 OG variant (v0.17.0; the rebuilt SEO stage emits `og:image` from this — key name frozen) |
 | `_prautoblogger_square_image_id`      | Attachment ID of the composed 1080×1080 square variant (v0.17.0; stored now, no consumer yet) |
 
@@ -805,61 +676,15 @@ We already use Cloudflare for DNS/CDN on peptiderepo.com, so layering AI Gateway
 
 ---
 
-### #22: Pipeline v2 Phase 1 substrate (v0.18.0, db 1.2.0, June 2026)
-
-Phase 1 of the CEO-approved pipeline rebuild (plan of record:
-`convo/cpo/threads/2026-06-prautoblogger-pipeline-redesign/03-cto-revised-brief.md`), built
-**on the current pipeline with no behavior change** to the Economy (single-pass) and
-multi-step publish paths. Four subsystems:
-
-1. **Versioned prompt registry** (`prautoblogger_prompts`). All pipeline prompt copy
-   (content/analysis/editor/research + the illustration rewriter prompt and the image Style
-   Template) lives as immutable versioned rows; the hardcoded v0.16.0 texts are seeded as v1
-   and remain the in-code fallback, so a missing/empty table can never fatal — call sites
-   render through `PRAutoBlogger_Prompt_Registry` and fall back to the same constants the
-   seed used (byte-identical output). A run pins the active version of every key at start
-   (`runs.pinned_prompts_json`) and every generation_log row is stamped with the pinned
-   `prompt_version`. The image-composer PR **consumes** the `image.*` keys — it must not
-   grow its own prompt storage. No admin UI in Phase 1; the API supports list/activate/
-   create-version (never mutate) for the Phase-2 Prompts screen.
-2. **Additive audit schema.** `agent_role` + `prompt_version` columns on generation_log;
-   `run_sources` + `run_decisions` child tables; `PRAutoBlogger_Stage_Display_Map` renders
-   historical + image + v2 stage values. `request_json` (and stage output payloads in
-   `run_stages.meta_json`) are nulled after R days — R from the
-   `prautoblogger_request_json_retention_days` setting (default 14), pruned on the existing
-   daily reaper cron.
-3. **Per-run cost governor** (`PRAutoBlogger_Cost_Governor`). Reserve-before-call against the
-   per-run ledger row using a single conditional UPDATE (the #10 atomic-write discipline);
-   estimates come from the #18 pricing chain; `curl_multi` image batches reserve their summed
-   estimate before dispatch; reservations settle to actuals after each response. Breach →
-   run `halted`, overage recorded, un-dispatched work aborted, surfaced on the Review Queue.
-   Ceiling = `prautoblogger_per_run_cost_ceiling_usd` setting (default $0.50, 0 = disabled).
-   The monthly `Cost_Tracker` cap and the Cloudflare AI Gateway (#15) path are unchanged.
-4. **Run state machine + idempotency** (`PRAutoBlogger_Run_State`). Per-run per-stage state
-   (pending/running/done/failed/halted) keyed `run_id + stage + agent_role + item_key`
-   (item_key scopes article-level stages because one run_id spans all N articles of a batch);
-   done stages persist output and are reused on re-entry, never re-charged; post creation is
-   keyed by `_prautoblogger_run_id` + `_prautoblogger_idea_hash` (check-before-insert) so a
-   retried run cannot duplicate a post. `PRAutoBlogger_Run_Reaper` (same daily cron as #19)
-   marks runs stuck `running` > 2× expected stage wall-clock as `failed`; such runs render
-   as **"incomplete"** in audit queries. Quorum logic (multiple roles per stage) itself is Phase 2. In Phase 1,
-   `agent_role` is populated on every row from `Stage_Display_Map::default_agent_role()`
-   so the run timeline is self-describing and the idempotency key is fully populated.
-
 ### #20: PHPUnit test infrastructure + WordPress-Core PHPCS compliance (v0.10.1)
 
 Tests use Brain\Monkey for WordPress function mocking (no database required). The BaseTestCase singleton handles setup/teardown of Monkey stubs and provides fixture helpers for common data shapes (SourceData, ArticleIdea, GenerationLog, etc.). All WordPress functions used by the plugin are stubbed in BaseTestCase::setUp() so individual test classes only override what they need. In v0.10.1, missing stubs for `post_type_exists()` were added to support PeptideLinker's PR-Core guards. All 1,362 WordPress-Core coding-standards violations (short array syntax, line length, spacing) were auto-fixed via phpcbf and the CI gate was flipped to strict mode — PHPCS failures now block CI. This prevents future regressions on the code style front.
 
 
-## Cross-System LLM Budget Coordination
+### #22: Kanban board as primary admin landing screen (v0.19.0)
 
-PRAutoBlogger and Peptide News both call OpenRouter and may share a single API key / billing account. Their combined spend should be considered when setting per-plugin budgets.
-
-| Plugin | Default Models | Typical Daily Spend | Budget Control |
-|--------|---------------|--------------------:|----------------|
-| PRAutoBlogger | Gemini 2.5 Flash Lite (analysis + editing), Claude Sonnet 4 (writing) | $0.05–$0.30 depending on article count | Hard-stop monthly budget in plugin settings |
-| Peptide News | Google Gemini 2.0 Flash (keywords + summaries) | $0.01–$0.05 | No hard budget yet (planned) |
-
-**Important:** If your OpenRouter account has a global spending limit, set each plugin's budget to less than half the total. PRAutoBlogger will hard-stop when its budget is exhausted, but Peptide News currently has no budget enforcement — a spike in news fetches could consume shared quota.
-
-**Future improvement:** A shared `wp_options` key (e.g., `ecosystem_monthly_llm_budget`) that both plugins read, with each plugin reserving its allocation on startup. This requires coordination at the ecosystem level and is tracked as a medium-term goal.
+The primary admin screen is now a kanban board (Direction C "Editorial Record") with four
+columns: Generating | In Review | Published | Failed. A separate `class-board-page.php`
+registers the `Board` submenu first so it appears before Settings in the nav.
+`class-board-data-provider.php` computes column cards from existing tables
+(`prab_generat

@@ -46,10 +46,6 @@ class PRAutoBlogger {
 		$this->ajax_handlers = new PRAutoBlogger_Ajax_Handlers( $this->executor->get_model_registry() );
 
 		add_action( 'admin_init', array( $this, 'on_check_db_version' ) );
-		// v0.18.0: cron requests must also self-heal the schema — after a
-		// deploy, scheduled generation can run before any admin page load,
-		// and new-column inserts would silently fail on the old schema.
-		add_action( 'init', array( $this, 'on_check_db_version_for_cron' ) );
 		add_filter( 'cron_schedules', array( $this, 'filter_add_cron_schedules' ) );
 
 		if ( is_admin() ) {
@@ -67,6 +63,11 @@ class PRAutoBlogger {
 
 	/** Register admin-only hooks (settings, notices, metabox, dashboard widget). */
 	private function register_admin_hooks(): void {
+		// Kanban board — registered first so it appears as the first submenu item.
+		$board_page = new PRAutoBlogger_Board_Page();
+		add_action( 'admin_menu', array( $board_page, 'on_register_menu' ) );
+		add_action( 'admin_enqueue_scripts', array( $board_page, 'on_enqueue_assets' ) );
+
 		$admin_page = new PRAutoBlogger_Admin_Page();
 		add_action( 'admin_menu', array( $admin_page, 'on_register_menu' ) );
 		add_action( 'admin_init', array( $admin_page, 'on_register_settings' ) );
@@ -154,10 +155,6 @@ class PRAutoBlogger {
 		// pipeline dies before amortize_research_costs runs).
 		add_action( 'prautoblogger_reap_orphan_research_rows', array( 'PRAutoBlogger_Research_Reaper', 'on_cron' ) );
 
-		// v0.18.0: stuck-run sweep + audit-payload retention rides the SAME
-		// existing daily cron (no new schedule). See class-run-reaper.php.
-		add_action( 'prautoblogger_reap_orphan_research_rows', array( 'PRAutoBlogger_Run_Reaper', 'on_cron' ) );
-
 		// v0.8.1: WP-CLI manual trigger for the reaper. Only registers when
 		// WP-CLI is present; no-op in normal HTTP requests.
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -196,6 +193,12 @@ class PRAutoBlogger {
 		add_action( 'wp_ajax_prautoblogger_reject_post', array( $review_queue, 'on_ajax_reject_post' ) );
 
 		add_action( 'wp_ajax_prautoblogger_clear_logs', array( new PRAutoBlogger_Log_Viewer(), 'on_ajax_clear_logs' ) );
+
+		// Board status polling AJAX (nonce: prautoblogger_board).
+		add_action(
+			'wp_ajax_' . PRAutoBlogger_Board_Page::AJAX_ACTION,
+			array( new PRAutoBlogger_Board_Page(), 'on_ajax_board_status' )
+		);
 
 		$ideas = new PRAutoBlogger_Ideas_Browser();
 		add_action( 'wp_ajax_prautoblogger_generate_from_idea', array( $ideas, 'on_ajax_generate_from_idea' ) );
@@ -311,21 +314,6 @@ class PRAutoBlogger {
 	}
 
 	/**
-	 * Run the db-version check on cron requests (admin_init never fires
-	 * there). Gated to wp_doing_cron() so normal frontend requests pay
-	 * nothing beyond one autoloaded option read.
-	 *
-	 * Side effects: may run the same migrations as on_check_db_version().
-	 *
-	 * @return void
-	 */
-	public function on_check_db_version_for_cron(): void {
-		if ( function_exists( 'wp_doing_cron' ) && wp_doing_cron() ) {
-			$this->on_check_db_version();
-		}
-	}
-
-	/**
 	 * Add custom cron schedules (six-hourly for metrics collection).
 	 *
 	 * @param array<string, array{interval: int, display: string}> $schedules Existing schedules.
@@ -373,15 +361,4 @@ class PRAutoBlogger {
 	public function on_collect_metrics(): void {
 		$this->executor->on_collect_metrics(); }
 
-	/** @see PRAutoBlogger_Executor::on_ajax_generate_now() */
-	public function on_ajax_generate_now(): void {
-		$this->executor->on_ajax_generate_now(); }
-
-	/** @see PRAutoBlogger_Ajax_Handlers::on_ajax_test_connection() */
-	public function on_ajax_test_connection(): void {
-		$this->ajax_handlers->on_ajax_test_connection(); }
-
-	/** @see PRAutoBlogger_Executor::get_model_registry() */
-	public function get_model_registry(): PRAutoBlogger_OpenRouter_Model_Registry {
-		return $this->executor->get_model_registry(); }
-}
+	/** @see PRAutoBlogger_Execut

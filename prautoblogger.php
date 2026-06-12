@@ -9,7 +9,7 @@
  * Plugin Name:       PRAutoBlogger
  * Plugin URI:        https://peptiderepo.com/prautoblogger
  * Description:       Monitors social media for trending topics, generates SEO-friendly blog posts using AI, and publishes them on a daily schedule with full cost tracking and self-improvement metrics.
- * Version:           0.18.3
+ * Version:           0.19.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            PeptideRepo
@@ -35,31 +35,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 | Defined here so every file in the plugin can reference paths, versions,
 | and limits without magic strings.
 */
-define( 'PRAUTOBLOGGER_VERSION', '0.18.3' );
-define( 'PRAUTOBLOGGER_DB_VERSION', '1.2.0' );
+define( 'PRAUTOBLOGGER_VERSION', '0.19.0' );
+define( 'PRAUTOBLOGGER_DB_VERSION', '1.1.0' );
 define( 'PRAUTOBLOGGER_PLUGIN_FILE', __FILE__ );
 define( 'PRAUTOBLOGGER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PRAUTOBLOGGER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'PRAUTOBLOGGER_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 // API and retry limits — named constants instead of magic numbers.
-// SAFETY INVARIANT: API_TIMEOUT_SECONDS × MAX_RETRIES must stay < STATUS_TTL (600s,
-// defined in PRAutoBlogger_Generation_Status_Poller). The current product
-// (180s × 3 = 540s) leaves a 60s margin. If either constant is raised, verify the
-// inequality still holds — otherwise a fully-retrying LLM call can exhaust the
-// status transient TTL within a single stage and trigger a false orphan-run abort.
 define( 'PRAUTOBLOGGER_MAX_RETRIES', 3 );
-// Pipeline v2 Phase 1 (v0.18.0) defaults. Both are SETTINGS-backed at every
-// read site (prautoblogger_per_run_cost_ceiling_usd /
-// prautoblogger_request_json_retention_days); these constants exist only as
-// the named get_option() fallbacks — never inline the literals.
-define( 'PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD', 0.50 );
-define( 'PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS', 14 );
-// v0.18.1: ceiling on "thinking" tokens per reasoning-enabled LLM call. The
-// request's completion budget (max_tokens) is RAISED by this amount so
-// reasoning can never consume the visible-content budget and return an empty
-// message (the 2026-06-11 empty-draft incident). SETTINGS-backed
-// (prautoblogger_reasoning_max_tokens); 0 disables the cap (pure effort mode).
-define( 'PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS', 2048 );
 define( 'PRAUTOBLOGGER_RETRY_BASE_DELAY_SECONDS', 2 );
 define( 'PRAUTOBLOGGER_API_TIMEOUT_SECONDS', 180 );
 define( 'PRAUTOBLOGGER_CACHE_TTL_SECONDS', 3600 );

@@ -5,247 +5,40 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
-## [0.18.3] - 2026-06-12
-
-GA4-context SQL fix, manual-run resilience, and honest status on transient expiry
-(CTO thread `2026-06-pipeline-v2-phase1` seq 38).
-
-### Fixed
-- **Analysis-prompts SQL / GA4 self-improvement loop (R1 — P2)**: `phpcs:ignore` annotation
-  was embedded inside the SQL string literal in `class-analysis-prompts.php:81` (same pattern
-  as the v0.18.2 cost-reporter fix). MariaDB rejected the query on every pipeline run,
-  causing `get_performance_context()` to always return `''` — the LLM research/analysis
-  stage has had no historical performance context since v0.16.0. Annotation moved to the
-  `// phpcs:ignore` pragma above `get_results()`. Sibling occurrence also fixed in
-  `class-post-assembler.php:112` (same pattern). Regression + behavioral tests added to
-  `AnalysisPromptsTest`.
-- **Manual-run resilience — transient renewal (R2a)**: `update_generation_stage()` in the
-  new `PRAutoBlogger_Generation_Status_Poller` now renews the STATUS_TTL on every stage
-  update, ensuring the status transient outlasts any single LLM call even when `Pipeline_
-  Status::broadcast()` is delayed by a long model call.
-- **Manual-run resilience — stuck-run detection (R2b)**: `on_ajax_generation_status()`
-  now detects when the status transient is absent but the generation lock has been held
-  longer than STATUS_TTL seconds — indicative of a Hostinger background-process kill.
-  Marks the stuck run `failed` in the audit ledger, releases the lock, and returns
-  `status: error` with an "infrastructure timeout" message instead of silently resetting
-  to idle.
-- **Honest status when transient gone but lock held (R3)**: when the status transient is
-  absent but the lock is held within TTL, `on_ajax_generation_status()` now returns
-  `status: running` with `started_at` from the lock timestamp (rather than `status: idle`)
-  so the Generate Now button reflects reality during long background runs.
-
-### Changed
-- **Executor split (300-line rule)**: `class-executor.php` was at 351 lines. AJAX generation
-  handlers (`on_ajax_generate_now`, `on_ajax_generation_status`, `abort_orphaned_run`,
-  `update_generation_stage`) extracted to new `class-generation-status-poller.php` (260 lines).
-  Executor retains cron handlers and delegates AJAX calls to the poller. Public API unchanged.
-- **Generation_Lock**: new `get_acquired_at()` method returns the Unix timestamp when the
-  lock was set, used by R2b/R3 to determine lock age without touching the pipeline run table.
+## [0.19.0] - 2026-06-12
 
 ### Added
-- **Runware catalog `modelSearch` migration**: `class-runware-model-catalog.php` migrated
-  from the retired `taskType:models` endpoint to the current `taskType:modelSearch` API.
-  Payload format: `[{taskType:authentication,apiKey:...},{taskType:modelSearch,
-  taskUUID:<uuid4>,offset:N,limit:N}]`. Response normalization updated for the new shape:
-  `air` identifier replaces `id`, `capabilities[]` array replaces `taskType`/`requiresImage`
-  (filter: entry must contain `"io:text-to-image"`), `comment` field maps to `description`.
-  Logic extracted to `class-runware-catalog-fetcher.php` companion (300-line rule). Cache
-  option key bumped to `prautoblogger_runware_model_cache_v2` to cleanly invalidate v1 rows.
-- **Pagination for `modelSearch`**: fetcher paginates via `offset`/`limit` up to 5 pages of
-  100 results = 500 models inspected. Runware's catalog has 320k+ entries (mostly community
-  checkpoints); 5 pages reliably captures all curated text-to-image models. A page-cap
-  warning is logged if the cap is reached before exhausting `totalResults`. Client-side
-  `io:text-to-image` capability filter applied — no server-side filter is available.
-- **Negative-result failure cooldown**: `sync()` records a failure timestamp in
-  `prautoblogger_runware_catalog_last_failure_at` on every error path. `get_models()`
-  gates re-trigger through `is_in_failure_cooldown()`, which respects a configurable
-  window from `prautoblogger_runware_catalog_failure_cooldown_seconds` (default 3600s / 1h,
-  never hardcoded at point of use). A successful sync clears the timestamp. This caps the
-  admin-page-load cascade (42 errors/day observed) to ~24/day even when the cache is absent.
-- **Hardcoded fallback list preserved**: unchanged; carried prod through the entire
-  `taskType:models` outage. Tests verify it is always non-empty and correctly priced.
-
-
-## [0.18.2] - 2026-06-12
-
-Four confirmed-live maintenance fixes (CTO thread `2026-06-pipeline-v2-phase1` seq 25).
+- **Kanban board dashboard (M1 — Phase 2 admin / Direction C).** New
+  `Board` submenu page is now the primary landing screen for the plugin.
+  Four columns — Generating | In Review | Published | Failed — with card
+  click-throughs: Generating/Failed → Activity Log; In Review → Review
+  Queue; Published → Post edit screen. (M2 will rewire all to the Article
+  Dossier.)
+- **Live board polling.** AJAX action `prautoblogger_board_status` (nonce
+  `prautoblogger_board`) returns the full board snapshot every N seconds.
+  Poll interval backs off to 2× when no article is actively generating
+  and resets to base as soon as a generating card appears. All nonce and
+  capability checks enforced.
+- **Two new settings** in Schedule & Budget: `prautoblogger_board_poll_interval`
+  (default 5s, min 3s) and `prautoblogger_board_published_window_days`
+  (default 7 days). Both localized into board.js — no hardcoded values.
+- New files: `includes/admin/class-board-page.php`,
+  `includes/admin/class-board-data-provider.php`,
+  `templates/admin/board-page.php`, `assets/css/board.css`,
+  `assets/js/board.js`.
+- PHPUnit behavioral tests: `tests/unit/Admin/BoardDataProviderTest.php`
+  (8 tests covering all column/state mappings) and
+  `tests/unit/Core/CostReporterSqlBugFixTest.php` (3 tests for the SQL
+  inline-comment fix).
 
 ### Fixed
-- **Cost-reporter SQL (P2)**: `phpcs:ignore` annotations were embedded inside two SQL string
-  literals in `class-cost-reporter.php` (`get_daily_spend` and `get_spend_by_stage`). MariaDB
-  received the comment text as literal SQL and rejected both queries, breaking the Metrics &
-  Costs admin page. Annotations moved above the `$wpdb->prepare()` calls. Regression tests
-  added to `CostReporterTest` asserting no `// phpcs:ignore` text appears in the SQL passed
-  to `prepare()`.
-- **Collector failure observability (P2)**: `RuntimeException` catch in
-  `Source_Collector::collect_from_all_sources()` now logs structured meta — model slug,
-  HTTP status parsed from the exception message, and the first 200 chars of the error body —
-  so a 27-day outage like the seq-22 llm_research 404 incident is diagnosable after the fact.
-  No behaviour change; logging only.
-- **`run_stages.agent_role` symmetric write (P3)**: `Pipeline_Runner`, `Article_Worker`, and
-  `Content_Generator` were calling `start()` with the mapped role but leaving `done()`,
-  `is_done()`, and `get_output()` with `agent_role = ''`. With `agent_role` in the UNIQUE key,
-  the mismatch addressed different rows — stranding `start()` rows in `running` forever and
-  breaking idempotent resume (duplicate-post vector). Fixed via an in-class seam in
-  `Run_Stage_State::resolve_role()`: when the caller passes `''`, the role is derived from
-  `Stage_Display_Map::default_agent_role($stage)` before any DB query, ensuring every method
-  addresses the same row. Explicit non-empty roles (Phase-2 fan-out) are passed through
-  unchanged. `get()` falls back to `role=''` on miss for mid-run-upgrade compat with v0.18.1
-  rows. Two new `RunStageStateTest` cases lock the symmetric-role and fallback contracts.
-  ARCHITECTURE.md §22 updated to document Phase 1 role population.
-- **Runware float deprecation (P3)**: `normalize_seed()` in `class-runware-image-support.php`
-  applied the modulo operator to a float (`microtime(true) * 1000`), triggering
-  `Deprecated: Implicit conversion from float … to int` on every image generation. Fixed
-  with `(int) round(...)` before the `%` operator.
-
-## [0.18.1] - 2026-06-11
-
-Empty-draft hotfix (CTO diagnosis: convo thread `2026-06-pipeline-v2-phase1` seq 12; prod run
-`acf24029`, draft post 921). A true reasoning model at a high reasoning effort could spend the
-entire `max_tokens` completion budget on thinking, return zero visible content with
-`finish_reason=length`, and the empty article flowed writer → editor (reject: "draft text is
-missing") → empty draft post in the Review Queue, with the cost booked as `success`.
-
-### Fixed
-- **Empty-completion guard at the call seam** (`PRAutoBlogger_OpenRouter_Completion_Guard`):
-  a chat completion whose visible content is empty/whitespace is now a **failure**, never a
-  success. When the empty result co-occurs with `finish_reason=length` or an active reasoning
-  request, the call is retried **once** with reasoning disabled (per-call `reasoning`
-  override) before the stage fails. Failed/retried attempts land in `generation_log` with
-  `response_status='error'`, the failure note, and the real token burn; inside a v0.18.0 run a
-  `run_decisions` row records the verdict (`retry_reasoning_disabled` /
-  `failed_empty_completion`).
-- **Writer-path guard**: a writing stage (outline/draft/polish/single-pass) whose output is
-  empty throws instead of passing an empty article to the editor (belt over the seam guard,
-  covers any future non-OpenRouter provider).
-- **Publisher belt-and-braces**: `Publisher::create_post()` refuses to create any post —
-  publish or draft — whose content is empty after tag stripping. No empty draft post can ever
-  be created again.
-- `finish_reason=length` is now always warning-logged with model, stage, and
-  prompt/completion/reasoning token counts (previously silent — the truncated `llm_research`
-  call in the incident run was invisible).
-
-### Added
-- **Reasoning token cap + completion headroom**: when a request enables reasoning, the
-  thinking budget is capped via OpenRouter's `reasoning.max_tokens` and the request's
-  `max_tokens` is **raised** by the same amount, so no reasoning effort (incl. `xhigh`) can
-  consume the visible-content budget. New setting `prautoblogger_reasoning_max_tokens`
-  (Settings → AI Models, default `PRAUTOBLOGGER_DEFAULT_REASONING_MAX_TOKENS` = 2048; 0
-  restores the previous uncapped effort mode; the option is sanitized server-side as
-  numeric). When the cap is active it replaces `effort`
-  (OpenRouter treats them as alternative budget controls); the `xhigh`/`high` effort options
-  stay available but are bounded by default. Cost-governor reservations use the effective
-  (raised) ceiling.
-- LLM call sites now pass their pipeline stage to the provider (`stage` option, never sent
-  upstream) so guard warnings and failure rows are attributable: `analysis`, `review`,
-  `llm_research`, `image_prompt_rewrite`, `opik_eval_judge`, and the writer stages (which
-  also pass `prompt_key`).
-
-### Notes
-- `OpenRouter_Provider::send_chat_completion()` body assembly moved to
-  `OpenRouter_Request_Builder::build_body()` (300-line cap; behavior unchanged apart from the
-  reasoning budget above).
-
-## [0.18.0] - 2026-06-12
-
-Pipeline v2 — Phase 1 substrate (plan of record: CPO thread
-`2026-06-prautoblogger-pipeline-redesign`, seq 3). Built on the current pipeline with **no
-behavior change** to the Economy (single-pass) and multi-step publish paths.
-
-### Added
-- **Schema v1.2.0** (`prautoblogger_db_version` 1.1.0 → 1.2.0, idempotent dbDelta
-  migrations, self-healing on version mismatch): new tables
-  `wp_prautoblogger_prompts` (versioned prompt registry),
-  `wp_prautoblogger_run_sources` + `wp_prautoblogger_run_decisions` (audit child tables),
-  `wp_prautoblogger_runs` (per-run cost ledger + lifecycle) and
-  `wp_prautoblogger_run_stages` (per-run per-stage state machine, idempotency key
-  `run_id + stage + agent_role + item_key`); additive nullable columns `agent_role` and
-  `prompt_version` on `wp_prautoblogger_generation_log` (historical rows stay valid).
-- `PRAutoBlogger_Stage_Display_Map`: single PHP vocabulary for historical stages
-  (`analysis`, `outline`, `draft`, `polish`, `review`, `llm_research`, `image_a`, `image_b`,
-  `image_prompt_rewrite`, `opik_eval_judge`), Pipeline v2 stages (`research`, `curate`,
-  `draft`, `editorial`, `seo`, `publish`) and a humanizing fallback for unknown values, plus
-  per-stage default agent role and primary prompt-registry key.
-- Uninstall now drops the five substrate tables and clears every plugin cron hook
-  (previously only two of eight were cleared).
-- **Versioned prompt registry** (`PRAutoBlogger_Prompt_Registry` + `_Writer`): all pipeline
-  prompt copy — content system/single-pass/outline/draft/polish, analysis system/user,
-  editor system/review, research system, plus the **illustration rewriter prompt and the
-  image Style Template** (the image-composer PR seam) — is seeded as immutable version 1
-  from the v0.16.0 hardcoded texts (`prautoblogger_migrated_prompt_seed_v0180`). One active
-  version per key; changes create new versions, never mutate. Call sites render through the
-  registry with a **byte-identical in-code fallback** when the table is missing/empty
-  (self-healing, no fatals on half-migrated state). No admin UI in Phase 1.
-- **Prompt-version pinning**: `Cost_Tracker::set_run_id()` pins the active version of every
-  key on the run's row; every generation_log row (text and image stages) is stamped with the
-  pinned `prompt_version` plus a stage-derived `agent_role`. Single-pass rows keep stage
-  `draft` and stamp `content.single_pass` explicitly.
-- `PRAutoBlogger_Run_State` (runs-table ledger row: ceiling/reserved/settled/overage, pins,
-  sticky lifecycle states) and `PRAutoBlogger_Run_Context` (per-process run id, mirrors the
-  Opik trace-context pattern).
-
-- **Per-run cost governor** (`PRAutoBlogger_Cost_Governor`, net-new enforcement — previously
-  only the monthly cap was enforced): every `send_chat_completion()` reserves its worst-case
-  estimate (prompt chars/4 + max_tokens, priced via the #18 chain) against the run ledger
-  with a single atomic conditional UPDATE (the #10 lock discipline) BEFORE dispatch; the
-  image `curl_multi` batch reserves its summed estimate before dispatch; reservations settle
-  to actuals after each response (a failed call releases its hold). Breach → run `halted`
-  (sticky), overage recorded, `Cost_Ceiling_Exception` aborts the call, remaining queued
-  articles abort, and the run is surfaced in a "Halted runs" notice on the Review Queue.
-  New setting **Per-Run Cost Ceiling (USD)** (`prautoblogger_per_run_cost_ceiling_usd`,
-  default `PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD` = $0.50, snapshotted at run start,
-  0 = disabled). Calls outside a run, the monthly budget, and the Cloudflare AI Gateway
-  path behave exactly as before.
-
-- **Run state machine + idempotent resume** (`PRAutoBlogger_Run_Stage_State`): per-run
-  per-stage rows keyed `run_id + stage + agent_role + item_key` (item_key scopes
-  article-level stages — one run_id spans all N articles of a batch; agent_role is the
-  Phase-2 quorum dimension, schema-only for now). Done stages snapshot their output and are
-  REUSED on re-entry — never re-run, never re-charged (writer stages via
-  `Content_Generator::set_run_item()`, the editorial review via its stored verdict, a fully
-  published item is skipped outright). **Post creation is keyed by `_prautoblogger_run_id`
-  + new `_prautoblogger_idea_hash` meta (check-before-insert)** so a retried run cannot
-  create a duplicate post. Run-level research/analysis checkpoints ride Pipeline_Runner;
-  completion/failure marks land on the runs row (Executor catch paths, orphan aborts,
-  monthly-budget aborts).
-- **Reaper extension** (`PRAutoBlogger_Run_Reaper`, same daily cron as the #19 research
-  reaper — no new schedule): stages stuck `running` > 2× expected stage wall-clock and runs
-  silent > 2× expected run wall-clock are marked `failed` (filterable expectations); their
-  open stages are reaped; such runs are queryable as **"incomplete"** via
-  `Run_Reaper::incomplete_runs()`. Also enforces **retention**: `request_json` on the
-  generation log and stage output snapshots are NULLed after R days — R from the new
-  **Audit Payload Retention** setting (`prautoblogger_request_json_retention_days`, default
-  `PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS` = 14, 0 = keep forever).
-- **Audit writes** (`PRAutoBlogger_Audit_Writer`): every reviewed article records its
-  editorial verdict in `run_decisions`; every published article records the sources that
-  fed it in `run_sources` (the source_ids_json / `_prautoblogger_research_sources`
-  consolidation for new runs; no backfill).
-
-### Changed
-- `Content_Generator`'s four stage methods now share one `execute_stage()` helper (the Opik
-  span + dispatch + cost-log boilerplate was identical); file drops from 301 to ~220 lines.
-  No behavior change: same prompts, models, params, span names, stage values.
-- `Cost_Tracker::get_avg_tokens_for_stages()` body moved to `Cost_Reporter` (read-only
-  reporting query); the Cost_Tracker method remains as a delegating wrapper.
-- `OpenRouter_Provider`'s API-key fetch + format validation moved to
-  `OpenRouter_Request_Builder::resolve_api_key()` (300-line cap); identical messages/behavior.
-- Pipeline_Runner's and Article_Worker's duplicated status-transient/summary helpers moved
-  verbatim to the new `PRAutoBlogger_Pipeline_Status` (Pipeline_Runner back under the
-  300-line cap at 271).
-
-### Fixed
-- ARCHITECTURE.md documented the multi-step edit stage as `edit`; the code has always
-  written `polish`. Canonicalized to **`polish`** everywhere.
-- Half-migrated-schema hardening: generation_log inserts retry without the new audit
-  columns when the columns are missing (a cron run right after deploy no longer loses cost
-  rows), and the db-version self-heal now also runs on cron requests (`init` +
-  `wp_doing_cron()`), not only on `admin_init`.
-- OpenRouter pricing now resolves dated snapshot model IDs returned by the API
-  (e.g. response model `deepseek/deepseek-v4-flash-20260423` for a
-  `deepseek/deepseek-v4-flash` request) to the base model's price before the
-  conservative-estimate fallback applies. Such responses were previously booked
-  at the conservative $10/$30 per-M rate (~30x real cost on flash-tier models) —
-  phantom spend that ate the per-run cost ceiling and the monthly budget gate.
+- **Cost-reporter SQL inline-comment bug (P2).** `PRAutoBlogger_Cost_Reporter::get_daily_spend()`
+  and `get_spend_by_stage()` embedded PHP `// phpcs:ignore` annotations
+  inside SQL string literals, passing the comment text to MySQL. Moved
+  phpcs suppression annotations to standalone PHP line comments above the
+  `$wpdb->prepare()` call — matching the pattern already used in
+  `get_monthly_spend()`. No query behavior change; fixes malformed
+  prepared-statement strings visible in debug logging.
 
 ## [0.17.0] - 2026-06-11
 
@@ -1195,36 +988,4 @@ swap with no user-visible change in article quality.
 - Configurable research cache TTL (1–72 hours) in Sources tab.
 - Reddit time window selector (24h / week / month) in Sources tab.
 - Posts-per-subreddit limit (5–100) in Sources tab.
-- LiteSpeed cache purge step in CI/CD deploy pipeline.
-
-### Removed
-- `class-reddit-api-client.php` — replaced by `class-reddit-json-client.php`.
-- Reddit OAuth credential fields and encrypted storage entry.
-
-### Fixed
-- Deploy pipeline now purges LiteSpeed/OPcache after file extraction,
-  preventing stale PHP bytecode from being served.
-
-## [0.1.0] — 2026-04-10
-
-### Added
-- Initial plugin scaffold with WordPress-native architecture.
-- OpenRouter LLM provider with configurable model selection and retry logic.
-- Reddit API source provider (OAuth2 script app) for collecting posts and comments.
-- Content analysis engine: detects recurring questions, complaints, and comparisons.
-- Idea scorer with deduplication against existing posts.
-- Configurable writer agent pipeline (single-pass or multi-step: outline → draft → polish).
-- Chief editor agent for LLM-powered editorial review before publishing.
-- Publisher with full generation metadata stored as post_meta.
-- Cost tracker with per-call logging, monthly budget enforcement, and hard-stop.
-- Metrics collector: WordPress native + GA4 integration + composite content scoring.
-- Admin settings page with sections for API keys, models, content, sources, schedule, and analytics.
-- Metrics dashboard showing monthly spend, budget utilization, cost by stage, and daily spend.
-- Post metabox showing generation metadata on PRAutoBlogger-generated posts.
-- Admin notices for missing API keys, budget warnings, and configuration hints.
-- Stub providers for TikTok, Instagram, and YouTube (future implementation).
-- Encrypted storage for API keys using AES-256-CBC with wp_salt().
-- AJAX-powered "Generate Now" and "Test Connections" buttons.
-- Custom database tables for source data, analysis results, generation logs, and content scores.
-- Clean uninstall handler removing all plugin data.
-- ARCHITECTURE.md and CONVENTIONS.md for AI-readable codebase documentation.
+- LiteSpeed cache purge step in CI/CD d
