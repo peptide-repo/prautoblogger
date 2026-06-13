@@ -5,6 +5,16 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.20.2] - 2026-06-13
+
+### Removed
+- **`scripts/deploy.sh`** — belonged to the retired zip/REST deploy receiver flow
+  (`/wp-json/prautoblogger-deploy/v1/*`); the live pipeline is the shared rsync workflow
+  (`peptiderepo/peptide-e2e/.github/workflows/deploy-app.yml@main`).
+- **`.distignore`** — used by `scripts/deploy.sh` to build the production zip; no longer
+  consumed by any workflow (the shared rsync pipeline uses hardcoded `--exclude` flags).
+
+
 ## [0.20.1] - 2026-06-12
 
 ### Fixed
