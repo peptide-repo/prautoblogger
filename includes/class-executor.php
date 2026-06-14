@@ -85,13 +85,6 @@ class PRAutoBlogger_Executor {
 	}
 
 	/**
-	 * Cron handler: runs pipeline orchestration + first article.
-	 *
-	 * If the pipeline queues additional articles (2..N), they will fire as
-	 * chained cron events — each in its own PHP process. The lock is released
-	 * by the pipeline when the last article completes, not here.
-	 */
-	/**
 	 * Cron handler: kick off the chained-cron orchestration tick (v0.21.0, M4).
 	 *
 	 * Delegates to Generation_Checkpoint_Runner::on_orchestrate_tick() which
