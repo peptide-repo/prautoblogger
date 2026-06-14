@@ -98,7 +98,16 @@ function prab_render_board_card( array $card, string $column_key ): void {
 	<h1 class="prab-board-heading">
 		<?php esc_html_e( 'PRAutoBlogger', 'prautoblogger' ); ?>
 		<span class="prab-board-heading-sub"><?php esc_html_e( 'Article Board', 'prautoblogger' ); ?></span>
+		<?php if ( current_user_can( 'manage_options' ) ) : ?>
+		<button type="button"
+			id="prab-board-generate-now"
+			class="prab-board-generate-btn button button-primary"
+			aria-label="<?php esc_attr_e( 'Generate a new article now', 'prautoblogger' ); ?>">
+			<?php esc_html_e( 'New Article', 'prautoblogger' ); ?>
+		</button>
+		<?php endif; ?>
 	</h1>
+	<div id="prab-board-gen-status" class="prab-board-gen-status" aria-live="polite" style="display:none;"></div>
 
 	<div id="prab-board" class="prab-board" aria-live="polite" aria-label="<?php esc_attr_e( 'Article generation board', 'prautoblogger' ); ?>">
 

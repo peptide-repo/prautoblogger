@@ -164,6 +164,11 @@
 		renderColumn( 'in_review',  snapshot.in_review   || [] );
 		renderColumn( 'published',  snapshot.published   || [] );
 		renderColumn( 'failed',     snapshot.failed      || [] );
+		// Re-enable board Generate button once no active runs remain.
+		if ( ! snapshot.has_active_runs ) {
+			$( '#prab-board-generate-now' ).prop( 'disabled', false )
+				.text( ( cfg.strings && cfg.strings.newArticle ) || 'New Article' );
+		}
 	}
 
 	/**
@@ -225,22 +230,7 @@
 		} );
 	}
 
-	/** Initialise the board poller on DOM ready. */
-	$( function () {
-		$board = $( '#prab-board' );
-		if ( ! $board.length ) {
-			return;
-		}
 
-		// Inject the error banner after the heading.
-		$errorBanner = $( '<div class="prab-board-error" role="alert">' + escHtml( cfg.strings.pollError || '' ) + '</div>' );
-		$board.before( $errorBanner );
-
-		// Check if any generating card is present in the initial server render.
-		var hasActive = ( $board.find( '[data-column="generating"] .prab-board-card' ).length > 0 );
-		backoffFactor = hasActive ? 1 : 1; // Always start at base on first load.
-
-		schedulePoll( nextDelay( hasActive ) );
 	} );
 
 }( jQuery ) );

@@ -1084,3 +1084,65 @@ PRAutoBlogger and Peptide News both call OpenRouter and may share a single API k
 **Important:** If your OpenRouter account has a global spending limit, set each plugin's budget to less than half the total. PRAutoBlogger will hard-stop when its budget is exhausted, but Peptide News currently has no budget enforcement — a spike in news fetches could consume shared quota.
 
 **Future improvement:** A shared `wp_options` key (e.g., `ecosystem_monthly_llm_budget`) that both plugins read, with each plugin reserving its allocation on startup. This requires coordination at the ecosystem level and is tracked as a medium-term goal.
+
+## §25 Chained-Cron Checkpoint Generation Path (v0.21.0, M4)
+
+### Problem
+
+Hostinger shared hosting kills PHP background processes after ~120 s. The former
+`on_manual_generation()` path in `Executor` ran the complete orchestrate +
+generate pipeline in a single PHP process — meaning a host kill mid-run left the
+generation lock held, the run row stuck in `running`, and partially-generated
+articles orphaned with no status broadcast.
+
+### Solution: Two-Tick Checkpoint Machine
+
+`PRAutoBlogger_Generation_Checkpoint_Runner` (v0.21.0) splits the pipeline into
+independent cron ticks, each of which completes well within Hostinger's limit:
+
+| Tick | WP-Cron action | What happens |
+|------|---------------|-------------|
+| 1 | `prautoblogger_gen_orchestrate` | Collect sources → analyze → score ideas. Serialize ideas to `prautoblogger_article_queue` option. Schedule Tick 2. |
+| 2..N | `prautoblogger_gen_tick` | Pop ONE idea from queue. Call `Article_Worker::generate()`. Persist updated queue. Reschedule next Tick, or finalize. |
+
+If the host kills any tick:
+- The idea queue is persisted (option survived the crash).
+- The next CRON run picks up naturally (no orphan).
+- `Run_Reaper` reclaims truly stuck runs via its daily sweep.
+
+### Entry Points
+
+| Caller | Path |
+|--------|------|
+| Board "New Article" button | AJAX `prautoblogger_generate_now` → `Generation_Status_Poller::on_ajax_generate_now()` → schedules `prautoblogger_manual_generation` → `Executor::on_manual_generation()` → `kick_off()` |
+| WP-CLI | `wp prautoblogger generate` → `WP_CLI_Commands::generate_command()` → `kick_off()` |
+| Old cron hook (retained) | `prautoblogger_manual_generation` → `Executor::on_manual_generation()` → `kick_off()` |
+
+### SSH Workaround Retirement
+
+The former `wp eval 'do_action("prautoblogger_manual_generation")'` workaround
+fired `on_manual_generation()` synchronously in the CLI PHP process, bypassing:
+- Nonce/capability checks (running as CLI user, not WP user)
+- Cron-based loopback spawning
+- Per-process time limits
+
+This path is retired. `Executor::on_manual_generation()` now delegates immediately
+to `Generation_Checkpoint_Runner::on_orchestrate_tick()` (the Tick 1 handler),
+which acquires the lock and runs orchestration within its own process. The
+`wp prautoblogger generate` WP-CLI command provides the supported CLI path.
+
+### Key State
+
+| Store | Key | Contents |
+|-------|-----|---------|
+| DB option | `prautoblogger_article_queue` | `{run_id, ideas[], results{}}` — persisted across ticks |
+| DB option | `prautoblogger_checkpoint_run_id` | Current run UUID (for finalize/cleanup paths) |
+| Transient | `prautoblogger_generation_status` | Status broadcast (polling by board/dossier JS) |
+| DB | `prautoblogger_runs` | Per-run ledger with status, cost ceiling |
+
+### Budget / Halt Contract
+
+`Cost_Tracker::is_budget_exceeded()` is checked at the START of Tick 1 and each
+generate tick. A halted run (`Run_State::get_status() = 'halted'`) causes the
+generate tick to abort without calling `Article_Worker`, clean up the queue, and
+release the lock — same guarantee as `Pipeline_Runner`'s queued-article path.

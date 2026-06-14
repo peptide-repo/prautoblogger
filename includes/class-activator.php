@@ -80,7 +80,10 @@ class PRAutoBlogger_Activator {
 			'prautoblogger_table_borders'        => '1',
 			'prautoblogger_schedule_time'        => '03:00',
 			'prautoblogger_log_level'            => 'info',
-			'prautoblogger_image_nsfw_retry'     => '1',
+			'prautoblogger_image_nsfw_retry'       => '1',
+			// M4 (v0.21.0): board column card limit + ideas page size -- settings-backed.
+			'prautoblogger_board_column_limit'     => PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT,
+			'prautoblogger_ideas_per_page'         => PRAUTOBLOGGER_DEFAULT_IDEAS_PER_PAGE,
 		);
 
 		foreach ( $defaults as $key => $value ) {

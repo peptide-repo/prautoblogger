@@ -71,7 +71,8 @@ class PRAutoBlogger_Schema_Installer {
 			metadata_json LONGTEXT DEFAULT NULL,
 			PRIMARY KEY (id),
 			KEY type_relevance (analysis_type, relevance_score),
-			KEY analyzed_at (analyzed_at)
+			KEY analyzed_at (analyzed_at),
+			KEY analyzed_type (analyzed_at, analysis_type)
 		) {$charset_collate};";
 
 		// Generation log — every API call with cost tracking. `run_id`
@@ -100,7 +101,9 @@ class PRAutoBlogger_Schema_Installer {
 			KEY post_id (post_id),
 			KEY run_id (run_id),
 			KEY created_at (created_at),
-			KEY stage (stage)
+			KEY stage (stage),
+			KEY run_id_post_id (run_id, post_id),
+			KEY created_status (created_at, response_status)
 		) {$charset_collate};";
 
 		// Content scores — post performance metrics for self-improvement.

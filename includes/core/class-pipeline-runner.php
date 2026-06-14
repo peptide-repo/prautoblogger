@@ -168,6 +168,19 @@ class PRAutoBlogger_Pipeline_Runner {
 		}
 	}
 
+
+	/**
+	 * Public wrapper for orchestrate(): collect -> analyze -> score.
+	 * Used by Generation_Checkpoint_Runner (Tick 1) so orchestration and
+	 * article generation happen in separate cron ticks.
+	 *
+	 * @param PRAutoBlogger_Cost_Tracker $cost_tracker
+	 * @return PRAutoBlogger_Article_Idea[]
+	 */
+	public function orchestrate_only( PRAutoBlogger_Cost_Tracker $cost_tracker ): array {
+		return $this->orchestrate( $cost_tracker );
+	}
+
 	// ── Private helpers ─────────────────────────────────────────────────
 
 	/**

@@ -115,7 +115,8 @@ class PRAutoBlogger_Pipeline_Schema_Installer {
 			updated_at DATETIME NOT NULL,
 			finished_at DATETIME DEFAULT NULL,
 			PRIMARY KEY (run_id),
-			KEY status (status)
+			KEY status (status),
+			KEY started_at (started_at)
 		) {$charset_collate};";
 
 		// Per-run per-stage state rows. The idempotency key is

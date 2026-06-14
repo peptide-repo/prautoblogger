@@ -10,6 +10,61 @@ and this project uses [Semantic Versioning](https://semver.org/).
 ### Internal
 - CI constants guard (`scripts/check-constants.php`): new required CI step (`Check PRAUTOBLOGGER_* constants`) fails the build when any `PRAUTOBLOGGER_*` constant referenced in shipped plugin PHP is neither defined in `prautoblogger.php` nor `defined()`-guarded at the reference site. Prevents a recurrence of the v0.19.0 admin-500 regression class.
 
+## [0.21.0] - 2026-06-14
+
+### Added
+- **Board âNew Articleâ button (Phase 2 admin M4)**. Manual generation is now
+  accessible from the kanban board (not just the Settings page). The button fires
+  the existing `prautoblogger_generate_now` AJAX action; the board status area
+  shows generation progress via the existing transient poller. Requires
+  `manage_options` capability.
+- **Chained-cron checkpoint machine** (`PRAutoBlogger_Generation_Checkpoint_Runner`).
+  Replaces the monolithic `on_manual_generation()` synchronous path with a
+  two-tick checkpoint machine so Hostingerâs PHP-process kill cannot abort a
+  mid-pipeline run:
+  - Tickâ1 (`prautoblogger_gen_orchestrate`): collect â analyze â score ideas,
+    persist to `prautoblogger_article_queue` option, schedule Tick 2.
+  - Tickâ2â¦N (`prautoblogger_gen_tick`): pop ONE idea, generate one article,
+    reschedule or finalize. Persists consumed queue BEFORE generating to prevent
+    orphan-recovery duplication on restart.
+  - Budget / halt: `Cost_Tracker::is_budget_exceeded()` checked per tick;
+    a halted run aborts all remaining ticks without calling `Article_Worker`.
+- **WP-CLI `wp prautoblogger generate` command**. Routes through the same
+  chained-cron checkpoints as the board button. Replaces the retired SSH-only
+  `wp eval 'do_action("prautoblogger_manual_generation")'` workaround.
+- **Settings-backed board pagination** (perf pass). All hardcoded LIMIT / `posts_per_page`
+  values in board queries replaced with two new settings:
+  - `prautoblogger_board_column_limit` (default 20, constant `PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT`)
+  - `prautoblogger_ideas_per_page` (default 30, constant `PRAUTOBLOGGER_DEFAULT_IDEAS_PER_PAGE`)
+- **DB indexes** (via `PRAUTOBLOGGER_DB_VERSION` â `1.4.0`):
+  - `generation_log`: `KEY run_id_post_id`, `KEY created_status` (board query + failed-cards).
+  - `analysis_results`: `KEY analyzed_type` (ideas-browser pagination + type filter).
+  - `runs`: `KEY started_at` (articles-list pagination `ORDER BY started_at DESC LIMIT n OFFSET m`).
+- **Query helper split**: `PRAutoBlogger_Ideas_Browser_Query` (new `class-ideas-browser-query.php`)
+  carries static query helpers extracted from `class-ideas-browser.php` to enforce the
+  300-line rule (CONVENTIONS Â§1).
+- **Guard P2s** (`scripts/check-constants.php`):
+  - Added `--self-test` mode: synthesizes a missing constant and asserts the scanner catches it.
+  - Added inline comment documenting `CONSTANTS_GUARD_WINDOW = 4`.
+  - Wired `--self-test` as a CI step after the main constants check.
+- **PHPUnit test** `tests/unit/Core/GenerationCheckpointRunnerTest.php`: tick-by-tick
+  state-machine proof (kick_off schedules only, empty queue finalizes, halted run aborts,
+  multi-idea queue pops one and reschedules).
+- **Pipeline_Status** now exports `write_initial()` and `write_error()` for the
+  checkpoint runner to set the status transient before the first cron tick fires.
+
+### Changed
+- `Executor::on_manual_generation()` now delegates to
+  `Generation_Checkpoint_Runner::on_orchestrate_tick()` instead of running the full
+  pipeline synchronously. The method body is 1 line; the synchronous path is retired.
+- `Pipeline_Runner::orchestrate_only()` added as a public wrapper exposing the private
+  `orchestrate()` method for use by `Generation_Checkpoint_Runner`.
+
+### Removed
+- **SSH-only workaround retired**: `wp eval 'do_action("prautoblogger_manual_generation")'` no
+  longer fires the pipeline synchronously in one PHP process. Use `wp prautoblogger generate`
+  instead (routes through the chained-cron checkpoint machine). See ARCHITECTURE.md Â§25.
+
 ## [0.20.1] - 2026-06-12
 
 ### Fixed

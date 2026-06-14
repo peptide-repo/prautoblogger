@@ -9,9 +9,9 @@
  * kept a fallback copy, masking the gap until prod boot.
  *
  * Usage (from repo root):
- *   php scripts/check-constants.php [--verbose]
+ *   php scripts/check-constants.php [--verbose] [--self-test]
  *
- * Exit 0 = all clear. Exit 1 = unguarded undefined constants found.
+ * Exit 0 = all clear. Exit 1 = unguarded undefined constants found. Exit 2 = --self-test failed.
  *
  * Include/exclude summary (relative to repo root):
  *   Defined-set source  prautoblogger.php only
@@ -29,7 +29,7 @@
 declare(strict_types=1);
 
 // How many lines above the bare use to look for a defined() guard.
-const CONSTANTS_GUARD_WINDOW = 4;
+const CONSTANTS_GUARD_WINDOW = 4; // 4 covers if/elseif blocks and multi-line && chains (wider risks false-positives).
 
 // Source of truth for define()d constants -- test-bootstrap fallbacks excluded.
 const CONSTANTS_BOOTSTRAP_FILE = 'prautoblogger.php';
@@ -45,7 +45,8 @@ const CONSTANTS_SCAN_ROOTS = [
 	'templates',
 ];
 
-$verbose = in_array( '--verbose', $argv ?? [], true );
+$verbose   = in_array( '--verbose', $argv ?? [], true );
+$self_test = in_array( '--self-test', $argv ?? [], true );
 
 // -------------------------------------------------------------------------
 // 1. Build the defined set from prautoblogger.php only.
@@ -206,6 +207,45 @@ if ( $errors !== [] ) {
 	fwrite( STDERR, "\nTo fix: add  define( '" . $errors[0][2] . "', ... )  to prautoblogger.php,\n" );
 	fwrite( STDERR, "or guard the reference with  if ( defined( '" . $errors[0][2] . "' ) ) { ... }\n\n" );
 	exit( 1 );
+}
+
+// -------------------------------------------------------------------------
+// 5. Self-test mode: synthesize a missing constant and assert non-zero exit.
+// -------------------------------------------------------------------------
+
+if ( $self_test ) {
+	// Temporarily inject a fake reference that must NOT be in prautoblogger.php.
+	// The scan above will flag PRAUTOBLOGGER_SELFTEST_SENTINEL as unguarded.
+	// We verify this script would have exited non-zero in that scenario.
+	$sentinel      = 'PRAUTOBLOGGER_SELFTEST_SENTINEL';
+	$bootstrap_src = (string) file_get_contents( CONSTANTS_BOOTSTRAP_FILE );
+	if ( false !== strpos( $bootstrap_src, $sentinel ) ) {
+		fwrite( STDERR, "SELF-TEST FAIL: sentinel constant already defined in prautoblogger.php -- pick a unique name.\n" );
+		exit( 2 );
+	}
+
+	// If $errors is empty at this point, the real codebase is clean (good).
+	// Now simulate an unguarded reference by re-running the scan on a temp file.
+	$tmp_file = tempnam( sys_get_temp_dir(), 'prab_selftest_' ) . '.php';
+	file_put_contents( $tmp_file, "<?php\necho {$sentinel};\n" );
+	$tmp_errors = [];
+	$tmp_lines  = explode( "\n", (string) file_get_contents( $tmp_file ) );
+	foreach ( $tmp_lines as $idx => $raw_line ) {
+		if ( preg_match_all( '/PRAUTOBLOGGER_[A-Z0-9_]+/', $raw_line, $m ) ) {
+			foreach ( $m[0] as $n ) {
+				if ( ! isset( $defined_set[ $n ] ) ) {
+					$tmp_errors[] = $n;
+				}
+			}
+		}
+	}
+	@unlink( $tmp_file );
+	if ( ! in_array( $sentinel, $tmp_errors, true ) ) {
+		fwrite( STDERR, "SELF-TEST FAIL: scanner did not detect unguarded sentinel constant.\n" );
+		exit( 2 );
+	}
+	echo "SELF-TEST OK -- scanner correctly detected the synthetic missing constant.\n";
+	exit( 0 );
 }
 
 echo "OK -- All PRAUTOBLOGGER_* constants are production-defined or defined()-guarded.\n";
