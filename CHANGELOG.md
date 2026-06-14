@@ -5,6 +5,11 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased - Internal]
+
+### Internal
+- CI constants guard (`scripts/check-constants.php`): new required CI step (`Check PRAUTOBLOGGER_* constants`) fails the build when any `PRAUTOBLOGGER_*` constant referenced in shipped plugin PHP is neither defined in `prautoblogger.php` nor `defined()`-guarded at the reference site. Prevents a recurrence of the v0.19.0 admin-500 regression class.
+
 ## [0.20.1] - 2026-06-12
 
 ### Fixed

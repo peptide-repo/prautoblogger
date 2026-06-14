@@ -109,3 +109,20 @@ jobs:
         run: composer install --no-progress --no-interaction --prefer-dist
       - name: Run PHPUnit (Brain Monkey — no WP install required)
         run: vendor/bin/phpunit --testdox
+
+  check-constants:
+    name: Check PRAUTOBLOGGER_* constants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+      - name: Check PRAUTOBLOGGER_* constants
+        # Fails if any PRAUTOBLOGGER_* constant referenced in the shipped
+        # plugin PHP is neither defined in prautoblogger.php nor guarded
+        # by defined() at the reference site. Prevents the v0.19.0 incident
+        # class (constant deleted from bootstrap, test fallback masks the gap).
+        run: php scripts/check-constants.php
