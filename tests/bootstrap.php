@@ -209,6 +209,11 @@ if ( ! class_exists( 'WP_Post' ) ) {
 // Plugin URL and version constants used by admin enqueue methods.
 // Defined here so all tests that load admin classes can stub WP enqueue calls
 // without hitting "Undefined constant" errors.
+if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT' ) ) {
+    define( 'PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT', 20 );
+}
+
+// Plugin URL and version constants used by admin enqueue methods.
 if ( ! defined( 'PRAUTOBLOGGER_PLUGIN_URL' ) ) {
     define( 'PRAUTOBLOGGER_PLUGIN_URL', 'https://test.example.com/wp-content/plugins/prautoblogger/' );
 }

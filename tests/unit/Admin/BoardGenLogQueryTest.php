@@ -19,9 +19,6 @@ use Brain\Monkey\Functions;
 
 class BoardGenLogQueryTest extends BaseTestCase {
 
-	/** @var \PHPUnit\Framework\MockObject\MockObject Mock $wpdb. */
-	private $wpdb;
-
 	/**
 	 * Captured prepare() calls: each entry is ['sql' => string, 'args' => array].
 	 *
@@ -29,19 +26,20 @@ class BoardGenLogQueryTest extends BaseTestCase {
 	 */
 	private array $prepare_calls = array();
 
-	protected function setUp(): void {
-		parent::setUp();
+	/**
+	 * Build a fresh mock $wpdb whose get_results() always returns $rows.
+	 *
+	 * @param array $rows Rows to return from get_results().
+	 * @return \PHPUnit\Framework\MockObject\MockObject
+	 */
+	private function make_wpdb( array $rows = array() ): object {
+		$wpdb            = $this->create_mock_wpdb();
+		$wpdb->prefix    = 'wp_';
+		$GLOBALS['wpdb'] = $wpdb;
+		$self            = $this;
 
-		$this->prepare_calls = array();
-		$this->wpdb          = $this->create_mock_wpdb();
-		$GLOBALS['wpdb']     = $this->wpdb;
-		$this->wpdb->prefix  = 'wp_';
-
-		// Capture prepare() calls so we can assert arg order.
-		$self = $this;
-		$this->wpdb->method( 'prepare' )->willReturnCallback(
+		$wpdb->method( 'prepare' )->willReturnCallback(
 			static function ( string $sql, ...$args ) use ( $self ) {
-				// Flatten a single-array spread (Brain\Monkey unpacking).
 				if ( 1 === count( $args ) && is_array( $args[0] ) ) {
 					$args = $args[0];
 				}
@@ -50,7 +48,13 @@ class BoardGenLogQueryTest extends BaseTestCase {
 			}
 		);
 
-		$this->wpdb->method( 'get_results' )->willReturn( array() );
+		$wpdb->method( 'get_results' )->willReturn( $rows );
+		return $wpdb;
+	}
+
+	protected function setUp(): void {
+		parent::setUp();
+		$this->prepare_calls = array();
 
 		Functions\when( 'get_transient' )->justReturn( false );
 		Functions\when( 'admin_url' )->alias(
@@ -66,16 +70,10 @@ class BoardGenLogQueryTest extends BaseTestCase {
 				return $default;
 			}
 		);
-
-		if ( ! defined( 'DAY_IN_SECONDS' ) ) {
-			define( 'DAY_IN_SECONDS', 86400 );
-		}
-		if ( ! defined( 'PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT' ) ) {
-			define( 'PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT', 10 );
-		}
 	}
 
 	protected function tearDown(): void {
+		$this->prepare_calls = array();
 		unset( $GLOBALS['wpdb'] );
 		parent::tearDown();
 	}
@@ -90,13 +88,18 @@ class BoardGenLogQueryTest extends BaseTestCase {
 	 * datetime string second) that silently bound created_at >= <int>.
 	 */
 	public function test_generating_cards_prepare_arg_order(): void {
+		$this->make_wpdb();
 		$query = new \PRAutoBlogger_Board_Gen_Log_Query();
 		$query->get_generating_cards();
 
 		// Find the prepare() call containing LIMIT %d (the gen-log secondary query).
 		$gen_call = null;
 		foreach ( $this->prepare_calls as $call ) {
-			if ( str_contains( $call['sql'], 'LIMIT %d' ) && str_contains( $call['sql'], 'post_id IS NULL' ) && ! str_contains( $call['sql'], "response_status = 'error'" ) ) {
+			if (
+				str_contains( $call['sql'], 'LIMIT %d' ) &&
+				str_contains( $call['sql'], 'post_id IS NULL' ) &&
+				! str_contains( $call['sql'], "response_status = 'error'" )
+			) {
 				$gen_call = $call;
 				break;
 			}
@@ -115,8 +118,9 @@ class BoardGenLogQueryTest extends BaseTestCase {
 	 * get_generating_cards() must return an empty array (not error) when DB returns nothing.
 	 */
 	public function test_generating_cards_returns_empty_array_on_no_results(): void {
-		$query  = new \PRAutoBlogger_Board_Gen_Log_Query();
-		$cards  = $query->get_generating_cards();
+		$this->make_wpdb();
+		$query = new \PRAutoBlogger_Board_Gen_Log_Query();
+		$cards = $query->get_generating_cards();
 		$this->assertIsArray( $cards );
 	}
 
@@ -125,6 +129,8 @@ class BoardGenLogQueryTest extends BaseTestCase {
 	 * returns a card from the transient (no DB call needed for that card).
 	 */
 	public function test_generating_cards_returns_transient_card_when_running(): void {
+		$this->make_wpdb();
+
 		Functions\when( 'get_transient' )->alias(
 			function ( $key ) {
 				if ( 'prautoblogger_generation_status' === $key ) {
@@ -153,6 +159,7 @@ class BoardGenLogQueryTest extends BaseTestCase {
 	 * and the integer limit as the SECOND — matching placeholder order %s … %d.
 	 */
 	public function test_failed_cards_prepare_arg_order(): void {
+		$this->make_wpdb();
 		$query = new \PRAutoBlogger_Board_Gen_Log_Query();
 		$query->get_failed_cards();
 
@@ -178,7 +185,8 @@ class BoardGenLogQueryTest extends BaseTestCase {
 	 * get_failed_cards() returns the correct card shape from a seeded result row.
 	 */
 	public function test_failed_cards_returns_correct_shape(): void {
-		$this->wpdb->method( 'get_results' )->willReturn(
+		// Use a fresh wpdb with non-empty get_results rows.
+		$this->make_wpdb(
 			array(
 				array(
 					'run_id'     => 'fail-run-abc',
@@ -213,6 +221,7 @@ class BoardGenLogQueryTest extends BaseTestCase {
 			}
 		);
 
+		$this->make_wpdb();
 		$query = new \PRAutoBlogger_Board_Gen_Log_Query();
 		$query->get_generating_cards();
 

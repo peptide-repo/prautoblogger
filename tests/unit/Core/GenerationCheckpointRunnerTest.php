@@ -137,6 +137,9 @@ class GenerationCheckpointRunnerTest extends BaseTestCase {
 	 */
 	public function test_generate_tick_finalizes_when_queue_is_empty(): void {
 		// No queue option => get_option returns false (default from setUp alias).
+		// wire_wpdb_for_lock() provides $wpdb so Helpers::finalize() ->
+		// Generation_Lock::release() can run without "Call to member on null".
+		$this->wire_wpdb_for_lock();
 		\PRAutoBlogger_Generation_Checkpoint_Runner::on_generate_tick();
 
 		$this->assertNotContains(

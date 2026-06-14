@@ -54,6 +54,15 @@ class BoardHumanModifiedFlagTest extends BaseTestCase {
 		);
 		Functions\when( 'get_edit_post_link' )->justReturn( 'https://example.com/edit' );
 		Functions\when( 'admin_url' )->alias( static fn( $p = '' ) => 'https://example.com/wp-admin/' . $p );
+		Functions\when( 'get_option' )->alias(
+			function ( string $name, $default = false ) {
+				$map = array(
+					'prautoblogger_board_column_limit'         => PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT,
+					'prautoblogger_board_published_window_days' => 7,
+				);
+				return $map[ $name ] ?? $default;
+			}
+		);
 		\PRAutoBlogger_Run_Stage_State::flush_cache();
 	}
 
