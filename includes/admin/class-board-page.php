@@ -4,27 +4,27 @@ declare(strict_types=1);
 /**
  * phpcs:ignore WordPress.Files.FileName.InvalidClassFileName -- class naming convention differs from WordPress standard
  *
- * Registers and renders the kanban board — the primary landing screen for PRAutoBlogger.
+ * Registers and renders the kanban board -- the primary landing screen for PRAutoBlogger.
  *
  * Board columns: Generating | In Review | Published | Failed.
  * Cards live-update via AJAX polling at a settings-backed interval (default 5s),
- * backing off to 2× when no active generating run is detected.
+ * backing off to 2x when no active generating run is detected.
  *
  * Card click-throughs (M1):
- *   - Generating → Activity Log filtered to run context
- *   - In Review  → Review Queue
- *   - Published  → Post edit screen
- *   - Failed     → Activity Log
+ *   - Generating -> Activity Log filtered to run context
+ *   - In Review  -> Review Queue
+ *   - Published  -> Post edit screen
+ *   - Failed     -> Activity Log
  *
  * M2 will rewire all click-throughs to the Article Dossier page.
  *
  * Triggered by: PRAutoBlogger::register_admin_hooks() on `admin_menu`.
  * Dependencies: PRAutoBlogger_Board_Data_Provider, wp_localize_script.
  *
- * @see admin/class-board-data-provider.php — Supplies card data.
- * @see templates/admin/board-page.php      — HTML template.
- * @see assets/js/board.js                  — Polling + DOM updates.
- * @see ARCHITECTURE.md                     — §Board (kanban dashboard).
+ * @see admin/class-board-data-provider.php -- Supplies card data.
+ * @see templates/admin/board-page.php      -- HTML template.
+ * @see assets/js/board.js                  -- Polling + DOM updates.
+ * @see ARCHITECTURE.md                     -- Section: Board (kanban dashboard).
  */
 class PRAutoBlogger_Board_Page {
 
@@ -48,7 +48,7 @@ class PRAutoBlogger_Board_Page {
 	 * $admin_page_hooks['prautoblogger-settings'] before add_submenu_page()
 	 * runs here, so get_plugin_page_hookname() resolves to the correct
 	 * 'prautoblogger_page_prautoblogger-board' suffix rather than the fallback
-	 * 'admin_page_prautoblogger-board'. See ARCHITECTURE.md §Board.
+	 * 'admin_page_prautoblogger-board'. See ARCHITECTURE.md Section: Board.
 	 *
 	 * @return void
 	 */
@@ -159,10 +159,10 @@ class PRAutoBlogger_Board_Page {
 					'view'         => __( 'View', 'prautoblogger' ),
 					'edit'         => __( 'Edit', 'prautoblogger' ),
 					'viewLog'      => __( 'View Log', 'prautoblogger' ),
-					'pollError'    => __( 'Board update failed — retrying.', 'prautoblogger' ),
+					'pollError'    => __( 'Board update failed -- retrying.', 'prautoblogger' ),
 					'humanModified'  => __( 'Human-modified', 'prautoblogger' ),
 					'newArticle'     => __( 'New Article', 'prautoblogger' ),
-					'generatingBtn'  => __( 'Generatingâ¦', 'prautoblogger' ),
+					'generatingBtn'  => __( 'Generating...', 'prautoblogger' ),
 					'genStarted'     => __( 'Generation started. Board will update automatically.', 'prautoblogger' ),
 					'genError'       => __( 'Generation failed to start. Check the Activity Log.', 'prautoblogger' ),
 				),
@@ -175,7 +175,7 @@ class PRAutoBlogger_Board_Page {
 	 *
 	 * Nonce: `prautoblogger_board`. Requires `manage_options` capability.
 	 *
-	 * Side effects: DB reads only — no writes.
+	 * Side effects: DB reads only -- no writes.
 	 *
 	 * @return void
 	 */
