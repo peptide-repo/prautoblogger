@@ -100,5 +100,4 @@ class PRAutoBlogger_WP_CLI_Commands {
 		PRAutoBlogger_Generation_Checkpoint_Runner::kick_off();
 		\WP_CLI::success( 'Generation queued on chained-cron checkpoints. Check the board or Activity Log for progress.' );
 	}
-
 }

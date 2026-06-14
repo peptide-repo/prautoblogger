@@ -153,12 +153,26 @@ class PRAutoBlogger_Ideas_Browser {
 
 		$idea_data = get_transient( $prefix . 'data_' . $idea_id );
 		if ( ! is_array( $idea_data ) ) {
-			set_transient( $key, array( 'status' => 'error', 'message' => 'Idea data expired.' ), $ttl );
+			set_transient(
+				$key,
+				array(
+					'status' => 'error',
+					'message' => 'Idea data expired.',
+				),
+				$ttl
+			);
 			return;
 		}
 
 		if ( ! PRAutoBlogger_Generation_Lock::acquire() ) {
-			set_transient( $key, array( 'status' => 'error', 'message' => 'Another generation is running.' ), $ttl );
+			set_transient(
+				$key,
+				array(
+					'status' => 'error',
+					'message' => 'Another generation is running.',
+				),
+				$ttl
+			);
 			return;
 		}
 
@@ -193,7 +207,14 @@ class PRAutoBlogger_Ideas_Browser {
 				sprintf( 'Idea generation %s for #%d: %s', get_class( $e ), $idea_id, $e->getMessage() ),
 				'pipeline'
 			);
-			set_transient( $key, array( 'status' => 'error', 'message' => $e->getMessage() ), $ttl );
+			set_transient(
+				$key,
+				array(
+					'status' => 'error',
+					'message' => $e->getMessage(),
+				),
+				$ttl
+			);
 		}
 
 		PRAutoBlogger_Generation_Lock::release();

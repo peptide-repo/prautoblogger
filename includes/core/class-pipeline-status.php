@@ -140,5 +140,4 @@ class PRAutoBlogger_Pipeline_Status {
 			self::TTL
 		);
 	}
-
 }

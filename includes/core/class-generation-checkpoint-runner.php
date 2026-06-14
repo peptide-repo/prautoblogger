@@ -115,7 +115,12 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 			if ( empty( $ideas ) ) {
 				PRAutoBlogger_Run_State::mark_status( $run_id, 'done' );
 				PRAutoBlogger_Pipeline_Status::write_final(
-					array( 'generated' => 0, 'published' => 0, 'rejected' => 0, 'cost' => 0.0 )
+					array(
+						'generated' => 0,
+						'published' => 0,
+						'rejected' => 0,
+						'cost' => 0.0,
+					)
 				);
 				PRAutoBlogger_Generation_Lock::release();
 				delete_option( self::RUN_ID_KEY );
@@ -131,7 +136,12 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 				array(
 					'run_id'  => $run_id,
 					'ideas'   => $serialized,
-					'results' => array( 'generated' => 0, 'published' => 0, 'rejected' => 0, 'cost' => 0.0 ),
+					'results' => array(
+						'generated' => 0,
+						'published' => 0,
+						'rejected' => 0,
+						'cost' => 0.0,
+					),
 				),
 				false
 			);
@@ -177,7 +187,14 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 
 		$queue = get_option( self::QUEUE_KEY );
 		if ( ! is_array( $queue ) || empty( $queue['ideas'] ) ) {
-			self::finalize( array( 'generated' => 0, 'published' => 0, 'rejected' => 0, 'cost' => 0.0 ) );
+			self::finalize(
+				array(
+					'generated' => 0,
+					'published' => 0,
+					'rejected' => 0,
+					'cost' => 0.0,
+				)
+			);
 			return;
 		}
 
