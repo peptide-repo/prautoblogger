@@ -128,6 +128,13 @@ class PRAutoBlogger_Board_Page {
 			PRAUTOBLOGGER_VERSION,
 			true
 		);
+		wp_enqueue_script(
+			'prautoblogger-board-generate',
+			PRAUTOBLOGGER_PLUGIN_URL . 'assets/js/board-generate.js',
+			array( 'jquery', 'prautoblogger-board' ),
+			PRAUTOBLOGGER_VERSION,
+			true
+		);
 
 		$poll_interval   = max( 3, (int) get_option( 'prautoblogger_board_poll_interval', 5 ) );
 		$published_days  = max( 1, (int) get_option( 'prautoblogger_board_published_window_days', 7 ) );
@@ -138,6 +145,7 @@ class PRAutoBlogger_Board_Page {
 			array(
 				'ajaxUrl'           => admin_url( 'admin-ajax.php' ),
 				'nonce'             => wp_create_nonce( self::NONCE_ACTION ),
+				'generateNonce'     => wp_create_nonce( 'prautoblogger_generate_now' ),
 				'pollInterval'      => $poll_interval * 1000,
 				'publishedWindowDays' => $published_days,
 				'action'            => self::AJAX_ACTION,
@@ -152,7 +160,11 @@ class PRAutoBlogger_Board_Page {
 					'edit'         => __( 'Edit', 'prautoblogger' ),
 					'viewLog'      => __( 'View Log', 'prautoblogger' ),
 					'pollError'    => __( 'Board update failed — retrying.', 'prautoblogger' ),
-					'humanModified' => __( 'Human-modified', 'prautoblogger' ),
+					'humanModified'  => __( 'Human-modified', 'prautoblogger' ),
+					'newArticle'     => __( 'New Article', 'prautoblogger' ),
+					'generatingBtn'  => __( 'Generatingâ¦', 'prautoblogger' ),
+					'genStarted'     => __( 'Generation started. Board will update automatically.', 'prautoblogger' ),
+					'genError'       => __( 'Generation failed to start. Check the Activity Log.', 'prautoblogger' ),
 				),
 			)
 		);

@@ -126,3 +126,7 @@ jobs:
         # by defined() at the reference site. Prevents the v0.19.0 incident
         # class (constant deleted from bootstrap, test fallback masks the gap).
         run: php scripts/check-constants.php
+      - name: Self-test check-constants guard (v0.21.0)
+        # Verifies the guard script itself catches a synthetic missing constant.
+        # Exit 2 = self-test failure (scanner is broken). Exit 0 = scanner works.
+        run: php scripts/check-constants.php --self-test

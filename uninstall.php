@@ -97,6 +97,9 @@ $hooks = array(
 	'prautoblogger_opik_dispatch',
 	'prautoblogger_rerun_stage_replay',
 	'prautoblogger_rerun_from_stage',
+	// v0.21.0 (M4): chained-cron checkpoint ticks.
+	'prautoblogger_gen_orchestrate',
+	'prautoblogger_gen_tick',
 );
 
 foreach ( $hooks as $hook ) {

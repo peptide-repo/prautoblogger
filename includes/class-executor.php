@@ -91,62 +91,22 @@ class PRAutoBlogger_Executor {
 	 * chained cron events — each in its own PHP process. The lock is released
 	 * by the pipeline when the last article completes, not here.
 	 */
+	/**
+	 * Cron handler: kick off the chained-cron orchestration tick (v0.21.0, M4).
+	 *
+	 * Delegates to Generation_Checkpoint_Runner::on_orchestrate_tick() which
+	 * runs Tick 1 (collect -> analyze -> score), then schedules Tick 2..N for
+	 * article generation. This replaces the former monolithic pipeline run and
+	 * retires the SSH-only `do_action("prautoblogger_manual_generation")` workaround
+	 * (see ARCHITECTURE.md ss25).
+	 *
+	 * Lock acquisition and status transient writes are fully owned by the
+	 * checkpoint runner; this method is a thin routing wrapper.
+	 *
+	 * @return void
+	 */
 	public function on_manual_generation(): void {
-		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		@ignore_user_abort( true );
-		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		@set_time_limit( 300 );
-
-		if ( ! PRAutoBlogger_Generation_Lock::acquire() ) {
-			set_transient(
-				PRAutoBlogger_Generation_Status_Poller::STATUS_TRANSIENT,
-				array(
-					'status'  => 'error',
-					'message' => __( 'Could not acquire generation lock. Another run may be in progress.', 'prautoblogger' ),
-				),
-				PRAutoBlogger_Generation_Status_Poller::STATUS_TTL
-			);
-			return;
-		}
-
-		try {
-			$this->poller()->update_generation_stage( __( 'Collecting sources from Reddit...', 'prautoblogger' ) );
-
-			$runner  = ( new PRAutoBlogger_Pipeline_Runner() )->set_skip_dedup( true );
-			$results = $runner->run();
-
-			// If no articles were queued (target=1 or 0 ideas), finalize here.
-			// When articles ARE queued, the pipeline handles status + lock release.
-			if ( ! get_option( 'prautoblogger_article_queue' ) ) {
-				set_transient(
-					PRAutoBlogger_Generation_Status_Poller::STATUS_TRANSIENT,
-					array(
-						'status'    => 'complete',
-						'generated' => $results['generated'],
-						'published' => $results['published'],
-						'rejected'  => $results['rejected'],
-						'cost'      => $results['cost'],
-					),
-					PRAutoBlogger_Generation_Status_Poller::STATUS_TTL
-				);
-				PRAutoBlogger_Generation_Lock::release();
-			}
-		} catch ( \Throwable $e ) {
-			PRAutoBlogger_Logger::instance()->error(
-				sprintf( 'Manual generation %s: %s', get_class( $e ), $e->getMessage() ),
-				'pipeline'
-			);
-			set_transient(
-				PRAutoBlogger_Generation_Status_Poller::STATUS_TRANSIENT,
-				array(
-					'status'  => 'error',
-					'message' => $e->getMessage(),
-				),
-				PRAutoBlogger_Generation_Status_Poller::STATUS_TTL
-			);
-			$this->mark_current_run_failed();
-			PRAutoBlogger_Generation_Lock::release();
-		}
+		PRAutoBlogger_Generation_Checkpoint_Runner::on_orchestrate_tick();
 	}
 
 	/** Cron handler: process next queued article. Chained by Pipeline_Runner. */

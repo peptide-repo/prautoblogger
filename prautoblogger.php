@@ -9,7 +9,7 @@
  * Plugin Name:       PRAutoBlogger
  * Plugin URI:        https://peptiderepo.com/prautoblogger
  * Description:       Monitors social media for trending topics, generates SEO-friendly blog posts using AI, and publishes them on a daily schedule with full cost tracking and self-improvement metrics.
- * Version:           0.20.1
+ * Version:           0.21.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            PeptideRepo
@@ -35,10 +35,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 | Defined here so every file in the plugin can reference paths, versions,
 | and limits without magic strings.
 */
-define( 'PRAUTOBLOGGER_VERSION', '0.20.1' );
-define( 'PRAUTOBLOGGER_DB_VERSION', '1.3.0' );
+define( 'PRAUTOBLOGGER_VERSION', '0.21.0' );
+define( 'PRAUTOBLOGGER_DB_VERSION', '1.4.0' );
 define( 'PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD', 0.50 );
 define( 'PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS', 14 );
+// Default max cards shown per board column and per ideas-browser page.
+// Settings-backed (prautoblogger_board_column_limit, prautoblogger_ideas_per_page).
+define( 'PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT', 20 );
+define( 'PRAUTOBLOGGER_DEFAULT_IDEAS_PER_PAGE', 30 );
 // v0.18.1: ceiling on "thinking" tokens per reasoning-enabled LLM call. The
 // request's completion budget (max_tokens) is RAISED by this amount so
 // reasoning can never consume the visible-content budget and return an empty

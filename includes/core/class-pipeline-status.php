@@ -103,4 +103,42 @@ class PRAutoBlogger_Pipeline_Status {
 			'pipeline'
 		);
 	}
+
+	/**
+	 * Write an initial "running" status before the first tick fires.
+	 * Mirrors the shape on_ajax_generate_now() already writes so the poller
+	 * sees a consistent "running" state whether triggered from board or settings page.
+	 *
+	 * @return void
+	 */
+	public static function write_initial(): void {
+		set_transient(
+			self::KEY,
+			array(
+				'status'       => 'running',
+				'stage'        => __( 'Starting generation…', 'prautoblogger' ),
+				'started'      => time(),
+				'last_updated' => time(),
+			),
+			self::TTL
+		);
+	}
+
+	/**
+	 * Write a terminal "error" status.
+	 *
+	 * @param string $message Operator-facing error description.
+	 * @return void
+	 */
+	public static function write_error( string $message ): void {
+		set_transient(
+			self::KEY,
+			array(
+				'status'  => 'error',
+				'message' => $message,
+			),
+			self::TTL
+		);
+	}
+
 }
