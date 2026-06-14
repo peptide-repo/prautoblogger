@@ -77,8 +77,8 @@ class PRAutoBlogger_Board_Gen_Log_Query {
 				GROUP BY run_id
 				ORDER BY started_at DESC
 				LIMIT %d",
+				$since,
 				(int) max( 5, get_option( 'prautoblogger_board_column_limit', PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT ) )
-				$since
 			),
 			ARRAY_A
 		);
@@ -150,8 +150,8 @@ class PRAutoBlogger_Board_Gen_Log_Query {
 				GROUP BY run_id
 				ORDER BY started_at DESC
 				LIMIT %d",
+				$since,
 				(int) max( 5, get_option( 'prautoblogger_board_column_limit', PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT ) )
-				$since
 			),
 			ARRAY_A
 		);

@@ -31,11 +31,12 @@ declare(strict_types=1);
  * Dependencies: Pipeline_Runner (orchestration), Run_State (run ledger),
  *               Pipeline_Status (transient), Generation_Lock, Cost_Tracker, Logger.
  *
- * @see includes/class-executor.php              -- Cron/AJAX entry points.
- * @see core/class-pipeline-runner.php           -- Orchestration + article worker.
- * @see core/class-run-state.php                 -- Per-run ledger (cost governor).
- * @see core/class-pipeline-status.php           -- Transient broadcast helpers.
- * @see ARCHITECTURE.md ss25                     -- Checkpoint generation path design.
+ * @see includes/class-executor.php                       -- Cron/AJAX entry points.
+ * @see core/class-pipeline-runner.php                    -- Orchestration + article worker.
+ * @see core/class-run-state.php                          -- Per-run ledger (cost governor).
+ * @see core/class-pipeline-status.php                    -- Transient broadcast helpers.
+ * @see core/class-generation-checkpoint-helpers.php      -- finalize/cleanup/fire helpers.
+ * @see ARCHITECTURE.md ss25                              -- Checkpoint generation path design.
  */
 class PRAutoBlogger_Generation_Checkpoint_Runner {
 
@@ -66,7 +67,7 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 		}
 		wp_schedule_single_event( time(), self::ORCHESTRATE_ACTION );
 		PRAutoBlogger_Pipeline_Status::write_initial();
-		self::fire_cron_now();
+		PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
 	}
 
 	/**
@@ -157,7 +158,7 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 			if ( ! wp_next_scheduled( self::GENERATE_ACTION ) ) {
 				wp_schedule_single_event( time(), self::GENERATE_ACTION );
 			}
-			self::fire_cron_now();
+			PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
 
 		} catch ( \Throwable $e ) {
 			PRAutoBlogger_Logger::instance()->error(
@@ -187,7 +188,7 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 
 		$queue = get_option( self::QUEUE_KEY );
 		if ( ! is_array( $queue ) || empty( $queue['ideas'] ) ) {
-			self::finalize(
+			PRAutoBlogger_Generation_Checkpoint_Helpers::finalize(
 				array(
 					'generated' => 0,
 					'published' => 0,
@@ -205,7 +206,7 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 				sprintf( 'Generate tick: run %s is %s -- aborting.', $run_id, $run_status ),
 				'pipeline'
 			);
-			self::cleanup_queue();
+			PRAutoBlogger_Generation_Checkpoint_Helpers::cleanup_queue();
 			PRAutoBlogger_Generation_Lock::release();
 			return;
 		}
@@ -217,7 +218,7 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 
 		if ( $cost_tracker->is_budget_exceeded() ) {
 			PRAutoBlogger_Run_State::mark_status( $run_id, 'failed' );
-			self::cleanup_queue();
+			PRAutoBlogger_Generation_Checkpoint_Helpers::cleanup_queue();
 			PRAutoBlogger_Generation_Lock::release();
 			PRAutoBlogger_Pipeline_Status::write_error(
 				__( 'Monthly API budget exceeded. Generation halted.', 'prautoblogger' )
@@ -247,10 +248,10 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 				if ( ! wp_next_scheduled( self::GENERATE_ACTION ) ) {
 					wp_schedule_single_event( time(), self::GENERATE_ACTION );
 				}
-				self::fire_cron_now();
+				PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
 			} else {
 				PRAutoBlogger_Post_Assembler::amortize_research_costs( $run_id );
-				self::finalize( $queue['results'], $run_id );
+				PRAutoBlogger_Generation_Checkpoint_Helpers::finalize( $queue['results'], $run_id );
 			}
 		} catch ( \Throwable $e ) {
 			PRAutoBlogger_Logger::instance()->error(
@@ -258,55 +259,9 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 				'pipeline'
 			);
 			PRAutoBlogger_Run_State::mark_status( $run_id, 'failed' );
-			self::cleanup_queue();
+			PRAutoBlogger_Generation_Checkpoint_Helpers::cleanup_queue();
 			PRAutoBlogger_Generation_Lock::release();
 			PRAutoBlogger_Pipeline_Status::write_error( $e->getMessage() );
 		}
-	}
-
-	// -- Private helpers --------------------------------------------------
-
-	/**
-	 * Finalize a completed run: write final transient, mark run done, release lock.
-	 *
-	 * @param array  $results Generation counters (generated/published/rejected/cost).
-	 * @param string $run_id  Run UUID (read from option if blank).
-	 * @return void
-	 */
-	private static function finalize( array $results, string $run_id = '' ): void {
-		if ( '' === $run_id ) {
-			$run_id = (string) get_option( self::RUN_ID_KEY, '' );
-		}
-		if ( '' !== $run_id ) {
-			PRAutoBlogger_Run_State::mark_status( $run_id, 'done' );
-		}
-		PRAutoBlogger_Pipeline_Status::write_final( $results );
-		PRAutoBlogger_Pipeline_Status::log_summary( $results );
-		PRAutoBlogger_Generation_Lock::release();
-		delete_option( self::RUN_ID_KEY );
-	}
-
-	/** Remove the persistent queue and run-id option on abort paths. */
-	private static function cleanup_queue(): void {
-		delete_option( self::QUEUE_KEY );
-		delete_option( self::RUN_ID_KEY );
-	}
-
-	/**
-	 * Non-blocking loopback to fire cron events immediately.
-	 * Mirrors Pipeline_Runner::schedule_next() exactly.
-	 *
-	 * @return void
-	 */
-	private static function fire_cron_now(): void {
-		spawn_cron();
-		wp_remote_post(
-			site_url( 'wp-cron.php?doing_wp_cron=' . sprintf( '%.22F', microtime( true ) ) ),
-			array(
-				'timeout'   => 0.01,
-				'blocking'  => false,
-				'sslverify' => false,
-			)
-		);
 	}
 }
