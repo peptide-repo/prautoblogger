@@ -35,18 +35,18 @@ const CONSTANTS_GUARD_WINDOW = 4; // 4 covers if/elseif blocks and multi-line &&
 const CONSTANTS_BOOTSTRAP_FILE = 'prautoblogger.php';
 
 // Directories skipped when walking the shipped tree for references.
-const CONSTANTS_EXCLUDE_DIRS = ['tests', 'vendor', '.github', '.git', 'node_modules'];
+const CONSTANTS_EXCLUDE_DIRS = array( 'tests', 'vendor', '.github', '.git', 'node_modules' );
 
 // Entry points for the reference scan (files and dirs relative to repo root).
-const CONSTANTS_SCAN_ROOTS = [
+const CONSTANTS_SCAN_ROOTS = array(
 	'prautoblogger.php',
 	'uninstall.php',
 	'includes',
 	'templates',
-];
+);
 
-$verbose   = in_array( '--verbose', $argv ?? [], true );
-$self_test = in_array( '--self-test', $argv ?? [], true );
+$verbose   = in_array( '--verbose', $argv ?? array(), true );
+$self_test = in_array( '--self-test', $argv ?? array(), true );
 
 // -------------------------------------------------------------------------
 // 1. Build the defined set from prautoblogger.php only.
@@ -67,7 +67,7 @@ preg_match_all(
 );
 
 /** @var array<string, int> $defined_set constant name => 1 */
-$defined_set = array_flip( $def_matches[1] ?? [] );
+$defined_set = array_flip( $def_matches[1] ?? array() );
 
 if ( $verbose ) {
 	echo 'Defined in ' . CONSTANTS_BOOTSTRAP_FILE . ' (' . count( $defined_set ) . "):\n";
@@ -108,7 +108,7 @@ function constants_collect_php_files( string $dir, array &$files ): void {
 }
 
 /** @var string[] $php_files */
-$php_files = [];
+$php_files = array();
 
 foreach ( CONSTANTS_SCAN_ROOTS as $root ) {
 	if ( ! file_exists( $root ) ) {
@@ -133,7 +133,7 @@ if ( $verbose ) {
 // -------------------------------------------------------------------------
 
 /** @var array<int, array{string, int, string, string}> $errors */
-$errors = [];
+$errors = array();
 
 foreach ( $php_files as $php_path ) {
 	$raw = file_get_contents( $php_path );
@@ -188,7 +188,7 @@ foreach ( $php_files as $php_path ) {
 			}
 
 			if ( ! $guarded ) {
-				$errors[] = [ $php_path, $idx + 1, $name, $raw_line ];
+				$errors[] = array( $php_path, $idx + 1, $name, $raw_line );
 			}
 		}
 	}
@@ -198,7 +198,7 @@ foreach ( $php_files as $php_path ) {
 // 4. Report results.
 // -------------------------------------------------------------------------
 
-if ( $errors !== [] ) {
+if ( $errors !== array() ) {
 	fwrite( STDERR, "\nFAIL -- Unguarded undefined PRAUTOBLOGGER_* constants:\n\n" );
 	foreach ( $errors as [ $php_path, $lineno, $name, $line_text ] ) {
 		fwrite( STDERR, "  {$php_path}:{$lineno}: {$name}\n" );
@@ -228,7 +228,7 @@ if ( $self_test ) {
 	// Now simulate an unguarded reference by re-running the scan on a temp file.
 	$tmp_file = tempnam( sys_get_temp_dir(), 'prab_selftest_' ) . '.php';
 	file_put_contents( $tmp_file, "<?php\necho {$sentinel};\n" );
-	$tmp_errors = [];
+	$tmp_errors = array();
 	$tmp_lines  = explode( "\n", (string) file_get_contents( $tmp_file ) );
 	foreach ( $tmp_lines as $idx => $raw_line ) {
 		if ( preg_match_all( '/PRAUTOBLOGGER_[A-Z0-9_]+/', $raw_line, $m ) ) {

@@ -18,13 +18,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 $base_url    = admin_url( 'admin.php?page=prautoblogger-logs' );
-$level_counts = [
+$level_counts = array(
 	'all'     => __( 'All', 'prautoblogger' ),
 	'error'   => __( 'Errors', 'prautoblogger' ),
 	'warning' => __( 'Warnings', 'prautoblogger' ),
 	'info'    => __( 'Info', 'prautoblogger' ),
 	'debug'   => __( 'Debug', 'prautoblogger' ),
-];
+);
 ?>
 <div class="wrap ab-wrap">
 	<div class="ab-header">
@@ -46,7 +46,20 @@ $level_counts = [
 	<div class="ab-log-filters">
 		<div class="ab-log-level-tabs">
 			<?php foreach ( $level_counts as $lv => $lv_label ) : ?>
-				<a href="<?php echo esc_url( add_query_arg( [ 'level' => $lv, 's' => $search, 'paged' => 1 ], $base_url ) ); ?>"
+				<a href="
+				<?php
+				echo esc_url(
+					add_query_arg(
+						array(
+							'level' => $lv,
+							's' => $search,
+							'paged' => 1,
+						),
+						$base_url
+					)
+				);
+				?>
+							"
 				   class="ab-log-level-tab <?php echo $level === $lv ? 'ab-log-level-active' : ''; ?>">
 					<?php echo esc_html( $lv_label ); ?>
 				</a>
@@ -119,14 +132,18 @@ $level_counts = [
 		<?php if ( $total_pages > 1 ) : ?>
 			<div class="ab-log-pagination">
 				<?php
-				echo wp_kses_post( paginate_links( [
-					'base'      => add_query_arg( 'paged', '%#%' ),
-					'format'    => '',
-					'current'   => $paged,
-					'total'     => $total_pages,
-					'prev_text' => '&laquo;',
-					'next_text' => '&raquo;',
-				] ) );
+				echo wp_kses_post(
+					paginate_links(
+						array(
+							'base'      => add_query_arg( 'paged', '%#%' ),
+							'format'    => '',
+							'current'   => $paged,
+							'total'     => $total_pages,
+							'prev_text' => '&laquo;',
+							'next_text' => '&raquo;',
+						)
+					)
+				);
 				?>
 			</div>
 		<?php endif; ?>

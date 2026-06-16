@@ -86,5 +86,4 @@ class PRAutoBlogger_Runware_Validator {
 			'message' => __( 'Runware API key valid.', 'prautoblogger' ),
 		);
 	}
-
 }

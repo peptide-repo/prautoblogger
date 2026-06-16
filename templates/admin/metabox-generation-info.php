@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$meta = [
+$meta = array(
 	'topic'          => get_post_meta( $post->ID, '_prautoblogger_topic', true ),
 	'type'           => get_post_meta( $post->ID, '_prautoblogger_article_type', true ),
 	'model'          => get_post_meta( $post->ID, '_prautoblogger_model_used', true ),
@@ -22,7 +22,7 @@ $meta = [
 	'seo_score'      => get_post_meta( $post->ID, '_prautoblogger_seo_score', true ),
 	'generated_at'   => get_post_meta( $post->ID, '_prautoblogger_generated_at', true ),
 	'keywords'       => get_post_meta( $post->ID, '_prautoblogger_target_keywords', true ),
-];
+);
 ?>
 <div class="prautoblogger-metabox">
 	<p>
@@ -69,7 +69,7 @@ $meta = [
 	<?php if ( $meta['keywords'] ) : ?>
 		<p>
 			<strong><?php esc_html_e( 'Keywords:', 'prautoblogger' ); ?></strong>
-			<?php echo esc_html( implode( ', ', json_decode( $meta['keywords'], true ) ?: [] ) ); ?>
+			<?php echo esc_html( implode( ', ', json_decode( $meta['keywords'], true ) ?: array() ) ); ?>
 		</p>
 	<?php endif; ?>
 </div>

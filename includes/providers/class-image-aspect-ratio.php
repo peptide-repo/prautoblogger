@@ -26,13 +26,41 @@ class PRAutoBlogger_Image_Aspect_Ratio {
 	 * @var array<int, array{w: int, h: int, ratio: float}>
 	 */
 	private const STANDARD_ASPECTS = array(
-		array( 'w' => 1,  'h' => 1,  'ratio' => 1.0 ),
-		array( 'w' => 3,  'h' => 2,  'ratio' => 1.5 ),
-		array( 'w' => 2,  'h' => 3,  'ratio' => 0.6667 ),
-		array( 'w' => 4,  'h' => 3,  'ratio' => 1.3333 ),
-		array( 'w' => 3,  'h' => 4,  'ratio' => 0.75 ),
-		array( 'w' => 16, 'h' => 9,  'ratio' => 1.7778 ),
-		array( 'w' => 9,  'h' => 16, 'ratio' => 0.5625 ),
+		array(
+			'w' => 1,
+			'h' => 1,
+			'ratio' => 1.0,
+		),
+		array(
+			'w' => 3,
+			'h' => 2,
+			'ratio' => 1.5,
+		),
+		array(
+			'w' => 2,
+			'h' => 3,
+			'ratio' => 0.6667,
+		),
+		array(
+			'w' => 4,
+			'h' => 3,
+			'ratio' => 1.3333,
+		),
+		array(
+			'w' => 3,
+			'h' => 4,
+			'ratio' => 0.75,
+		),
+		array(
+			'w' => 16,
+			'h' => 9,
+			'ratio' => 1.7778,
+		),
+		array(
+			'w' => 9,
+			'h' => 16,
+			'ratio' => 0.5625,
+		),
 	);
 
 	/**
