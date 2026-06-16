@@ -141,7 +141,7 @@ $bulk_type = isset( $_GET['prautoblogger_bulk_type'] ) ? sanitize_text_field( wp
 						$quality_score = get_post_meta( $post_id, '_prautoblogger_quality_score', true );
 						$generated_at  = get_post_meta( $post_id, '_prautoblogger_generated_at', true );
 						$editor_notes  = get_post_meta( $post_id, '_prautoblogger_editor_notes', true );
-						$verdict_class = 'prautoblogger-verdict-' . sanitize_html_class( $verdict ?: 'pending' );
+						$verdict_class = 'prautoblogger-verdict-' . sanitize_html_class( $verdict ? $verdict : 'pending' );
 						?>
 						<tr data-post-id="<?php echo esc_attr( (string) $post_id ); ?>">
 							<td class="check-column">
@@ -158,9 +158,9 @@ $bulk_type = isset( $_GET['prautoblogger_bulk_type'] ) ? sanitize_text_field( wp
 									<div class="prautoblogger-editor-notes"><?php echo esc_html( $editor_notes ); ?></div>
 								<?php endif; ?>
 							</td>
-							<td><?php echo esc_html( $topic ?: '—' ); ?></td>
-							<td><?php echo esc_html( ucfirst( $article_type ?: 'article' ) ); ?></td>
-							<td><span class="<?php echo esc_attr( $verdict_class ); ?>"><?php echo esc_html( ucfirst( $verdict ?: 'pending' ) ); ?></span></td>
+							<td><?php echo esc_html( $topic ? $topic : '—' ); ?></td>
+							<td><?php echo esc_html( ucfirst( $article_type ? $article_type : 'article' ) ); ?></td>
+							<td><span class="<?php echo esc_attr( $verdict_class ); ?>"><?php echo esc_html( ucfirst( $verdict ? $verdict : 'pending' ) ); ?></span></td>
 							<td><?php echo '' !== $quality_score ? esc_html( $quality_score . '/10' ) : '—'; ?></td>
 							<td><?php echo $generated_at ? esc_html( wp_date( 'M j, g:i A', strtotime( $generated_at ) ) ) : '—'; ?></td>
 							<td class="prautoblogger-queue-actions">

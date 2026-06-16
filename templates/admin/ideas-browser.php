@@ -72,7 +72,8 @@ $base_url = admin_url( 'admin.php?page=prautoblogger-ideas' );
 			<tbody>
 				<?php foreach ( $rows as $row ) : ?>
 					<?php
-					$meta       = json_decode( $row['metadata_json'] ?? '{}', true ) ?: array();
+					$decoded    = json_decode( $row['metadata_json'] ?? '{}', true );
+					$meta       = is_array( $decoded ) ? $decoded : array();
 					$suggested  = $meta['suggested_title'] ?? '';
 					$key_points = $meta['key_points'] ?? array();
 					$keywords   = $meta['target_keywords'] ?? array();

@@ -108,7 +108,7 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 	}
 
 	$has_main_file = false;
-	for ( $i = 0; $i < $zip->numFiles; $i++ ) {
+	for ( $i = 0; $i < $zip->numFiles; $i++ ) { // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		if ( 'prautoblogger/prautoblogger.php' === $zip->getNameIndex( $i ) ) {
 			$has_main_file = true;
 			break;
@@ -200,7 +200,7 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 		sprintf(
 			'[PRAutoBlogger Deploy] Successfully deployed v%s (was: %s) at %s',
 			$incoming_version,
-			$old_version ?: 'fresh install',
+			$old_version ? $old_version : 'fresh install',
 			gmdate( 'Y-m-d H:i:s' )
 		)
 	);

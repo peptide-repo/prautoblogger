@@ -137,7 +137,7 @@ $errors = array();
 
 foreach ( $php_files as $php_path ) {
 	$raw = file_get_contents( $php_path );
-	if ( $raw === false ) {
+	if ( false === $raw ) {
 		fwrite( STDERR, "WARNING: cannot read {$php_path} -- skipping\n" );
 		continue;
 	}
@@ -198,7 +198,7 @@ foreach ( $php_files as $php_path ) {
 // 4. Report results.
 // -------------------------------------------------------------------------
 
-if ( $errors !== array() ) {
+if ( array() !== $errors ) {
 	fwrite( STDERR, "\nFAIL -- Unguarded undefined PRAUTOBLOGGER_* constants:\n\n" );
 	foreach ( $errors as [ $php_path, $lineno, $name, $line_text ] ) {
 		fwrite( STDERR, "  {$php_path}:{$lineno}: {$name}\n" );

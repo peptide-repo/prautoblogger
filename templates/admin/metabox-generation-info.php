@@ -27,19 +27,19 @@ $meta = array(
 <div class="prautoblogger-metabox">
 	<p>
 		<strong><?php esc_html_e( 'Generated:', 'prautoblogger' ); ?></strong>
-		<?php echo esc_html( $meta['generated_at'] ?: __( 'Unknown', 'prautoblogger' ) ); ?>
+		<?php echo esc_html( $meta['generated_at'] ? $meta['generated_at'] : __( 'Unknown', 'prautoblogger' ) ); ?>
 	</p>
 	<p>
 		<strong><?php esc_html_e( 'Topic:', 'prautoblogger' ); ?></strong>
-		<?php echo esc_html( $meta['topic'] ?: '—' ); ?>
+		<?php echo esc_html( $meta['topic'] ? $meta['topic'] : '—' ); ?>
 	</p>
 	<p>
 		<strong><?php esc_html_e( 'Type:', 'prautoblogger' ); ?></strong>
-		<?php echo esc_html( ucfirst( $meta['type'] ?: 'article' ) ); ?>
+		<?php echo esc_html( ucfirst( $meta['type'] ? $meta['type'] : 'article' ) ); ?>
 	</p>
 	<p>
 		<strong><?php esc_html_e( 'Model:', 'prautoblogger' ); ?></strong>
-		<?php echo esc_html( $meta['model'] ?: '—' ); ?>
+		<?php echo esc_html( $meta['model'] ? $meta['model'] : '—' ); ?>
 	</p>
 	<p>
 		<strong><?php esc_html_e( 'Pipeline:', 'prautoblogger' ); ?></strong>
@@ -47,8 +47,8 @@ $meta = array(
 	</p>
 	<p>
 		<strong><?php esc_html_e( 'Editor Verdict:', 'prautoblogger' ); ?></strong>
-		<span class="prautoblogger-verdict-<?php echo esc_attr( $meta['verdict'] ?: 'unknown' ); ?>">
-			<?php echo esc_html( ucfirst( $meta['verdict'] ?: __( 'Unknown', 'prautoblogger' ) ) ); ?>
+		<span class="prautoblogger-verdict-<?php echo esc_attr( $meta['verdict'] ? $meta['verdict'] : 'unknown' ); ?>">
+			<?php echo esc_html( ucfirst( $meta['verdict'] ? $meta['verdict'] : __( 'Unknown', 'prautoblogger' ) ) ); ?>
 		</span>
 	</p>
 	<?php if ( $meta['quality_score'] ) : ?>
@@ -69,7 +69,7 @@ $meta = array(
 	<?php if ( $meta['keywords'] ) : ?>
 		<p>
 			<strong><?php esc_html_e( 'Keywords:', 'prautoblogger' ); ?></strong>
-			<?php echo esc_html( implode( ', ', json_decode( $meta['keywords'], true ) ?: array() ) ); ?>
+			<?php echo esc_html( implode( ', ', ( json_decode( $meta['keywords'], true ) ? json_decode( $meta['keywords'], true ) : array() ) ) ); ?>
 		</p>
 	<?php endif; ?>
 </div>
