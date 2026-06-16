@@ -233,51 +233,10 @@ class PRAutoBlogger_OpenRouter_Image_Provider implements PRAutoBlogger_Image_Pro
 		);
 	}
 
-	/**
-	 * Supported aspect ratios for OpenRouter image models.
-	 *
-	 * @var array<int, array{w: int, h: int, ratio: float}>
-	 */
-	private const STANDARD_ASPECTS = array(
-		array(
-			'w'     => 1,
-			'h'     => 1,
-			'ratio' => 1.0,
-		),
-		array(
-			'w'     => 3,
-			'h'     => 2,
-			'ratio' => 1.5,
-		),
-		array(
-			'w'     => 2,
-			'h'     => 3,
-			'ratio' => 0.6667,
-		),
-		array(
-			'w'     => 4,
-			'h'     => 3,
-			'ratio' => 1.3333,
-		),
-		array(
-			'w'     => 3,
-			'h'     => 4,
-			'ratio' => 0.75,
-		),
-		array(
-			'w'     => 16,
-			'h'     => 9,
-			'ratio' => 1.7778,
-		),
-		array(
-			'w'     => 9,
-			'h'     => 16,
-			'ratio' => 0.5625,
-		),
-	);
+
 
 	private function build_request_body( string $prompt, int $width, int $height, string $model ): array {
-		$aspect = $this->snap_aspect_ratio( $width, $height );
+		$aspect = PRAutoBlogger_Image_Aspect_Ratio::snap( $width, $height );
 
 		return array(
 			'model'        => $model,
@@ -294,29 +253,6 @@ class PRAutoBlogger_OpenRouter_Image_Provider implements PRAutoBlogger_Image_Pro
 				'aspect_ratio' => $aspect,
 			),
 		);
-	}
-
-	/**
-	 * Snap pixel dimensions to the nearest supported aspect ratio string.
-	 *
-	 * @param int $width  Width in pixels.
-	 * @param int $height Height in pixels.
-	 * @return string Aspect ratio string like "16:9".
-	 */
-	private function snap_aspect_ratio( int $width, int $height ): string {
-		$target = $height > 0 ? (float) $width / (float) $height : 1.0;
-		$best   = self::STANDARD_ASPECTS[0];
-		$best_d = abs( $target - $best['ratio'] );
-
-		foreach ( self::STANDARD_ASPECTS as $candidate ) {
-			$d = abs( $target - $candidate['ratio'] );
-			if ( $d < $best_d ) {
-				$best   = $candidate;
-				$best_d = $d;
-			}
-		}
-
-		return $best['w'] . ':' . $best['h'];
 	}
 
 	/**

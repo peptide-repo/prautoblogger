@@ -10,6 +10,45 @@ and this project uses [Semantic Versioning](https://semver.org/).
 ### Internal
 - CI constants guard (`scripts/check-constants.php`): new required CI step (`Check PRAUTOBLOGGER_* constants`) fails the build when any `PRAUTOBLOGGER_*` constant referenced in shipped plugin PHP is neither defined in `prautoblogger.php` nor `defined()`-guarded at the reference site. Prevents a recurrence of the v0.19.0 admin-500 regression class.
 
+## [0.22.0] - 2026-06-16
+
+### Changed
+- **CI adopted estate standard (reusable workflow)**: `ci.yml` is now a thin
+  caller of `peptiderepo/peptide-e2e/.github/workflows/ci.yml@main` with
+  `tests: brain-monkey`. Removes duplicate per-repo lint, PHPCS, and PHPUnit
+  jobs (now provided by the reusable workflow). The phpcbf auto-fix commit-back
+  pattern (prautoblogger gold standard) is now the reusable implementation.
+- **Deploy gate upgraded**: `deploy.yml` no longer runs a standalone PHP-lint
+  validate job; it calls `./.github/workflows/ci.yml` (which includes the full
+  reusable suite) via `workflow_call`. This closes the gap where deploy's lint
+  gate was weaker than CI's PHPCS gate.
+- **Constants guard retained**: `check-constants` job kept as a second parallel
+  job in `ci.yml` alongside the reusable `ci` job. No regression from the
+  v0.19.0 protection.
+- **`composer.json` test script added**: `composer test` now runs
+  `vendor/bin/phpunit --testdox` (required by the reusable workflow's phpunit job).
+
+### Refactored (300-line rule compliance)
+- `PRAutoBlogger_Keyword_Extractor` (new, `core/class-keyword-extractor.php`):
+  shared keyword tokeniser extracted from `Idea_Scorer` and `Semantic_Dedup`;
+  both now delegate to `PRAutoBlogger_Keyword_Extractor::extract()`.
+- `PRAutoBlogger_Image_Aspect_Ratio` (new, `providers/class-image-aspect-ratio.php`):
+  aspect-ratio snap utility extracted from `OpenRouter_Image_Provider` and
+  `OpenRouter_Image_Batch`; both now call `PRAutoBlogger_Image_Aspect_Ratio::snap()`.
+- `PRAutoBlogger_Settings_Sanitizer` (new, `admin/class-settings-sanitizer.php`):
+  all option sanitization logic extracted from `Admin_Page::sanitize_field()`;
+  `Admin_Page` delegates via `PRAutoBlogger_Settings_Sanitizer::sanitize_field()`.
+- `PRAutoBlogger_Settings_Fields_Images` (new, `admin/class-settings-fields-images.php`):
+  image-section field definitions extracted from `Settings_Fields_Extended`;
+  `Settings_Fields_Extended::get_fields()` merges via array union.
+- `PRAutoBlogger_Runware_Validator` (new, `providers/class-runware-image-validator.php`):
+  `validate_credentials_detailed()` extracted from `Runware_Image_Provider`;
+  provider delegates via `PRAutoBlogger_Runware_Validator::validate()`.
+- `class-runware-image-batch.php`: 15 individual `phpcs:disable` lines collapsed
+  to a single grouped suppression (equivalent effect, saves 14 lines).
+- `class-open-router-image-provider.php`: `snap_aspect_ratio` private method and
+  `STANDARD_ASPECTS` constant removed (now handled by `Image_Aspect_Ratio`).
+
 ## [0.21.0] - 2026-06-14
 
 ### Added

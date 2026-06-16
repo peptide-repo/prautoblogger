@@ -1,23 +1,26 @@
 {
-"name": "peptiderepo/prautoblogger",
-"description": "WordPress plugin that auto-researches and publishes blog content using AI.",
-"type": "wordpress-plugin",
-"license": "GPL-2.0-or-later",
-"require": {
-"php": ">=7.4"
-},
-"require-dev": {
-"phpunit/phpunit": "^9.5",
-"brain/monkey": "^2.6"
-},
-"autoload": {
-"classmap": [
-"includes/"
-]
-},
-"autoload-dev": {
-"psr-4": {
-"PRAutoBlogger\\Tests\\": "tests/unit/"
-}
-}
+    "name": "peptiderepo/prautoblogger",
+    "description": "WordPress plugin that auto-researches and publishes blog content using AI.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=7.4"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5",
+        "brain/monkey": "^2.6"
+    },
+    "autoload": {
+        "classmap": [
+            "includes/"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PRAutoBlogger\\Tests\\": "tests/unit/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit --testdox"
+    }
 }

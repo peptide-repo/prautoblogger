@@ -2,19 +2,7 @@
 // phpcs:ignore WordPress.Files.FileName.InvalidClassFileName -- class naming convention differs from WordPress standard
 declare(strict_types=1);
 
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_init
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_setopt
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_close
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_errno
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_error
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_getinfo
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_multi_init
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_multi_add_handle
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_multi_exec
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_multi_select
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_multi_getcontent
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_multi_remove_handle
-// phpcs:disable WordPress.WP.AlternativeFunctions.curl_curl_multi_close
+// phpcs:disable WordPress.WP.AlternativeFunctions -- curl_multi required for parallel image generation; no WP HTTP equivalent.
 
 /**
  * Parallel image generation via curl_multi for Runware.

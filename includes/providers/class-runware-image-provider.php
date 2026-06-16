@@ -178,71 +178,14 @@ class PRAutoBlogger_Runware_Image_Provider implements PRAutoBlogger_Image_Provid
 	/**
 	 * {@inheritDoc}
 	 *
-	 * Runware has no dedicated "validate key" endpoint, so we send a minimal
-	 * authentication task and look for `taskType=authentication` in the
-	 * response data with no accompanying errors.
+	 * Delegates to PRAutoBlogger_Runware_Validator (extracted for 300-line compliance).
+	 *
+	 * @see providers/class-runware-image-validator.php
 	 */
 	public function validate_credentials_detailed(): array {
-		try {
-			$api_key = $this->support->get_api_key();
-		} catch ( \RuntimeException $e ) {
-			return array(
-				'status'  => 'error',
-				'message' => $e->getMessage(),
-			);
-		}
-
-		$body = array(
-			array(
-				'taskType' => 'authentication',
-				'apiKey'   => $api_key,
-			),
-		);
-
-		$response = wp_remote_post(
-			PRAutoBlogger_Runware_Image_Support::API_URL,
-			array(
-				'timeout' => 15,
-				'headers' => array( 'Content-Type' => 'application/json' ),
-				'body'    => wp_json_encode( $body ),
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return array(
-				'status'  => 'error',
-				'message' => __( 'Could not reach Runware API.', 'prautoblogger' ),
-				'debug'   => $response->get_error_message(),
-			);
-		}
-
-		$status = (int) wp_remote_retrieve_response_code( $response );
-		$raw    = (string) wp_remote_retrieve_body( $response );
-
-		if ( 200 !== $status ) {
-			return array(
-				'status'  => 'error',
-				'message' => sprintf( __( 'Runware returned HTTP %d.', 'prautoblogger' ), $status ),
-				'debug'   => substr( $raw, 0, 200 ),
-			);
-		}
-
-		$decoded = json_decode( $raw, true );
-		if ( is_array( $decoded ) && isset( $decoded['errors'] ) && ! empty( $decoded['errors'] ) ) {
-			$first = $decoded['errors'][0] ?? array();
-			$msg   = is_array( $first ) ? (string) ( $first['message'] ?? '' ) : (string) $first;
-			return array(
-				'status'  => 'error',
-				'message' => __( 'Runware rejected the API key.', 'prautoblogger' ),
-				'debug'   => substr( $msg, 0, 200 ),
-			);
-		}
-
-		return array(
-			'status'  => 'ok',
-			'message' => __( 'Runware API key valid.', 'prautoblogger' ),
-		);
+		return PRAutoBlogger_Runware_Validator::validate( $this->support );
 	}
+
 
 	/**
 	 * Build the JSON task-array body for a single imageInference request.

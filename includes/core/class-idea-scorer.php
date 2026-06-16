@@ -11,9 +11,10 @@ declare(strict_types=1);
  * API is unavailable.
  *
  * Triggered by: PRAutoBlogger_Pipeline_Runner (step 3).
- * Dependencies: Semantic_Dedup, WP_Query.
+ * Dependencies: Semantic_Dedup, Keyword_Extractor, WP_Query.
  *
- * @see core/class-semantic-dedup.php    — Embedding + keyword dedup engine.
+ * @see core/class-semantic-dedup.php      — Embedding + keyword dedup engine.
+ * @see core/class-keyword-extractor.php  — Keyword tokeniser (fallback dedup).
  * @see core/class-content-analyzer.php  — Produces the analysis results we consume.
  * @see core/class-content-generator.php — Consumes the ranked ideas we produce.
  * @see ARCHITECTURE.md                  — Data flow step 3.
@@ -67,7 +68,7 @@ class PRAutoBlogger_Idea_Scorer {
 
 			if ( ! $this->skip_dedup ) {
 				$topic          = $result->get_topic();
-				$topic_keywords = $this->extract_meaningful_keywords( $topic );
+				$topic_keywords = PRAutoBlogger_Keyword_Extractor::extract( $topic );
 
 				if ( $dedup->is_batch_duplicate( $topic, $topic_keywords, $accepted_keyword_sets ) ) {
 					++$deduped_count;
@@ -163,133 +164,6 @@ class PRAutoBlogger_Idea_Scorer {
 			}
 		}
 		return false;
-	}
-
-	/**
-	 * Extract meaningful keywords from a text string (for fallback dedup).
-	 *
-	 * @param string $text Input text.
-	 * @return string[] Unique lowercase keywords.
-	 */
-	private function extract_meaningful_keywords( string $text ): array {
-		static $stopwords = array(
-			'a',
-			'an',
-			'the',
-			'and',
-			'or',
-			'but',
-			'is',
-			'are',
-			'was',
-			'were',
-			'in',
-			'on',
-			'at',
-			'to',
-			'for',
-			'of',
-			'with',
-			'by',
-			'from',
-			'as',
-			'it',
-			'its',
-			'this',
-			'that',
-			'your',
-			'you',
-			'how',
-			'what',
-			'when',
-			'why',
-			'where',
-			'which',
-			'who',
-			'do',
-			'does',
-			'did',
-			'not',
-			'no',
-			'can',
-			'will',
-			'should',
-			'could',
-			'would',
-			'may',
-			'might',
-			'have',
-			'has',
-			'had',
-			'be',
-			'been',
-			'being',
-			'about',
-			'into',
-			'through',
-			'during',
-			'before',
-			'after',
-			'above',
-			'below',
-			'between',
-			'same',
-			'up',
-			'down',
-			'out',
-			'off',
-			'over',
-			'under',
-			'again',
-			'then',
-			'here',
-			'there',
-			'all',
-			'each',
-			'every',
-			'both',
-			'few',
-			'more',
-			'most',
-			'other',
-			'some',
-			'such',
-			'than',
-			'too',
-			'very',
-			'just',
-			'also',
-			'only',
-			'own',
-			'so',
-			'if',
-			'while',
-			'because',
-			'until',
-			'vs',
-			'versus',
-			'guide',
-			'complete',
-			'ultimate',
-			'best',
-			'top',
-			'new',
-			'first',
-			'need',
-			'know',
-			'everything',
-		);
-
-		$text  = strtolower( $text );
-		$words = preg_split( '/[^a-z0-9-]+/', $text, -1, PREG_SPLIT_NO_EMPTY );
-		$words = array_filter(
-			$words,
-			static function ( string $w ) use ( $stopwords ): bool {
-				return strlen( $w ) >= 2 && ! in_array( $w, $stopwords, true );
-			}
-		);
-
-		return array_values( array_unique( $words ) );
 	}
 
 	/**
