@@ -35,7 +35,8 @@ class PRAutoBlogger_Settings_Fields_Extended {
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function get_fields(): array {
-		return array(
+		return array_merge(
+			array(
 			// ── Sources (extended) ──────────────────────────────────────
 			array(
 				'id'          => 'prautoblogger_research_model',
@@ -220,6 +221,7 @@ class PRAutoBlogger_Settings_Fields_Extended {
 				'default'     => '1',
 				'description' => __( 'Add visible borders, padding, and alternating row colors to tables in generated articles.', 'prautoblogger' ),
 			),
-		) + PRAutoBlogger_Settings_Fields_Images::get_fields();
+			), PRAutoBlogger_Settings_Fields_Images::get_fields()
+		);
 	}
 }
