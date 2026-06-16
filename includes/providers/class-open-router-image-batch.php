@@ -262,56 +262,7 @@ class PRAutoBlogger_OpenRouter_Image_Batch {
 	 * @return array<string, mixed>
 	 */
 	private function build_request_body( string $prompt, int $width, int $height, string $model ): array {
-		$target = $height > 0 ? (float) $width / (float) $height : 1.0;
-
-		// Snap to nearest standard aspect ratio.
-		$aspects = array(
-			array(
-				'w' => 1,
-				'h' => 1,
-				'r' => 1.0,
-			),
-			array(
-				'w' => 3,
-				'h' => 2,
-				'r' => 1.5,
-			),
-			array(
-				'w' => 2,
-				'h' => 3,
-				'r' => 0.6667,
-			),
-			array(
-				'w' => 4,
-				'h' => 3,
-				'r' => 1.3333,
-			),
-			array(
-				'w' => 3,
-				'h' => 4,
-				'r' => 0.75,
-			),
-			array(
-				'w' => 16,
-				'h' => 9,
-				'r' => 1.7778,
-			),
-			array(
-				'w' => 9,
-				'h' => 16,
-				'r' => 0.5625,
-			),
-		);
-		$best    = $aspects[0];
-		$best_d  = abs( $target - $best['r'] );
-		foreach ( $aspects as $c ) {
-			$d = abs( $target - $c['r'] );
-			if ( $d < $best_d ) {
-				$best   = $c;
-				$best_d = $d;
-			}
-		}
-		$aspect = $best['w'] . ':' . $best['h'];
+		$aspect = PRAutoBlogger_Image_Aspect_Ratio::snap( $width, $height );
 
 		return array(
 			'model'        => $model,

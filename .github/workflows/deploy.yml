@@ -9,28 +9,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
-    name: PHP Lint Gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-          coverage: none
-      - name: PHP Lint Check
-        run: |
-          set -e
-          find . -name '*.php' \
-            -not -path './vendor/*' \
-            -not -path './node_modules/*' \
-            -not -path './.git/*' \
-            -not -path './.github/*' \
-            -print0 | xargs -0 -n1 -P4 php -l > /dev/null
+  ci:
+    name: CI Gate (reusable)
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: write
+    secrets: inherit
 
   deploy:
     name: Deploy (shared pipeline)
-    needs: validate
+    needs: ci
     uses: peptiderepo/peptide-e2e/.github/workflows/deploy-app.yml@main
     with:
       target_path: wp-content/plugins/prautoblogger

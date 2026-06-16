@@ -72,10 +72,11 @@ $base_url = admin_url( 'admin.php?page=prautoblogger-ideas' );
 			<tbody>
 				<?php foreach ( $rows as $row ) : ?>
 					<?php
-					$meta       = json_decode( $row['metadata_json'] ?? '{}', true ) ?: [];
+					$decoded    = json_decode( $row['metadata_json'] ?? '{}', true );
+					$meta       = is_array( $decoded ) ? $decoded : array();
 					$suggested  = $meta['suggested_title'] ?? '';
-					$key_points = $meta['key_points'] ?? [];
-					$keywords   = $meta['target_keywords'] ?? [];
+					$key_points = $meta['key_points'] ?? array();
+					$keywords   = $meta['target_keywords'] ?? array();
 					$score_pct  = round( (float) $row['relevance_score'] * 100 );
 					$type_label = ucfirst( $row['analysis_type'] ?? 'unknown' );
 					$type_class = 'prab-type-' . sanitize_html_class( $row['analysis_type'] );
@@ -164,14 +165,18 @@ $base_url = admin_url( 'admin.php?page=prautoblogger-ideas' );
 		<?php if ( $total_pages > 1 ) : ?>
 			<div class="prautoblogger-pagination" style="margin-top: 12px;">
 				<?php
-				echo wp_kses_post( paginate_links( [
-					'base'      => add_query_arg( 'paged', '%#%' ),
-					'format'    => '',
-					'current'   => $paged,
-					'total'     => $total_pages,
-					'prev_text' => '&laquo;',
-					'next_text' => '&raquo;',
-				] ) );
+				echo wp_kses_post(
+					paginate_links(
+						array(
+							'base'      => add_query_arg( 'paged', '%#%' ),
+							'format'    => '',
+							'current'   => $paged,
+							'total'     => $total_pages,
+							'prev_text' => '&laquo;',
+							'next_text' => '&raquo;',
+						)
+					)
+				);
 				?>
 			</div>
 		<?php endif; ?>

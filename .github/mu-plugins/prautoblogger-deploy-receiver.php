@@ -35,25 +35,33 @@ add_action( 'rest_api_init', 'prautoblogger_deploy_register_route' );
  * Register the deploy REST route.
  */
 function prautoblogger_deploy_register_route(): void {
-	register_rest_route( 'prautoblogger-deploy/v1', '/deploy', [
-		'methods'             => 'POST',
-		'callback'            => 'prautoblogger_deploy_handle',
-		'permission_callback' => 'prautoblogger_deploy_check_auth',
-	] );
+	register_rest_route(
+		'prautoblogger-deploy/v1',
+		'/deploy',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'prautoblogger_deploy_handle',
+			'permission_callback' => 'prautoblogger_deploy_check_auth',
+		)
+	);
 
 	// Health check endpoint (GET) — useful for monitoring.
-	register_rest_route( 'prautoblogger-deploy/v1', '/status', [
-		'methods'             => 'GET',
-		'callback'            => function () {
-			return [
-				'status'  => 'ready',
-				'plugin'  => is_dir( WP_PLUGIN_DIR . '/prautoblogger' ) ? 'installed' : 'not_installed',
-				'active'  => is_plugin_active( 'prautoblogger/prautoblogger.php' ),
-				'version' => prautoblogger_deploy_get_installed_version(),
-			];
-		},
-		'permission_callback' => 'prautoblogger_deploy_check_auth',
-	] );
+	register_rest_route(
+		'prautoblogger-deploy/v1',
+		'/status',
+		array(
+			'methods'             => 'GET',
+			'callback'            => function () {
+				return array(
+					'status'  => 'ready',
+					'plugin'  => is_dir( WP_PLUGIN_DIR . '/prautoblogger' ) ? 'installed' : 'not_installed',
+					'active'  => is_plugin_active( 'prautoblogger/prautoblogger.php' ),
+					'version' => prautoblogger_deploy_get_installed_version(),
+				);
+			},
+			'permission_callback' => 'prautoblogger_deploy_check_auth',
+		)
+	);
 }
 
 /**
@@ -78,7 +86,7 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 		return new WP_Error(
 			'rate_limited',
 			'Deploy in progress or recently completed. Wait 60 seconds.',
-			[ 'status' => 429 ]
+			array( 'status' => 429 )
 		);
 	}
 	set_transient( 'prautoblogger_deploy_lock', time(), 60 );
@@ -87,7 +95,7 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 	$files = $request->get_file_params();
 	if ( empty( $files['plugin']['tmp_name'] ) || ! is_uploaded_file( $files['plugin']['tmp_name'] ) ) {
 		delete_transient( 'prautoblogger_deploy_lock' );
-		return new WP_Error( 'no_file', 'No plugin zip uploaded.', [ 'status' => 400 ] );
+		return new WP_Error( 'no_file', 'No plugin zip uploaded.', array( 'status' => 400 ) );
 	}
 
 	$tmp_file = $files['plugin']['tmp_name'];
@@ -96,11 +104,11 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 	$zip = new ZipArchive();
 	if ( true !== $zip->open( $tmp_file ) ) {
 		delete_transient( 'prautoblogger_deploy_lock' );
-		return new WP_Error( 'invalid_zip', 'Uploaded file is not a valid zip.', [ 'status' => 400 ] );
+		return new WP_Error( 'invalid_zip', 'Uploaded file is not a valid zip.', array( 'status' => 400 ) );
 	}
 
 	$has_main_file = false;
-	for ( $i = 0; $i < $zip->numFiles; $i++ ) {
+	for ( $i = 0; $i < $zip->numFiles; $i++ ) { // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		if ( 'prautoblogger/prautoblogger.php' === $zip->getNameIndex( $i ) ) {
 			$has_main_file = true;
 			break;
@@ -113,7 +121,7 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 		return new WP_Error(
 			'invalid_plugin',
 			'Zip must contain prautoblogger/prautoblogger.php at root.',
-			[ 'status' => 400 ]
+			array( 'status' => 400 )
 		);
 	}
 
@@ -143,7 +151,7 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 				activate_plugin( 'prautoblogger/prautoblogger.php' );
 			}
 			delete_transient( 'prautoblogger_deploy_lock' );
-			return new WP_Error( 'backup_failed', 'Could not backup current plugin.', [ 'status' => 500 ] );
+			return new WP_Error( 'backup_failed', 'Could not backup current plugin.', array( 'status' => 500 ) );
 		}
 	}
 
@@ -161,7 +169,7 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 		}
 		delete_transient( 'prautoblogger_deploy_lock' );
 		error_log( '[PRAutoBlogger Deploy] Extraction failed. Rolled back to previous version.' );
-		return new WP_Error( 'extract_failed', 'Zip extraction failed. Rolled back.', [ 'status' => 500 ] );
+		return new WP_Error( 'extract_failed', 'Zip extraction failed. Rolled back.', array( 'status' => 500 ) );
 	}
 
 	// 7. Activate plugin.
@@ -178,7 +186,7 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 		return new WP_Error(
 			'activation_failed',
 			'Plugin activation failed: ' . $activation_result->get_error_message() . '. Rolled back.',
-			[ 'status' => 500 ]
+			array( 'status' => 500 )
 		);
 	}
 
@@ -188,18 +196,23 @@ function prautoblogger_deploy_handle( WP_REST_Request $request ): WP_REST_Respon
 	}
 
 	$old_version = prautoblogger_deploy_get_installed_version();
-	error_log( sprintf(
-		'[PRAutoBlogger Deploy] Successfully deployed v%s (was: %s) at %s',
-		$incoming_version,
-		$old_version ?: 'fresh install',
-		gmdate( 'Y-m-d H:i:s' )
-	) );
+	error_log(
+		sprintf(
+			'[PRAutoBlogger Deploy] Successfully deployed v%s (was: %s) at %s',
+			$incoming_version,
+			$old_version ? $old_version : 'fresh install',
+			gmdate( 'Y-m-d H:i:s' )
+		)
+	);
 
-	return new WP_REST_Response( [
-		'success' => true,
-		'version' => $incoming_version,
-		'message' => "PRAutoBlogger v{$incoming_version} deployed and activated.",
-	], 200 );
+	return new WP_REST_Response(
+		array(
+			'success' => true,
+			'version' => $incoming_version,
+			'message' => "PRAutoBlogger v{$incoming_version} deployed and activated.",
+		),
+		200
+	);
 }
 
 /**
@@ -210,7 +223,7 @@ function prautoblogger_deploy_get_installed_version(): string {
 	if ( ! file_exists( $main_file ) ) {
 		return '';
 	}
-	$data = get_file_data( $main_file, [ 'Version' => 'Version' ] );
+	$data = get_file_data( $main_file, array( 'Version' => 'Version' ) );
 	return $data['Version'] ?? '';
 }
 
