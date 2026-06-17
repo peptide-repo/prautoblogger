@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   ci:
-    uses: peptiderepo/peptide-e2e/.github/workflows/ci.yml@main
+    uses: peptide-repo/peptide-e2e/.github/workflows/ci.yml@main
     with:
       tests: brain-monkey
     secrets: inherit
