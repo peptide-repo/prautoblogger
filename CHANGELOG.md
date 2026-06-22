@@ -17,14 +17,54 @@ and this project uses [Semantic Versioning](https://semver.org/).
   reset-to-default available. Active version shown per panel. Writer panel marks
   inactive sub-stage prompts. No existing Settings sections changed in M1 (both
   surfaces edit the same options / prompts table).
-- **`get_stages_for_setting()` extended:** `prautoblogger_research_model →
-  [research, llm_research]` and `prautoblogger_image_model → [image_a, image_b]`
-  added so cost-preview on the Pipeline page reflects stage-accurate historical
-  token usage.
+- **`get_stages_for_setting()` extended (text→text only):** `prautoblogger_research_model →
+  [research, llm_research]` added for stage-accurate cost-preview. Image model
+  cost preview intentionally omitted (shows static $/image price in picker trigger
+  instead — token-based formula does not apply).
 - New files: `includes/admin/class-pipeline-settings-page.php`,
   `class-pipeline-settings-renderer.php`, `class-pipeline-settings-save-handler.php`,
   `class-pipeline-settings-step-map.php`; `assets/css/pipeline-settings.css`;
-  `assets/js/pipeline-settings.js`; `templates/admin/pipeline-settings-page.php`.
+  `assets/js/pipeline-settings.js`; `templates/admin/pipeline-settings-page.php`;
+  `CONTEXT.md` (domain glossary, DoD v1.2.0 §7).
+
+### Fixed (QA REQUEST-CHANGES — commit e6550e1)
+- **Model save POST key (P1-1):** `handle_model_save()` now reads the model value
+  from `$_POST[$option_name]` — the key that `PRAutoBlogger_OpenRouter_Model_Field::render()`
+  emits as `<input name="$option_name">` and that `model-picker.js` writes to by DOM id.
+  The old code read `$_POST['model_id']`, which was never present in the POST body,
+  silently overwriting the stored model with an empty string on every "Save Model" click.
+  Removed the dead `prautoblogger:model_selected` event listener in `pipeline-settings.js`
+  (the event was never fired by `model-picker.js`).
+- **Renderer: no business logic in template (P2-3):** `PRAutoBlogger_Cost_Reporter`
+  instantiation moved from `pipeline-settings-page.php` template into
+  `Renderer::render()`; template now receives `$view['monthly_spend']` and
+  `$view['budget']` as plain scalars.
+- **Renderer: dead DB query removed (P2-2):** `$all_versions` assignment in
+  `build_step_data()` removed (it triggered a `SELECT * FROM wp_prautoblogger_prompts`
+  query on every page load but the result was never used).
+- **Image cost-preview dead config resolved (P2-1):** Removed unreachable
+  `prautoblogger_image_model → [image_a, image_b]` map entry from
+  `get_stages_for_setting()` and added a comment explaining the intentional design.
+
+### Docs
+- **CONVENTIONS.md (P1-2):** Added `## How To: Add a New Pipeline-Style Admin Page`
+  section documenting the four-class split, registration priority, renderer contract,
+  POST key convention for the model picker, nonce/cap pattern, allowlist enforcement,
+  prompt key slug round-trip, and test requirements.
+- **CONTEXT.md (P2-4):** Created root domain glossary covering all new Pipeline
+  Settings terms (step, step rail, step panel, pipeline-ui, system instruction,
+  agent prompt, system_key, agent_key, prompt key, prompt slug, reset-to-default,
+  step map, save handler) and prior prompt-registry terms.
+
+### Tests
+- **PHPUnit (P1-3):** Added `tests/unit/Admin/PipelineSettingsSaveHandlerTest.php`
+  covering allowlist enforcement (unknown option/slug rejected), correct POST key
+  reading (`$_POST[$option_name]` not `$_POST['model_id']`), capability gate,
+  nonce gate, and GET idle return.
+- **PHPUnit (P1-3):** Added `tests/unit/Admin/PipelineSettingsStepMapTest.php`
+  covering `allowed_prompt_keys()` / `allowed_model_options()` regression guards,
+  step field completeness, unique step ids, slug round-trip for simple and
+  underscore-containing keys, and `find()` behaviour.
 
 ## [Unreleased - Internal]
 

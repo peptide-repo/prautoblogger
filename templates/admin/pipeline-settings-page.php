@@ -10,6 +10,8 @@
  *   string  $view['nonce_action'] — nonce action string.
  *   string  $view['page_slug']    — pipeline page slug.
  *   array   $view['step_data']    — assembled view data for the active step.
+ *   float   $view['monthly_spend']— current month's LLM spend in USD.
+ *   float   $view['budget']       — configured monthly budget cap in USD.
  *
  * Prompt panels are rendered via the pipeline-settings-prompt-panel.php partial.
  *
@@ -28,12 +30,10 @@ $nonce_field  = $view['nonce_field'];
 $nonce_action = $view['nonce_action'];
 $page_slug    = $view['page_slug'];
 $step_data    = $view['step_data'];
+$monthly_spend = $view['monthly_spend'];
+$budget        = $view['budget'];
 
 $base_url = admin_url( 'admin.php?page=' . rawurlencode( $page_slug ) );
-
-$cost_reporter = new PRAutoBlogger_Cost_Reporter();
-$monthly_spend = $cost_reporter->get_monthly_spend();
-$budget        = (float) get_option( 'prautoblogger_monthly_budget_usd', 50.00 );
 ?>
 <div class="wrap ab-wrap pab-pipeline-wrap">
 

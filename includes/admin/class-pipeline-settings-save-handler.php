@@ -15,6 +15,9 @@ declare(strict_types=1);
  *       Saving a prompt NEVER mutates the existing version — it creates a
  *       new one (the registry's core invariant). A "reset to default" POST
  *       creates a new version with the canonical default body.
+ *       Model values are read from the POST key that matches the option name
+ *       (e.g. $_POST['prautoblogger_research_model']), which is the hidden
+ *       input name that PRAutoBlogger_OpenRouter_Model_Field::render() emits.
  *       Prompt keys arrive as a slug-encoded form value that is matched
  *       against the allowlist; the raw POST value is never used as a key
  *       before allowlist validation.
@@ -26,6 +29,7 @@ declare(strict_types=1);
  *               PRAutoBlogger_Prompt_Registry (default_body, flush_cache).
  *
  * @see admin/class-pipeline-settings-step-map.php — Allowed key definitions.
+ * @see admin/fields/class-open-router-model-field.php — Emits name="$option_name" hidden input.
  * @see core/class-prompt-registry-writer.php       — Immutable version writes.
  * @see core/class-prompt-registry.php              — Read side + default_body.
  */
@@ -87,13 +91,18 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 	/**
 	 * Persist a model selection for one step.
 	 *
-	 * Only the allowlisted model option names from Step_Map may be updated.
+	 * The model value is read from $_POST[$option_name] — the same key that
+	 * PRAutoBlogger_OpenRouter_Model_Field::render($option_name, ...) emits as
+	 * <input type="hidden" name="$option_name" ...>. model-picker.js writes to
+	 * that hidden input directly via DOM id, so the value is present under the
+	 * option-name key in the submitted POST body.
+	 *
+	 * Only allowlisted model option names from Step_Map may be updated.
 	 *
 	 * @return array{status: string, message: string}
 	 */
 	private static function handle_model_save(): array {
 		$option_name = isset( $_POST['model_option'] ) ? sanitize_key( $_POST['model_option'] ) : '';
-		$model_id    = isset( $_POST['model_id'] ) ? sanitize_text_field( wp_unslash( $_POST['model_id'] ) ) : '';
 
 		if ( ! in_array( $option_name, PRAutoBlogger_Pipeline_Settings_Step_Map::allowed_model_options(), true ) ) {
 			return array(
@@ -101,6 +110,15 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 				'message' => __( 'Unknown model option.', 'prautoblogger' ),
 			);
 		}
+
+		// Read the value from the named hidden input that render() produced.
+		// PRAutoBlogger_OpenRouter_Model_Field::render($id, ...) emits:
+		//   <input type="hidden" id="$id" name="$id" value="..." />
+		// model-picker.js writes the chosen model to that input by DOM id,
+		// so the form posts under the option name, not a separate 'model_id' key.
+		$model_id = isset( $_POST[ $option_name ] )
+			? sanitize_text_field( wp_unslash( $_POST[ $option_name ] ) )
+			: '';
 
 		// For the image model, delegate to the same sanitizer logic as
 		// PRAutoBlogger_Settings_Sanitizer to derive + store provider consistently.

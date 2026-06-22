@@ -28,6 +28,9 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 	/**
 	 * Build the view-data array and include the page template.
 	 *
+	 * Gathers budget and spend data here so the template receives plain scalars
+	 * and performs no business-logic instantiation of its own.
+	 *
 	 * @param array{status: string, message: string} $save_result Result from save handler.
 	 * @return void
 	 */
@@ -36,14 +39,21 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 		$steps       = PRAutoBlogger_Pipeline_Settings_Step_Map::steps();
 		$step        = PRAutoBlogger_Pipeline_Settings_Step_Map::find( $active_step ) ?? $steps[0];
 
+		// Gather cost-header data in the renderer so the template stays logic-free.
+		$cost_reporter = new PRAutoBlogger_Cost_Reporter();
+		$monthly_spend = $cost_reporter->get_monthly_spend();
+		$budget        = (float) get_option( 'prautoblogger_monthly_budget_usd', 50.00 );
+
 		$view = array(
-			'steps'        => $steps,
-			'active_step'  => $step,
-			'save_result'  => $save_result,
-			'nonce_field'  => PRAutoBlogger_Pipeline_Settings_Page::NONCE_FIELD,
-			'nonce_action' => PRAutoBlogger_Pipeline_Settings_Page::NONCE_ACTION,
-			'page_slug'    => PRAutoBlogger_Pipeline_Settings_Page::PAGE_SLUG,
-			'step_data'    => $this->build_step_data( $step ),
+			'steps'         => $steps,
+			'active_step'   => $step,
+			'save_result'   => $save_result,
+			'nonce_field'   => PRAutoBlogger_Pipeline_Settings_Page::NONCE_FIELD,
+			'nonce_action'  => PRAutoBlogger_Pipeline_Settings_Page::NONCE_ACTION,
+			'page_slug'     => PRAutoBlogger_Pipeline_Settings_Page::PAGE_SLUG,
+			'step_data'     => $this->build_step_data( $step ),
+			'monthly_spend' => $monthly_spend,
+			'budget'        => $budget,
 		);
 
 		include PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/pipeline-settings-page.php';
@@ -56,8 +66,7 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 	 * @return array<string, mixed> View data for the step panel.
 	 */
 	public function build_step_data( array $step ): array {
-		$defs         = PRAutoBlogger_Prompt_Registry::defs();
-		$all_versions = PRAutoBlogger_Prompt_Registry_Writer::list_versions( $step['system_key'] ?? '' );
+		$defs                = PRAutoBlogger_Prompt_Registry::defs();
 		$active_versions_map = PRAutoBlogger_Prompt_Registry::active_versions();
 
 		// Model info.

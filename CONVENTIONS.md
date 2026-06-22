@@ -572,3 +572,117 @@ public function on_enqueue_assets( string $hook_suffix ): void {
     // ... enqueue
 }
 ```
+
+---
+
+## How To: Add a New Pipeline-Style Admin Page
+
+Use this pattern when a page needs per-step or multi-section rendering with
+a separate save-handler (i.e. when the page is too complex for a single-class
+approach). The Pipeline Settings page (`prautoblogger-pipeline`) is the
+canonical reference.
+
+### Four-class split
+
+| Class | File | Responsibility |
+|-------|------|---------------|
+| `PRAutoBlogger_{Name}_Page` | `class-{name}-page.php` | Registration, asset enqueue, render entry-point. Delegates immediately. |
+| `PRAutoBlogger_{Name}_Renderer` | `class-{name}-renderer.php` | Gathers ALL view data (options, spend, computed values). Passes a typed `$view` array to the template. No raw echo; no DB writes. |
+| `PRAutoBlogger_{Name}_Save_Handler` | `class-{name}-save-handler.php` | Stateless. Verifies nonce + capability, sanitises input against an allowlist, persists. Returns `{status, message}`. Called before output starts. |
+| `PRAutoBlogger_{Name}_Step_Map` | `class-{name}-step-map.php` | Single source of truth for step metadata and key allowlists. Read by both Renderer and Save_Handler. |
+
+### Registration priority
+
+The page submenu must register AFTER the parent menu. Convention:
+- Parent menu: priority 10 (`PRAutoBlogger_Admin_Page`)
+- Board: priority 11
+- Dossier: priority 12
+- Pipeline: priority 13
+- Next pipeline-style page: priority 14+
+
+### Renderer contract (non-negotiable)
+
+The renderer must gather **all** data the template needs — including service
+objects like `PRAutoBlogger_Cost_Reporter` — so the template receives only
+plain scalars and arrays:
+
+```php
+// In Renderer::render():
+$cost_reporter = new PRAutoBlogger_Cost_Reporter();
+$view['monthly_spend'] = $cost_reporter->get_monthly_spend();
+$view['budget']        = (float) get_option( 'prautoblogger_monthly_budget_usd', 50.00 );
+```
+
+**Never** instantiate service objects inside a template. The template must be
+a logic-free view layer.
+
+### Save-handler model-field POST key
+
+`PRAutoBlogger_OpenRouter_Model_Field::render($id, ...)` emits:
+```html
+<input type="hidden" id="$id" name="$id" value="..." />
+```
+`model-picker.js` writes the selected model to that input **by DOM id**, so
+the form posts the value under the option name, not a separate `model_id` key.
+In the save handler, read:
+```php
+$model_id = isset( $_POST[ $option_name ] )
+    ? sanitize_text_field( wp_unslash( $_POST[ $option_name ] ) )
+    : '';
+```
+Do **not** read `$_POST['model_id']` — that key is never present.
+
+### Nonce / capability pattern
+
+```php
+// 1. Check method (bail silently if not POST or nonce field absent).
+if ( 'POST' !== $_SERVER['REQUEST_METHOD'] ) { return $idle; }
+if ( empty( $_POST[ NONCE_FIELD ] ) )        { return $idle; }
+
+// 2. Capability BEFORE nonce (avoids timing oracle for unauthenticated users).
+if ( ! current_user_can( 'manage_options' ) ) { return error; }
+
+// 3. Verify nonce.
+if ( ! wp_verify_nonce( ... ) ) { return error; }
+```
+
+### Allowlist enforcement
+
+All POST keys that map to DB writes (model option names, prompt keys) must be
+validated against a static allowlist before use. Define the allowlist on
+`Step_Map` and call it from the save handler:
+
+```php
+if ( ! in_array( $option_name, PRAutoBlogger_{Name}_Step_Map::allowed_model_options(), true ) ) {
+    return array( 'status' => 'error', 'message' => __( 'Unknown model option.', 'prautoblogger' ) );
+}
+```
+
+### Prompt key slug round-trip
+
+Form fields carry dots as hyphens (`content.single_pass` → `content-single-pass`)
+because HTML name attributes cannot contain dots in some contexts. Use
+`sanitize_key( str_replace( '.', '-', $key ) )` to compare, not string parsing:
+
+```php
+private static function resolve_key_from_slug( string $slug ): ?string {
+    foreach ( Step_Map::allowed_prompt_keys() as $key ) {
+        if ( sanitize_key( str_replace( '.', '-', $key ) ) === $slug ) {
+            return $key;
+        }
+    }
+    return null;
+}
+```
+
+### Tests
+
+Every pipeline-style page must have PHPUnit coverage for:
+- `Save_Handler`: allowlist enforcement (valid + invalid keys/options), correct
+  option persistence, prompt versioning (`create_version()` called with correct
+  key and `$activate = true`), `resolve_key_from_slug()` round-trip.
+- `Step_Map`: `allowed_prompt_keys()` and `allowed_model_options()` regression
+  guards so keys do not drift from the registry.
+
+Place tests under `tests/unit/Admin/PipelineSettings*Test.php`, extending
+`PRAutoBlogger\Tests\BaseTestCase`.
