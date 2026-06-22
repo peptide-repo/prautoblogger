@@ -65,6 +65,15 @@ and this project uses [Semantic Versioning](https://semver.org/).
   covering `allowed_prompt_keys()` / `allowed_model_options()` regression guards,
   step field completeness, unique step ids, slug round-trip for simple and
   underscore-containing keys, and `find()` behaviour.
+- **PHPUnit fix:** Removed invalid `Brain\Monkey\Functions\when()` stub for
+  `PRAutoBlogger_Prompt_Registry_Writer::create_version` in
+  `PipelineSettingsSaveHandlerTest::test_handle_prompt_save_rejects_unknown_slug`.
+  Brain\Monkey's `Functions\when()` stubs only global PHP functions, not static
+  class methods; the stub was also unnecessary because the allowlist rejection
+  returns before `create_version()` is ever reached.
+- **CONVENTIONS.md fix:** Corrected slug example for keys containing underscores:
+  `content.single_pass` → `content-single_pass` (not `content-single-pass`);
+  `sanitize_key()` preserves underscores so the round-trip is unambiguous.
 
 ## [Unreleased - Internal]
 

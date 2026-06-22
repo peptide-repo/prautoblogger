@@ -660,9 +660,11 @@ if ( ! in_array( $option_name, PRAutoBlogger_{Name}_Step_Map::allowed_model_opti
 
 ### Prompt key slug round-trip
 
-Form fields carry dots as hyphens (`content.single_pass` → `content-single-pass`)
-because HTML name attributes cannot contain dots in some contexts. Use
-`sanitize_key( str_replace( '.', '-', $key ) )` to compare, not string parsing:
+Form fields carry dots as hyphens (`content.single_pass` → `content-single_pass`)
+because HTML name attributes cannot contain dots in some contexts.
+`sanitize_key()` preserves underscores, so the slug round-trip is unambiguous — no two
+keys produce the same slug. Use `sanitize_key( str_replace( '.', '-', $key ) )` to compare,
+not string parsing:
 
 ```php
 private static function resolve_key_from_slug( string $slug ): ?string {

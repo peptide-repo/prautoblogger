@@ -180,9 +180,7 @@ class PipelineSettingsSaveHandlerTest extends BaseTestCase {
 	 * An unknown prompt slug must be rejected before any registry write.
 	 */
 	public function test_handle_prompt_save_rejects_unknown_slug(): void {
-		// Stub registry as unavailable so create_version is never reached.
-		Functions\when( 'PRAutoBlogger_Prompt_Registry_Writer::create_version' )->justReturn( 0 );
-
+		// create_version is never reached: the allowlist rejects the slug first.
 		$_POST = array(
 			\PRAutoBlogger_Pipeline_Settings_Page::NONCE_FIELD => 'valid',
 			'pipeline_action' => 'save_prompt',
