@@ -13,6 +13,21 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [0.22.1] - 2026-06-22
 
+### Fixed (remediation 2026-06-23)
+- **`on_orchestrate_tick()` sync-mode double-drive** (P1 QA finding): added
+  `if ( ! self::$sync_mode )` guard around `wp_schedule_single_event(GENERATE_ACTION)` +
+  `fire_cron_now()` in `on_orchestrate_tick()`. Mirrors the existing guard in
+  `on_generate_tick()`. Prevents a background wp-cron process spawning in parallel
+  with the VPS `--sync` loop and prematurely finalizing the run lock.
+- **Sync-mode unit tests**: added `test_orchestrate_tick_in_sync_mode_does_not_schedule_background_event`
+  and `test_generate_tick_async_mode_schedules_generate_action` to
+  `GenerationCheckpointRunnerTest.php`.
+- **Root `CONTEXT.md`**: created domain glossary (run/run_stages/checkpoint/idea-queue/
+  Generation_Lock) and execution mode comparison (async wp-cron vs. `--sync` VPS).
+- **`ARCHITECTURE.md` §25**: added `WP-CLI (sync / VPS)` row to Entry Points table.
+
+## [0.22.1] - 2026-06-22
+
 ### Added
 - **`wp prautoblogger generate --sync`** (VPS orchestrator mode): runs the full
   checkpoint pipeline synchronously in the calling process — acquires lock, calls

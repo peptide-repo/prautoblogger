@@ -175,10 +175,15 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 				)
 			);
 
-			if ( ! wp_next_scheduled( self::GENERATE_ACTION ) ) {
-				wp_schedule_single_event( time(), self::GENERATE_ACTION );
+			// In sync mode the VPS tick loop is the external driver; skip
+			// wp-cron reschedule to prevent a competing background tick.
+			// on_generate_tick() has the same guard for subsequent reschedules.
+			if ( ! self::$sync_mode ) {
+				if ( ! wp_next_scheduled( self::GENERATE_ACTION ) ) {
+					wp_schedule_single_event( time(), self::GENERATE_ACTION );
+				}
+				PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
 			}
-			PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
 
 		} catch ( \Throwable $e ) {
 			PRAutoBlogger_Logger::instance()->error(
