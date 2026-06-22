@@ -6,6 +6,9 @@
  *   kick_off()         -- schedules cron + writes initial transient, no pipeline call.
  *   on_generate_tick() -- pops ONE idea, reschedules or finalizes; halted run aborts early.
  *
+ * Sync-mode guard tests live in GenerationCheckpointRunnerSyncModeTest.php
+ * (split to comply with the 300-line rule).
+ *
  * @package PRAutoBlogger\Tests\Core
  */
 
@@ -104,7 +107,7 @@ class GenerationCheckpointRunnerTest extends BaseTestCase {
 		);
 	}
 
-	// ── kick_off() ────────────────────────────────────────────────────────
+	// __ kick_off() __________________________________________________________________________
 
 	/**
 	 * kick_off() schedules exactly the ORCHESTRATE cron action and writes
@@ -129,7 +132,7 @@ class GenerationCheckpointRunnerTest extends BaseTestCase {
 		$this->assertTrue( $found_running_transient, 'kick_off() must write a running status transient' );
 	}
 
-	// ── on_generate_tick() ────────────────────────────────────────────────
+	// __ on_generate_tick() __________________________________________________________________
 
 	/**
 	 * An empty queue causes generate tick to finalize without scheduling

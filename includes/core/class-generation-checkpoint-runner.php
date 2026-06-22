@@ -53,6 +53,26 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 	public const GENERATE_ACTION = 'prautoblogger_gen_tick';
 
 	/**
+	 * When true, on_generate_tick() skips wp-cron rescheduling so the VPS
+	 * orchestrator's external loop is the sole driver. Set via set_sync_mode().
+	 * Never true on the wp-cron path; reset to false after the sync run.
+	 *
+	 * @var bool
+	 */
+	private static bool $sync_mode = false;
+
+	/**
+	 * Enable or disable synchronous-driver mode.
+	 * Called by WP_CLI_Commands::run_sync() before and after the tick loop.
+	 *
+	 * @param bool $enabled True to suppress internal cron reschedule.
+	 * @return void
+	 */
+	public static function set_sync_mode( bool $enabled ): void {
+		self::$sync_mode = $enabled;
+	}
+
+	/**
 	 * Schedule the orchestration tick and write the initial status transient.
 	 * Called by on_ajax_generate_now() (via Executor) and by the WP-CLI command.
 	 * Returns immediately -- ALL pipeline work happens in cron.
@@ -155,11 +175,15 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 				)
 			);
 
-			if ( ! wp_next_scheduled( self::GENERATE_ACTION ) ) {
-				wp_schedule_single_event( time(), self::GENERATE_ACTION );
+			// In sync mode the VPS tick loop is the external driver; skip
+			// wp-cron reschedule to prevent a competing background tick.
+			// on_generate_tick() has the same guard for subsequent reschedules.
+			if ( ! self::$sync_mode ) {
+				if ( ! wp_next_scheduled( self::GENERATE_ACTION ) ) {
+					wp_schedule_single_event( time(), self::GENERATE_ACTION );
+				}
+				PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
 			}
-			PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
-
 		} catch ( \Throwable $e ) {
 			PRAutoBlogger_Logger::instance()->error(
 				sprintf( 'Orchestrate tick %s: %s', get_class( $e ), $e->getMessage() ),
@@ -245,10 +269,14 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 			if ( ! empty( $queue['ideas'] ) ) {
 				update_option( self::QUEUE_KEY, $queue, false );
 				PRAutoBlogger_Pipeline_Status::update_queue_progress( $queue );
-				if ( ! wp_next_scheduled( self::GENERATE_ACTION ) ) {
-					wp_schedule_single_event( time(), self::GENERATE_ACTION );
+				// In sync mode the VPS tick loop is the external driver; skip
+				// wp-cron reschedule to prevent a competing background tick.
+				if ( ! self::$sync_mode ) {
+					if ( ! wp_next_scheduled( self::GENERATE_ACTION ) ) {
+						wp_schedule_single_event( time(), self::GENERATE_ACTION );
+					}
+					PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
 				}
-				PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
 			} else {
 				PRAutoBlogger_Post_Assembler::amortize_research_costs( $run_id );
 				PRAutoBlogger_Generation_Checkpoint_Helpers::finalize( $queue['results'], $run_id );

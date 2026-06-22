@@ -133,7 +133,9 @@ class PRAutoBlogger_Run_Reaper {
 		 * @param int $seconds Expected seconds (default 300).
 		 */
 		$expected = (int) apply_filters( 'prautoblogger_filter_stage_expected_seconds', self::EXPECTED_STAGE_SECONDS );
-		$cutoff   = gmdate( 'Y-m-d H:i:s', time() - ( 2 * $expected ) );
+		// Use wp_date() so the cutoff is expressed in the site's local timezone,
+		// matching the updated_at values written by current_time('mysql') (v0.22.1 TZ fix).
+		$cutoff   = wp_date( 'Y-m-d H:i:s', time() - ( 2 * $expected ) );
 		$now      = current_time( 'mysql' );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
@@ -169,7 +171,8 @@ class PRAutoBlogger_Run_Reaper {
 		 * @param int $seconds Expected seconds (default 1800).
 		 */
 		$expected = (int) apply_filters( 'prautoblogger_filter_expected_run_seconds', self::EXPECTED_RUN_SECONDS );
-		$cutoff   = gmdate( 'Y-m-d H:i:s', time() - ( 2 * $expected ) );
+		// Use wp_date() so the cutoff matches updated_at's local-timezone storage (v0.22.1 TZ fix).
+		$cutoff   = wp_date( 'Y-m-d H:i:s', time() - ( 2 * $expected ) );
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$stuck = $wpdb->get_col(
