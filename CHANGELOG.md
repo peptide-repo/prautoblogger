@@ -11,6 +11,38 @@ and this project uses [Semantic Versioning](https://semver.org/).
 - ADR log scaffolded: `docs/adr/` created as the app-local decision log for this plugin; `docs/adr/README.md` is the index; ADR-0001 documents the v0.16.0 editorial illustration image-style pivot. `ARCHITECTURE.md` updated to point to the folder. No runtime changes; docs-only.
 - CI constants guard (`scripts/check-constants.php`): new required CI step (`Check PRAUTOBLOGGER_* constants`) fails the build when any `PRAUTOBLOGGER_*` constant referenced in shipped plugin PHP is neither defined in `prautoblogger.php` nor `defined()`-guarded at the reference site. Prevents a recurrence of the v0.19.0 admin-500 regression class.
 
+## [0.22.1] - 2026-06-22
+
+### Added
+- **`wp prautoblogger generate --sync`** (VPS orchestrator mode): runs the full
+  checkpoint pipeline synchronously in the calling process — acquires lock, calls
+  `on_orchestrate_tick()` in-process, then loops `on_generate_tick()` until the
+  queue is empty or a terminal state is reached (max 20 ticks). Exits 0 on
+  success with a JSON summary line; exits 1 on error. Designed to be called from
+  the Coolify VPS over a held-open SSH session, where Hostinger's ~10-min
+  background-process kill does not apply.
+
+### Fixed
+- **`$sync_mode` guard in `Generation_Checkpoint_Runner::on_generate_tick()`**:
+  when running under `--sync`, the internal `wp_schedule_single_event()` +
+  `fire_cron_now()` reschedule is suppressed so the VPS's external loop cannot
+  race with a competing background wp-cron tick. Existing async (cron/AJAX) paths
+  are unaffected.
+- **Reaper timezone fix** in `Run_Reaper::sweep_stuck_stages()` and
+  `sweep_stuck_runs()`: `$cutoff` was computed with `gmdate()` (UTC) while
+  `updated_at` is stored via `current_time('mysql')` (server local time, UTC+8).
+  Changed to `wp_date()` so the cutoff respects the site timezone. On this host
+  the 8-hour delta could suppress reaping of a same-day-stalled run; the 44h-old
+  run `ee6e7d91` was already far outside the threshold and unaffected.
+- **Scoped self-heal migration** in `DB_Migrations`: restores the low-stakes
+  maintenance cron events (`prautoblogger_reap_orphan_research_rows`,
+  `prautoblogger_collect_metrics`, `prautoblogger_sync_runware_models`) that
+  vanished after the 06-15 deploy cycle. **`prautoblogger_daily_generation` is
+  deliberately NOT re-registered** — the VPS systemd timer owns generation
+  scheduling as of v0.22.1. Note: wp-cron reliability on this Hostinger host is
+  suspect (background PHP killed ~10 min); maintenance crons are low-stakes and
+  acceptable on this transport; generation is not.
+
 ## [0.22.0] - 2026-06-16
 
 ### Changed

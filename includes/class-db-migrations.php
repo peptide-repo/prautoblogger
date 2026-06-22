@@ -125,5 +125,32 @@ class PRAutoBlogger_DB_Migrations {
 			}
 			update_option( 'prautoblogger_migrated_enc_prefix', '1' );
 		}
+
+		// v0.22.1 self-heal: restore low-stakes maintenance cron events that were
+		// lost when the WP-Cron schedule vanished after the 06-15 deploy cycle.
+		// NOTE: wp-cron reliability on this Hostinger host is suspect (background
+		// PHP processes are killed at ~10 min). These low-stakes events (metrics,
+		// reaper, Runware sync) are acceptable on wp-cron; daily GENERATION is NOT
+		// re-registered here — the VPS systemd timer owns generation scheduling.
+		// The prautoblogger_migrated_schedule_tz_v082 guard is intentionally NOT
+		// re-used here; this migration targets the missing events themselves.
+		if ( ! get_option( 'prautoblogger_migrated_maintenance_crons_v0221' ) ) {
+			// Re-register maintenance crons only — daily_generation deliberately excluded.
+			// Activator::schedule_cron() uses wp_next_scheduled() guards so it is
+			// idempotent and will not overwrite events that are already present.
+			if ( ! wp_next_scheduled( 'prautoblogger_reap_orphan_research_rows' ) ) {
+				$tomorrow_reap = strtotime( 'tomorrow 03:15' );
+				if ( false !== $tomorrow_reap ) {
+					wp_schedule_event( (int) $tomorrow_reap, 'daily', 'prautoblogger_reap_orphan_research_rows' );
+				}
+			}
+			if ( ! wp_next_scheduled( 'prautoblogger_collect_metrics' ) ) {
+				wp_schedule_event( time() + HOUR_IN_SECONDS, 'prautoblogger_six_hours', 'prautoblogger_collect_metrics' );
+			}
+			if ( ! wp_next_scheduled( 'prautoblogger_sync_runware_models' ) ) {
+				wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'prautoblogger_sync_runware_models' );
+			}
+			update_option( 'prautoblogger_migrated_maintenance_crons_v0221', '1' );
+		}
 	}
 }
