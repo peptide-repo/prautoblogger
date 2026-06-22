@@ -6,6 +6,9 @@
  *   kick_off()         -- schedules cron + writes initial transient, no pipeline call.
  *   on_generate_tick() -- pops ONE idea, reschedules or finalizes; halted run aborts early.
  *
+ * Sync-mode guard tests live in GenerationCheckpointRunnerSyncModeTest.php
+ * (split to comply with the 300-line rule).
+ *
  * @package PRAutoBlogger\Tests\Core
  */
 
@@ -104,7 +107,7 @@ class GenerationCheckpointRunnerTest extends BaseTestCase {
 		);
 	}
 
-	// ── kick_off() ────────────────────────────────────────────────────────
+	// __ kick_off() __________________________________________________________________________
 
 	/**
 	 * kick_off() schedules exactly the ORCHESTRATE cron action and writes
@@ -129,7 +132,7 @@ class GenerationCheckpointRunnerTest extends BaseTestCase {
 		$this->assertTrue( $found_running_transient, 'kick_off() must write a running status transient' );
 	}
 
-	// ── on_generate_tick() ────────────────────────────────────────────────
+	// __ on_generate_tick() __________________________________________________________________
 
 	/**
 	 * An empty queue causes generate tick to finalize without scheduling
@@ -226,72 +229,5 @@ class GenerationCheckpointRunnerTest extends BaseTestCase {
 			$remaining = $this->options['prautoblogger_article_queue']['ideas'] ?? array();
 			$this->assertCount( 1, $remaining, 'Queue must have exactly 1 idea left after first tick' );
 		}
-	}
-
-	// ── sync mode guards ──────────────────────────────────────────────────
-
-	/**
-	 * sync_mode=true: on_orchestrate_tick() must not schedule GENERATE_ACTION
-	 * or call spawn_cron (VPS loop drives generate ticks directly).
-	 */
-	public function test_orchestrate_tick_in_sync_mode_does_not_schedule_background_event(): void {
-		$this->wire_wpdb_for_lock();
-		if ( ! class_exists( 'PRAutoBlogger_Pipeline_Runner', false ) ) {
-			// phpcs:ignore Squiz.Strings.DoubleQuoteUsage.NotRequired
-			eval( 'class PRAutoBlogger_Pipeline_Runner {
-				public function set_skip_dedup($v){ return $this; }
-				public function orchestrate_only($ct){ return []; }
-			}' );
-		}
-		$spawn_called = false;
-		Functions\when( 'spawn_cron' )->alias( function() use ( &$spawn_called ) {
-			$spawn_called = true;
-		} );
-		\PRAutoBlogger_Generation_Checkpoint_Runner::set_sync_mode( true );
-		\PRAutoBlogger_Generation_Checkpoint_Runner::on_orchestrate_tick();
-		\PRAutoBlogger_Generation_Checkpoint_Runner::set_sync_mode( false );
-		$this->assertNotContains(
-			\PRAutoBlogger_Generation_Checkpoint_Runner::GENERATE_ACTION,
-			$this->scheduled,
-			'sync mode: on_orchestrate_tick must not schedule GENERATE_ACTION'
-		);
-		$this->assertFalse( $spawn_called, 'sync mode: must not call spawn_cron' );
-	}
-
-	/**
-	 * sync_mode=false: on_generate_tick() with ideas remaining DOES schedule
-	 * GENERATE_ACTION (regression guard — async path unaffected by sync guard).
-	 */
-	public function test_generate_tick_async_mode_schedules_generate_action(): void {
-		$run_id = 'async-regression-uuid';
-		$this->options['prautoblogger_article_queue'] = array(
-			'run_id'  => $run_id,
-			'ideas'   => array( $this->make_idea( 'A' ), $this->make_idea( 'B' ) ),
-			'results' => array( 'generated' => 0, 'published' => 0, 'rejected' => 0, 'cost' => 0.0 ),
-		);
-		$wpdb            = $this->create_mock_wpdb();
-		$wpdb->options   = 'wp_options';
-		$GLOBALS['wpdb'] = $wpdb;
-		$wpdb->method( 'get_row' )->willReturn( array( 'status' => 'running', 'ceiling_usd' => '0' ) );
-		$wpdb->method( 'query' )->willReturn( 1 );
-		$wpdb->method( 'get_var' )->willReturn( null );
-		if ( ! class_exists( 'PRAutoBlogger_Article_Worker', false ) ) {
-			// phpcs:ignore Squiz.Strings.DoubleQuoteUsage.NotRequired
-			eval( 'class PRAutoBlogger_Article_Worker {
-				public function __construct($ct){}
-				public function generate($idea){ return ["generated"=>1,"published"=>1,"rejected"=>0,"cost"=>0.01]; }
-			}' );
-		}
-		if ( ! class_exists( 'PRAutoBlogger_Post_Assembler', false ) ) {
-			// phpcs:ignore Squiz.Strings.DoubleQuoteUsage.NotRequired
-			eval( 'class PRAutoBlogger_Post_Assembler { public static function amortize_research_costs($r){} }' );
-		}
-		\PRAutoBlogger_Generation_Checkpoint_Runner::set_sync_mode( false );
-		\PRAutoBlogger_Generation_Checkpoint_Runner::on_generate_tick();
-		$this->assertContains(
-			\PRAutoBlogger_Generation_Checkpoint_Runner::GENERATE_ACTION,
-			$this->scheduled,
-			'async mode: on_generate_tick must schedule GENERATE_ACTION when ideas remain'
-		);
 	}
 }

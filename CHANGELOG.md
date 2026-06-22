@@ -13,21 +13,6 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [0.22.1] - 2026-06-22
 
-### Fixed (remediation 2026-06-23)
-- **`on_orchestrate_tick()` sync-mode double-drive** (P1 QA finding): added
-  `if ( ! self::$sync_mode )` guard around `wp_schedule_single_event(GENERATE_ACTION)` +
-  `fire_cron_now()` in `on_orchestrate_tick()`. Mirrors the existing guard in
-  `on_generate_tick()`. Prevents a background wp-cron process spawning in parallel
-  with the VPS `--sync` loop and prematurely finalizing the run lock.
-- **Sync-mode unit tests**: added `test_orchestrate_tick_in_sync_mode_does_not_schedule_background_event`
-  and `test_generate_tick_async_mode_schedules_generate_action` to
-  `GenerationCheckpointRunnerTest.php`.
-- **Root `CONTEXT.md`**: created domain glossary (run/run_stages/checkpoint/idea-queue/
-  Generation_Lock) and execution mode comparison (async wp-cron vs. `--sync` VPS).
-- **`ARCHITECTURE.md` §25**: added `WP-CLI (sync / VPS)` row to Entry Points table.
-
-## [0.22.1] - 2026-06-22
-
 ### Added
 - **`wp prautoblogger generate --sync`** (VPS orchestrator mode): runs the full
   checkpoint pipeline synchronously in the calling process — acquires lock, calls
@@ -57,6 +42,17 @@ and this project uses [Semantic Versioning](https://semver.org/).
   scheduling as of v0.22.1. Note: wp-cron reliability on this Hostinger host is
   suspect (background PHP killed ~10 min); maintenance crons are low-stakes and
   acceptable on this transport; generation is not.
+- **Sync-mode guard tests** (QA NF-1 remediation 2026-06-23): moved sync-mode
+  tests to `GenerationCheckpointRunnerSyncModeTest.php`; fixed
+  `test_orchestrate_tick_in_sync_mode_does_not_schedule_background_event` to
+  return >= 1 idea from `orchestrate_only()` so execution reaches the sync guard
+  at line ~181 (was vacuous -- previous stub returned `[]` causing early return);
+  added `test_generate_tick_sync_mode_suppresses_reschedule` for the
+  `on_generate_tick()` guard; async regression test preserved in same file.
+- **Root `CONTEXT.md`**: created domain glossary (run/run_stages/checkpoint/
+  idea-queue/Generation_Lock) and execution mode comparison (async wp-cron vs.
+  `--sync` VPS).
+- **`ARCHITECTURE.md` SS25**: added `WP-CLI (sync / VPS)` row to Entry Points table.
 
 ## [0.22.0] - 2026-06-16
 
@@ -525,7 +521,6 @@ and this project uses [Semantic Versioning](https://semver.org/).
   the catalog + OpenRouter static list. Breaking change: callers that expect a
   specific static list should note the new dynamic Runware side.
 
-
 ### Fixed
 - Runware image generation now correctly uses the admin-selected model instead
   of silently falling back to FLUX.1 schnell (runware:100@1) for all non-schnell
@@ -624,7 +619,6 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - Image prompt builder now properly delegates to static parser methods
-
 
 ### Fixed
 - **Opik autoloader gap** — `class-autoloader.php` listed `services/` as a scan directory but not `services/opik/`, where all four Opik classes live (`Opik_Client`, `Opik_Trace_Context`, `Opik_Span_Queue`, `Opik_Dispatcher`). Composer's classmap (used in PHPUnit) covers `includes/` recursively so tests passed, but the WordPress runtime autoloader would fatal on first Opik class reference in production. Added `services/opik/` to the scan list.
