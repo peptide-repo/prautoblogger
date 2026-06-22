@@ -159,6 +159,12 @@ class GenerationCheckpointRunnerSyncModeTest extends BaseTestCase {
 	/**
 	 * sync_mode=true + 2 ideas in queue: on_generate_tick() must not reschedule
 	 * GENERATE_ACTION or call spawn_cron (VPS loop is the sole driver of next tick).
+	 *
+	 * Uses 2 ideas so the code stays in the "more ideas remain" branch -- this
+	 * path calls Article_Worker->generate() and then the sync guard, never
+	 * Post_Assembler::amortize_research_costs() (that is in the last-idea branch).
+	 * Article_Worker is stubbed; Post_Assembler is not needed and must NOT be
+	 * redefined here to avoid clobbering the real class for downstream tests.
 	 */
 	public function test_generate_tick_sync_mode_suppresses_reschedule(): void {
 		$run_id = 'sync-gen-tick-uuid';
@@ -175,16 +181,16 @@ class GenerationCheckpointRunnerSyncModeTest extends BaseTestCase {
 		$wpdb->method( 'query' )->willReturn( 1 );
 		$wpdb->method( 'get_var' )->willReturn( null );
 
+		// Stub Article_Worker only -- Post_Assembler is NOT stubbed here because
+		// amortize_research_costs() is not called on the "more ideas remain" path,
+		// and redefining it with an incomplete stub breaks Publisher tests that run
+		// after this file (alphabetical: SyncModeTest < Test).
 		if ( ! class_exists( 'PRAutoBlogger_Article_Worker', false ) ) {
 			// phpcs:ignore Squiz.Strings.DoubleQuoteUsage.NotRequired
 			eval( 'class PRAutoBlogger_Article_Worker {
 				public function __construct($ct){}
 				public function generate($idea){ return ["generated"=>1,"published"=>1,"rejected"=>0,"cost"=>0.01]; }
 			}' );
-		}
-		if ( ! class_exists( 'PRAutoBlogger_Post_Assembler', false ) ) {
-			// phpcs:ignore Squiz.Strings.DoubleQuoteUsage.NotRequired
-			eval( 'class PRAutoBlogger_Post_Assembler { public static function amortize_research_costs($r){} }' );
 		}
 
 		\PRAutoBlogger_Generation_Checkpoint_Runner::set_sync_mode( true );
@@ -222,16 +228,13 @@ class GenerationCheckpointRunnerSyncModeTest extends BaseTestCase {
 		$wpdb->method( 'query' )->willReturn( 1 );
 		$wpdb->method( 'get_var' )->willReturn( null );
 
+		// Article_Worker stub only -- see note in test_generate_tick_sync_mode_suppresses_reschedule.
 		if ( ! class_exists( 'PRAutoBlogger_Article_Worker', false ) ) {
 			// phpcs:ignore Squiz.Strings.DoubleQuoteUsage.NotRequired
 			eval( 'class PRAutoBlogger_Article_Worker {
 				public function __construct($ct){}
 				public function generate($idea){ return ["generated"=>1,"published"=>1,"rejected"=>0,"cost"=>0.01]; }
 			}' );
-		}
-		if ( ! class_exists( 'PRAutoBlogger_Post_Assembler', false ) ) {
-			// phpcs:ignore Squiz.Strings.DoubleQuoteUsage.NotRequired
-			eval( 'class PRAutoBlogger_Post_Assembler { public static function amortize_research_costs($r){} }' );
 		}
 
 		\PRAutoBlogger_Generation_Checkpoint_Runner::set_sync_mode( false );
