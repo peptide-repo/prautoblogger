@@ -184,7 +184,6 @@ class PRAutoBlogger_Generation_Checkpoint_Runner {
 				}
 				PRAutoBlogger_Generation_Checkpoint_Helpers::fire_cron_now();
 			}
-
 		} catch ( \Throwable $e ) {
 			PRAutoBlogger_Logger::instance()->error(
 				sprintf( 'Orchestrate tick %s: %s', get_class( $e ), $e->getMessage() ),
