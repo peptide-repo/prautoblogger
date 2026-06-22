@@ -127,7 +127,15 @@ class PRAutoBlogger_WP_CLI_Commands {
 			$acquired_at = PRAutoBlogger_Generation_Lock::get_acquired_at();
 			$age         = null !== $acquired_at ? ( time() - $acquired_at ) : HOUR_IN_SECONDS;
 			if ( $age < HOUR_IN_SECONDS ) {
-				\WP_CLI::log( json_encode( array( 'status' => 'skipped', 'reason' => 'run_in_progress', 'lock_age_s' => $age ) ) );
+				\WP_CLI::log(
+					json_encode(
+						array(
+							'status' => 'skipped',
+							'reason' => 'run_in_progress',
+							'lock_age_s' => $age,
+						)
+					)
+				);
 				exit( 0 );
 			}
 			// Expired lock — on_orchestrate_tick()'s acquire() will clean it.
@@ -145,7 +153,15 @@ class PRAutoBlogger_WP_CLI_Commands {
 		if ( '' === $run_id ) {
 			$queue = get_option( 'prautoblogger_article_queue' );
 			if ( ! is_array( $queue ) || empty( $queue['ideas'] ) ) {
-				\WP_CLI::log( json_encode( array( 'status' => 'done', 'generated' => 0, 'reason' => 'no_ideas_or_lock_failed' ) ) );
+				\WP_CLI::log(
+					json_encode(
+						array(
+							'status' => 'done',
+							'generated' => 0,
+							'reason' => 'no_ideas_or_lock_failed',
+						)
+					)
+				);
 				exit( 0 );
 			}
 		}
