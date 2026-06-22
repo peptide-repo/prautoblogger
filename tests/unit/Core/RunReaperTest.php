@@ -46,6 +46,13 @@ class RunReaperTest extends BaseTestCase {
 			}
 		);
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		// wp_date() is called by the reaper's stuck-sweep cutoff (v0.22.1 TZ fix).
+		// Alias to gmdate() so tests remain timezone-agnostic.
+		Functions\when( 'wp_date' )->alias(
+			static function ( string $format, ?int $timestamp = null ): string {
+				return gmdate( $format, null !== $timestamp ? $timestamp : time() );
+			}
+		);
 		\PRAutoBlogger_Run_State::flush_cache();
 		\PRAutoBlogger_Run_Stage_State::flush_cache();
 	}
