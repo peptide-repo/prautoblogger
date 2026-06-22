@@ -42,7 +42,10 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 	 * @return array{status: string, message: string} 'idle'|'saved'|'error'.
 	 */
 	public static function maybe_process_save(): array {
-		$idle = array( 'status' => 'idle', 'message' => '' );
+		$idle = array(
+			'status' => 'idle',
+			'message' => '',
+		);
 
 		if ( 'POST' !== $_SERVER['REQUEST_METHOD'] ) {
 			return $idle;
@@ -54,13 +57,19 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 
 		// Capability check.
 		if ( ! current_user_can( 'manage_options' ) ) {
-			return array( 'status' => 'error', 'message' => __( 'You do not have permission to save settings.', 'prautoblogger' ) );
+			return array(
+				'status' => 'error',
+				'message' => __( 'You do not have permission to save settings.', 'prautoblogger' ),
+			);
 		}
 
 		// Nonce verification.
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		if ( ! wp_verify_nonce( wp_unslash( $_POST[ PRAutoBlogger_Pipeline_Settings_Page::NONCE_FIELD ] ), PRAutoBlogger_Pipeline_Settings_Page::NONCE_ACTION ) ) {
-			return array( 'status' => 'error', 'message' => __( 'Security check failed. Please reload and try again.', 'prautoblogger' ) );
+			return array(
+				'status' => 'error',
+				'message' => __( 'Security check failed. Please reload and try again.', 'prautoblogger' ),
+			);
 		}
 
 		$action = isset( $_POST['pipeline_action'] ) ? sanitize_key( $_POST['pipeline_action'] ) : '';
@@ -87,7 +96,10 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 		$model_id    = isset( $_POST['model_id'] ) ? sanitize_text_field( wp_unslash( $_POST['model_id'] ) ) : '';
 
 		if ( ! in_array( $option_name, PRAutoBlogger_Pipeline_Settings_Step_Map::allowed_model_options(), true ) ) {
-			return array( 'status' => 'error', 'message' => __( 'Unknown model option.', 'prautoblogger' ) );
+			return array(
+				'status' => 'error',
+				'message' => __( 'Unknown model option.', 'prautoblogger' ),
+			);
 		}
 
 		// For the image model, delegate to the same sanitizer logic as
@@ -98,13 +110,22 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 			if ( '' !== $provider ) {
 				update_option( 'prautoblogger_image_provider', $provider );
 				update_option( $option_name, $candidate );
-				return array( 'status' => 'saved', 'message' => __( 'Model saved.', 'prautoblogger' ) );
+				return array(
+					'status' => 'saved',
+					'message' => __( 'Model saved.', 'prautoblogger' ),
+				);
 			}
-			return array( 'status' => 'error', 'message' => __( 'Image model not recognised. Selection unchanged.', 'prautoblogger' ) );
+			return array(
+				'status' => 'error',
+				'message' => __( 'Image model not recognised. Selection unchanged.', 'prautoblogger' ),
+			);
 		}
 
 		update_option( $option_name, sanitize_text_field( $model_id ) );
-		return array( 'status' => 'saved', 'message' => __( 'Model saved.', 'prautoblogger' ) );
+		return array(
+			'status' => 'saved',
+			'message' => __( 'Model saved.', 'prautoblogger' ),
+		);
 	}
 
 	/**
@@ -129,13 +150,19 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 		// Resolve slug back to the real registry key via allowlist lookup.
 		$prompt_key = self::resolve_key_from_slug( $slug );
 		if ( null === $prompt_key ) {
-			return array( 'status' => 'error', 'message' => __( 'Unknown prompt key.', 'prautoblogger' ) );
+			return array(
+				'status' => 'error',
+				'message' => __( 'Unknown prompt key.', 'prautoblogger' ),
+			);
 		}
 
 		if ( 'reset_prompt' === $action ) {
 			$body = PRAutoBlogger_Prompt_Registry::default_body( $prompt_key );
 			if ( null === $body ) {
-				return array( 'status' => 'error', 'message' => __( 'No default found for this prompt key.', 'prautoblogger' ) );
+				return array(
+					'status' => 'error',
+					'message' => __( 'No default found for this prompt key.', 'prautoblogger' ),
+				);
 			}
 			$author = 'reset:pipeline-ui';
 		} else {
@@ -154,7 +181,10 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 		);
 
 		if ( 0 === $version ) {
-			return array( 'status' => 'error', 'message' => __( 'Failed to save prompt. Is the prompts table available?', 'prautoblogger' ) );
+			return array(
+				'status' => 'error',
+				'message' => __( 'Failed to save prompt. Is the prompts table available?', 'prautoblogger' ),
+			);
 		}
 
 		return array(

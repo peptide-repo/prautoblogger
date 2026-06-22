@@ -29,7 +29,7 @@ if ( isset( $is_writer ) && $is_writer ) {
 	$single_pass_keys = array( 'content.single_pass' );
 	$multi_step_keys  = array( 'content.outline', 'content.draft', 'content.polish' );
 	$is_inactive      = ( 'single_pass' === $writing_mode && in_array( $key, $multi_step_keys, true ) )
-	                 || ( 'multi_step' === $writing_mode && in_array( $key, $single_pass_keys, true ) );
+					 || ( 'multi_step' === $writing_mode && in_array( $key, $single_pass_keys, true ) );
 }
 ?>
 <div class="pab-section">
@@ -77,17 +77,17 @@ if ( isset( $is_writer ) && $is_writer ) {
 	<?php endif; ?>
 
 	<form method="post"
-	      action="<?php echo esc_url( add_query_arg( 'step', $step_id, $base_url ) ); ?>"
-	      class="pab-prompt-form">
+		  action="<?php echo esc_url( add_query_arg( 'step', $step_id, $base_url ) ); ?>"
+		  class="pab-prompt-form">
 		<?php wp_nonce_field( $nonce_action, $nonce_field ); ?>
 		<input type="hidden" name="pipeline_action" value="save_prompt" />
 		<input type="hidden" name="prompt_key" value="<?php echo esc_attr( $form_key ); ?>" />
 
 		<textarea name="prompt_body"
-		          id="pab-prompt-<?php echo esc_attr( $css_key ); ?>"
-		          class="pab-prompt-editor"
-		          rows="10"
-		          spellcheck="false"><?php echo esc_textarea( $panel['body'] ); ?></textarea>
+				  id="pab-prompt-<?php echo esc_attr( $css_key ); ?>"
+				  class="pab-prompt-editor"
+				  rows="10"
+				  spellcheck="false"><?php echo esc_textarea( $panel['body'] ); ?></textarea>
 
 		<div class="pab-prompt-actions">
 			<button type="submit" class="ab-btn ab-btn-secondary ab-btn-sm">
@@ -95,10 +95,10 @@ if ( isset( $is_writer ) && $is_writer ) {
 			</button>
 			<?php if ( ! $panel['is_default'] ) : ?>
 			<button type="submit"
-			        name="pipeline_action"
-			        value="reset_prompt"
-			        class="ab-btn ab-btn-outline ab-btn-sm pab-btn-reset"
-			        onclick="return confirm('<?php esc_attr_e( 'Reset to factory default? This creates a new version.', 'prautoblogger' ); ?>');">
+					name="pipeline_action"
+					value="reset_prompt"
+					class="ab-btn ab-btn-outline ab-btn-sm pab-btn-reset"
+					onclick="return confirm('<?php esc_attr_e( 'Reset to factory default? This creates a new version.', 'prautoblogger' ); ?>');">
 				<?php esc_html_e( 'Reset to default', 'prautoblogger' ); ?>
 			</button>
 			<?php endif; ?>

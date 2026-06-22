@@ -126,8 +126,8 @@ $budget        = (float) get_option( 'prautoblogger_monthly_budget_usd', 50.00 )
 			<div class="pab-section">
 				<h3 class="pab-section-title"><?php esc_html_e( 'Model', 'prautoblogger' ); ?></h3>
 				<form method="post"
-				      action="<?php echo esc_url( add_query_arg( 'step', $active_step['id'], $base_url ) ); ?>"
-				      class="pab-model-form">
+					  action="<?php echo esc_url( add_query_arg( 'step', $active_step['id'], $base_url ) ); ?>"
+					  class="pab-model-form">
 					<?php wp_nonce_field( $nonce_action, $nonce_field ); ?>
 					<input type="hidden" name="pipeline_action" value="save_model" />
 					<input type="hidden" name="model_option" value="<?php echo esc_attr( $step_data['model_option'] ); ?>" />
@@ -168,16 +168,19 @@ $budget        = (float) get_option( 'prautoblogger_monthly_budget_usd', 50.00 )
 			</div>
 			<?php endif; ?>
 
-			<?php if ( ! empty( $step_data['system'] ) ) :
+			<?php
+			if ( ! empty( $step_data['system'] ) ) :
 				$panel        = $step_data['system'];
 				$panel_title  = __( 'System Instructions', 'prautoblogger' );
 				$step_id      = $active_step['id'];
 				$is_writer    = ( 'writer' === $step_id );
 				$writing_mode = (string) get_option( 'prautoblogger_writing_pipeline', 'multi_step' );
 				include PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/pipeline-settings-prompt-panel.php';
-			endif; ?>
+			endif;
+			?>
 
-			<?php foreach ( $step_data['agent_panels'] as $key => $panel ) :
+			<?php
+			foreach ( $step_data['agent_panels'] as $key => $panel ) :
 				$panel_title  = sprintf(
 					/* translators: %s = registry key e.g. 'content.draft' */
 					__( 'Prompt: %s', 'prautoblogger' ),
@@ -187,7 +190,8 @@ $budget        = (float) get_option( 'prautoblogger_monthly_budget_usd', 50.00 )
 				$is_writer    = ( 'writer' === $step_id );
 				$writing_mode = (string) get_option( 'prautoblogger_writing_pipeline', 'multi_step' );
 				include PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/pipeline-settings-prompt-panel.php';
-			endforeach; ?>
+			endforeach;
+			?>
 
 		</div>
 	</div>
