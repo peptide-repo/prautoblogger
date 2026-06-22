@@ -1,0 +1,181 @@
+/**
+ * Pipeline Settings page styles.
+ *
+ * Design language: light mode, teal #1B8A92 accent, IBM Plex Mono for
+ * numerics/code, wp-admin card shadow pattern. Extends admin.css.
+ *
+ * @see admin/class-pipeline-settings-page.php — Enqueues this file.
+ */
+
+/* ── Layout ── */
+.pab-pipeline-wrap { max-width: 1200px; }
+
+.pab-pipeline-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 0;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    margin-top: 16px;
+    overflow: hidden;
+}
+
+/* ── Step rail ── */
+.pab-step-rail {
+    background: #f7f9fa;
+    border-right: 1px solid #e0e0e0;
+    padding: 8px 0;
+}
+
+.pab-step-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    text-decoration: none;
+    color: #3c434a;
+    font-size: 13px;
+    border-left: 3px solid transparent;
+    transition: background .12s, border-color .12s;
+}
+.pab-step-btn:hover {
+    background: #edf5f6;
+    color: #1B8A92;
+    border-left-color: #a8d8db;
+}
+.pab-step-btn--active {
+    background: #e6f4f5;
+    color: #1B8A92;
+    font-weight: 600;
+    border-left-color: #1B8A92;
+}
+.pab-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: #1B8A92;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    flex-shrink: 0;
+}
+.pab-step-btn:not(.pab-step-btn--active) .pab-step-num {
+    background: #c3cdd4;
+}
+.pab-step-icon { color: inherit; font-size: 16px !important; flex-shrink: 0; }
+.pab-step-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Step panel ── */
+.pab-step-panel {
+    padding: 24px 28px;
+    overflow-y: auto;
+}
+
+.pab-panel-header { margin-bottom: 20px; border-bottom: 1px solid #e8ecef; padding-bottom: 14px; }
+.pab-panel-header h2 { margin: 0 0 4px; font-size: 18px; color: #1d2327; }
+.pab-panel-desc { margin: 4px 0 0; color: #646970; font-size: 13px; }
+
+/* ── Sections ── */
+.pab-section { margin-bottom: 28px; }
+.pab-section:not(:last-child) { border-bottom: 1px solid #f0f0f1; padding-bottom: 24px; }
+.pab-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2327;
+    margin: 0 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── Model picker section ── */
+.pab-model-picker-wrap { margin-bottom: 10px; }
+.pab-model-form { max-width: 520px; }
+
+/* ── Prompt editors ── */
+.pab-prompt-editor {
+    width: 100%;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    background: #fafbfc;
+    border: 1px solid #d0d5dd;
+    border-radius: 4px;
+    padding: 10px 12px;
+    resize: vertical;
+    box-sizing: border-box;
+    color: #1d2327;
+}
+.pab-prompt-editor:focus {
+    border-color: #1B8A92;
+    box-shadow: 0 0 0 2px rgba(27,138,146,.12);
+    outline: none;
+}
+.pab-prompt-form { max-width: 820px; }
+.pab-prompt-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.pab-btn-reset { color: #9b1c1c; border-color: #f5c6c6; }
+.pab-btn-reset:hover { background: #fef2f2; border-color: #e53e3e; color: #9b1c1c; }
+
+/* ── Params table ── */
+.pab-params-table { border-collapse: collapse; font-size: 13px; }
+.pab-params-table th, .pab-params-table td { text-align: left; padding: 4px 12px 4px 0; vertical-align: top; }
+.pab-params-table th { color: #646970; font-weight: 500; min-width: 140px; }
+.pab-mono {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: 12px;
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+/* ── Badges ── */
+.pab-version-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #e6f4f5;
+    color: #1B8A92;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 10px;
+    border: 1px solid #b2e0e3;
+}
+.pab-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.pab-badge-ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.pab-badge-warn { background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; }
+
+/* ── Global context note ── */
+.pab-global-context-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f0f9fa;
+    border: 1px solid #b2e0e3;
+    border-radius: 4px;
+    padding: 8px 14px;
+    margin: 12px 0 0;
+    font-size: 13px;
+    color: #1d4f52;
+}
+
+/* ── Misc ── */
+.pab-field-note { color: #646970; font-size: 12px; margin: 6px 0 10px; }
+.pab-version-meta { color: #646970; font-size: 12px; margin: -4px 0 8px; }
+.pab-inactive-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #a18a2f;
+    background: #fffde7;
+    border: 1px solid #ffe082;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    margin-bottom: 8px;
+}

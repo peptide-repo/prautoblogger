@@ -866,6 +866,35 @@ Kept here for history. Until v0.8.2 the default image backend was FLUX.1 schnell
 ### #15: Optional Cloudflare AI Gateway in front of OpenRouter
 We already use Cloudflare for DNS/CDN on peptiderepo.com, so layering AI Gateway in front of OpenRouter is zero marginal infrastructure. It gives us response caching (meaningful for repeated classification/scoring calls), a unified cost/latency dashboard, rate limiting, and provider fallback — all of which we would otherwise have to build ourselves to satisfy the CTO cost-tracking rules. Kept as an opt-in URL setting (`prautoblogger_ai_gateway_base_url`) so the plugin still works unchanged out of the box and can be bypassed instantly if the gateway misbehaves. The gateway is a transparent OpenRouter-compatible proxy; no new provider class is needed, and the response parsing path (`usage`, `choices[0].message.content`) is unchanged.
 
+### #25: Pipeline Settings page — per-step model, prompts, params (v0.23.0, M1)
+
+**Scope (M1 — additive):** A new "Pipeline" wp-admin submenu page
+(`prautoblogger-pipeline`, slug `prautoblogger_page_prautoblogger-pipeline`) that
+surfaces per-step configuration for every LLM stage. The page is ADDITIVE — the
+existing Settings sections (AI Models, Content, Sources) remain in place. Decomposition
+into stage-exclusive panels is M2.
+
+**Classes:** `PRAutoBlogger_Pipeline_Settings_Page` (registration + asset enqueue),
+`PRAutoBlogger_Pipeline_Settings_Renderer` (view data assembly + template include),
+`PRAutoBlogger_Pipeline_Settings_Save_Handler` (nonce + capability + sanitize + write),
+`PRAutoBlogger_Pipeline_Settings_Step_Map` (canonical step definitions + key allowlists).
+
+**Model picker reuse:** `PRAutoBlogger_OpenRouter_Model_Field::render()` is called
+directly — no fork, no new dropdown. The stage map in `get_stages_for_setting()` was
+extended to include `prautoblogger_research_model → [research, llm_research]` and
+`prautoblogger_image_model → [image_a, image_b]` so cost-preview is stage-accurate.
+
+**Prompt writes:** Saving a prompt creates a new immutable row in `wp_prautoblogger_prompts`
+via `PRAutoBlogger_Prompt_Registry_Writer::create_version()` and activates it.
+Only the keys listed in `PRAutoBlogger_Pipeline_Settings_Step_Map::allowed_prompt_keys()`
+may be updated through this page (allowlist enforced in the save handler).
+
+**Security:** `manage_options` capability check + nonce verification on every POST.
+Prompt bodies are sanitized with `sanitize_textarea_field()`.
+
+**No new options:** M1 adds no persistent `wp_option` keys. Uninstall unchanged.
+
+
 ---
 
 ### #22: Pipeline v2 Phase 1 substrate (v0.18.0, db 1.2.0, June 2026)

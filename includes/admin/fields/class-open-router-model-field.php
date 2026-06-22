@@ -141,6 +141,8 @@ class PRAutoBlogger_OpenRouter_Model_Field {
 			'prautoblogger_analysis_model' => array( 'analysis' ),
 			'prautoblogger_writing_model'  => array( 'outline', 'draft', 'polish' ),
 			'prautoblogger_editor_model'   => array( 'review' ),
+			'prautoblogger_research_model' => array( 'research', 'llm_research' ),
+			'prautoblogger_image_model'    => array( 'image_a', 'image_b' ),
 		);
 		return $map[ $field_id ] ?? array();
 	}

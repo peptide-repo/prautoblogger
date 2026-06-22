@@ -5,6 +5,27 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.23.0] - 2026-06-22
+
+### Added
+- **Pipeline Settings (M1 — additive):** New "Pipeline" wp-admin submenu page
+  (`prautoblogger-pipeline`) with a step rail covering all LLM stages: Research,
+  Analysis, Writer, Editorial, Image. Per-step panels expose the existing model
+  picker (`PRAutoBlogger_OpenRouter_Model_Field`), system-instruction editor, and
+  agent-prompt editor(s) — all bound to the live versioned prompt registry
+  (`PRAutoBlogger_Prompt_Registry`). Saving a prompt creates a new immutable version;
+  reset-to-default available. Active version shown per panel. Writer panel marks
+  inactive sub-stage prompts. No existing Settings sections changed in M1 (both
+  surfaces edit the same options / prompts table).
+- **`get_stages_for_setting()` extended:** `prautoblogger_research_model →
+  [research, llm_research]` and `prautoblogger_image_model → [image_a, image_b]`
+  added so cost-preview on the Pipeline page reflects stage-accurate historical
+  token usage.
+- New files: `includes/admin/class-pipeline-settings-page.php`,
+  `class-pipeline-settings-renderer.php`, `class-pipeline-settings-save-handler.php`,
+  `class-pipeline-settings-step-map.php`; `assets/css/pipeline-settings.css`;
+  `assets/js/pipeline-settings.js`; `templates/admin/pipeline-settings-page.php`.
+
 ## [Unreleased - Internal]
 
 ### Internal
