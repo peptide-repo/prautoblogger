@@ -12,18 +12,25 @@ declare(strict_types=1);
  *       fields (M2) so the template can render editable forms without touching
  *       WP globals. The renderer contains NO business logic — it only reads
  *       and shapes data for the view.
+ *       M3 additions: passes preview/history nonces and version-list data per
+ *       prompt panel so the Template/Preview toggle and version history
+ *       accordion have everything they need server-side.
  * Who calls it: PRAutoBlogger_Pipeline_Settings_Page::render_page() after save.
  * Dependencies: PRAutoBlogger_Pipeline_Settings_Step_Map (step list),
  *               PRAutoBlogger_Pipeline_Settings_Option_Fields (step option defs),
  *               PRAutoBlogger_Prompt_Registry (active row, versions, defs),
+ *               PRAutoBlogger_Prompt_Registry_Writer (list_versions for M3),
  *               PRAutoBlogger_OpenRouter_Model_Field (model picker render),
  *               PRAutoBlogger_Cost_Reporter (monthly spend header).
  *
- * @see admin/class-pipeline-settings-step-map.php        — Step + key definitions.
- * @see admin/class-pipeline-settings-option-fields.php   — Step option field defs.
- * @see admin/fields/class-open-router-model-field.php    — Model picker component.
- * @see core/class-prompt-registry.php                    — Registry read API.
- * @see templates/admin/pipeline-settings-page.php        — HTML template.
+ * @see admin/class-pipeline-settings-step-map.php        -- Step + key definitions.
+ * @see admin/class-pipeline-settings-option-fields.php   -- Step option field defs.
+ * @see admin/fields/class-open-router-model-field.php    -- Model picker component.
+ * @see core/class-prompt-registry.php                    -- Registry read API.
+ * @see core/class-prompt-registry-writer.php             -- list_versions() (M3).
+ * @see ajax/class-pipeline-preview-handler.php           -- Preview AJAX (M3).
+ * @see ajax/class-pipeline-history-handler.php           -- History/diff AJAX (M3).
+ * @see templates/admin/pipeline-settings-page.php        -- HTML template.
  */
 class PRAutoBlogger_Pipeline_Settings_Renderer {
 
@@ -42,24 +49,30 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 		$monthly_spend = $cost_reporter->get_monthly_spend();
 		$budget        = (float) get_option( 'prautoblogger_monthly_budget_usd', 50.00 );
 
-		// Determine the step context for the step-options panel.
 		$step_context = in_array( $step['id'], PRAutoBlogger_Pipeline_Settings_Option_Fields::contexts(), true )
 			? $step['id']
 			: null;
 
 		$view = array(
-			'steps'         => $steps,
-			'active_step'   => $step,
-			'save_result'   => $save_result,
-			'nonce_field'   => PRAutoBlogger_Pipeline_Settings_Page::NONCE_FIELD,
-			'nonce_action'  => PRAutoBlogger_Pipeline_Settings_Page::NONCE_ACTION,
-			'page_slug'     => PRAutoBlogger_Pipeline_Settings_Page::PAGE_SLUG,
-			'step_data'     => $this->build_step_data( $step ),
-			'monthly_spend' => $monthly_spend,
-			'budget'        => $budget,
-			'global_fields' => $this->build_option_field_values( 'global' ),
-			'step_context'  => $step_context,
-			'step_fields'   => $step_context ? $this->build_option_field_values( $step_context ) : array(),
+			'steps'           => $steps,
+			'active_step'     => $step,
+			'save_result'     => $save_result,
+			'nonce_field'     => PRAutoBlogger_Pipeline_Settings_Page::NONCE_FIELD,
+			'nonce_action'    => PRAutoBlogger_Pipeline_Settings_Page::NONCE_ACTION,
+			'page_slug'       => PRAutoBlogger_Pipeline_Settings_Page::PAGE_SLUG,
+			'step_data'       => $this->build_step_data( $step ),
+			'monthly_spend'   => $monthly_spend,
+			'budget'          => $budget,
+			'global_fields'   => $this->build_option_field_values( 'global' ),
+			'step_context'    => $step_context,
+			'step_fields'     => $step_context ? $this->build_option_field_values( $step_context ) : array(),
+			// M3: AJAX nonces localized into the view for JS use.
+			'preview_nonce'   => wp_create_nonce( PRAutoBlogger_Pipeline_Preview_Handler::ACTION ),
+			'history_nonce'   => wp_create_nonce( PRAutoBlogger_Pipeline_History_Handler::ACTION_HISTORY ),
+			'diff_nonce'      => wp_create_nonce( PRAutoBlogger_Pipeline_History_Handler::ACTION_DIFF ),
+			'preview_action'  => PRAutoBlogger_Pipeline_Preview_Handler::ACTION,
+			'history_action'  => PRAutoBlogger_Pipeline_History_Handler::ACTION_HISTORY,
+			'diff_action'     => PRAutoBlogger_Pipeline_History_Handler::ACTION_DIFF,
 		);
 
 		include PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/pipeline-settings-page.php';
@@ -67,10 +80,6 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 
 	/**
 	 * Build current option values for all fields in a context.
-	 *
-	 * Returns an array of [ field_def_with_current_value ] — each field
-	 * definition from Option_Fields augmented with a 'current' key holding
-	 * the live wp_option value (or the field's default when not set).
 	 *
 	 * @param string $context Step context identifier.
 	 * @return array<int, array<string, mixed>>
@@ -120,6 +129,10 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 	/**
 	 * Build display data for a single prompt key's edit panel.
 	 *
+	 * M3 addition: includes 'versions' (full list rows) for the history
+	 * accordion. The list is already fetched here so the template needs no
+	 * additional DB call.
+	 *
 	 * @param string                                                                    $key Registry key.
 	 * @param array<string, array{body: string, model_option: ?string, params: array<string, mixed>}> $defs All defs.
 	 * @param array<string, int>                                                        $active_versions_map key => active version.
@@ -137,7 +150,8 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 		$is_default     = ( $body === $default_body );
 		$created_at     = null !== $active_row ? (string) $active_row['created_at'] : '';
 		$author         = null !== $active_row ? (string) $active_row['author'] : 'seed';
-		$versions       = PRAutoBlogger_Prompt_Registry_Writer::list_versions( $key );
+		// M3: pass full version rows to the template for the history accordion.
+		$versions = PRAutoBlogger_Prompt_Registry_Writer::list_versions( $key );
 
 		return array(
 			'key'            => $key,
@@ -148,13 +162,12 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 			'created_at'     => $created_at,
 			'author'         => $author,
 			'version_count'  => count( $versions ),
+			'versions'       => $versions,
 		);
 	}
 
 	/**
 	 * Render the model picker for a step using the existing field component.
-	 *
-	 * Public so the template can call it directly.
 	 *
 	 * @param string               $model_option wp_option name.
 	 * @param string               $model_value  Current model id stored in the option.

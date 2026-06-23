@@ -1,24 +1,30 @@
 <?php
 /**
- * Pipeline Settings page template.
+ * Pipeline Settings page template (M3).
  *
  * Variables injected by PRAutoBlogger_Pipeline_Settings_Renderer::render():
- *   array   $view['steps']        — ordered step definitions from Step_Map.
- *   array   $view['active_step']  — the currently selected step definition.
- *   array   $view['save_result']  — {status, message} from the save handler.
- *   string  $view['nonce_field']  — nonce field name.
- *   string  $view['nonce_action'] — nonce action string.
- *   string  $view['page_slug']    — pipeline page slug.
- *   array   $view['step_data']    — assembled view data for the active step.
- *   float   $view['monthly_spend']— current month's LLM spend in USD.
- *   float   $view['budget']       — configured monthly budget cap in USD.
- *   array   $view['global_fields']— field defs + current values for global context.
- *   string  $view['step_context'] — context id matching the active step, or null.
- *   array   $view['step_fields']  — field defs + current values for active step context.
+ *   array   $view['steps']           -- ordered step definitions from Step_Map.
+ *   array   $view['active_step']     -- the currently selected step definition.
+ *   array   $view['save_result']     -- {status, message} from the save handler.
+ *   string  $view['nonce_field']     -- nonce field name.
+ *   string  $view['nonce_action']    -- nonce action string.
+ *   string  $view['page_slug']       -- pipeline page slug.
+ *   array   $view['step_data']       -- assembled view data for the active step.
+ *   float   $view['monthly_spend']   -- current month's LLM spend in USD.
+ *   float   $view['budget']          -- configured monthly budget cap in USD.
+ *   array   $view['global_fields']   -- field defs + current values for global context.
+ *   string  $view['step_context']    -- context id matching the active step, or null.
+ *   array   $view['step_fields']     -- field defs + current values for active step context.
+ *   string  $view['preview_nonce']   -- (M3) nonce for preview AJAX.
+ *   string  $view['history_nonce']   -- (M3) nonce for history AJAX.
+ *   string  $view['diff_nonce']      -- (M3) nonce for diff AJAX.
+ *   string  $view['preview_action']  -- (M3) AJAX action name for preview.
+ *   string  $view['history_action']  -- (M3) AJAX action name for history.
+ *   string  $view['diff_action']     -- (M3) AJAX action name for diff.
  *
- * @see admin/class-pipeline-settings-renderer.php           — Provides $view.
- * @see templates/admin/pipeline-settings-prompt-panel.php   — Prompt editor partial.
- * @see templates/admin/pipeline-settings-step-options.php   — Step option fields partial.
+ * @see admin/class-pipeline-settings-renderer.php           -- Provides $view.
+ * @see templates/admin/pipeline-settings-prompt-panel.php   -- Prompt editor partial.
+ * @see templates/admin/pipeline-settings-step-options.php   -- Step option fields partial.
  */
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -84,7 +90,7 @@ $base_url = admin_url( 'admin.php?page=' . rawurlencode( $page_slug ) );
 	<?php endif; ?>
 
 	<?php
-	// ── Global Content Context block (editable — M2) ─────────────────────────
+	// -- Global Content Context block (editable -- M2) -----------------
 	$context       = 'global';
 	$section_title = __( 'Global Content Context', 'prautoblogger' );
 	$step_id       = 'global';
@@ -117,7 +123,7 @@ $base_url = admin_url( 'admin.php?page=' . rawurlencode( $page_slug ) );
 			</div>
 
 			<?php
-			// ── Step option fields (M2) ───────────────────────────────────────
+			// -- Step option fields (M2) ----------------------------------------
 			if ( null !== $step_context && ! empty( $step_fields ) ) :
 				$context       = $step_context;
 				$section_title = __( 'Step Settings', 'prautoblogger' );

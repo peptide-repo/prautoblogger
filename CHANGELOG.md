@@ -5,6 +5,94 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.25.0] - 2026-06-23
+
+### Added
+- **Pipeline Settings M3 — assembled-instructions preview + prompt version history/diff:**
+  Per-prompt Template/Preview toggle and version history accordion in the Pipeline Settings page.
+
+  - **Template / Preview toggle (per prompt):** A segmented button pair sits above every
+    prompt editor. "Template" (default) shows the editable textarea with the note "Editing the
+    template affects all future runs." "Preview assembled instructions" (read-only) fetches and
+    shows the fully-rendered instruction text the LLM actually received, with all tokens filled.
+    The two states are mutually exclusive; the preview pane has no save path server-side or
+    client-side — CPO guardrail enforced at both layers.
+
+  - **Preview source (last-run preferred, sample fallback):** `PRAutoBlogger_Pipeline_Preview_Source`
+    queries `prab_generation_log` for the most recent successful row whose stage maps to the
+    prompt key via `Stage_Display_Map::all()` (stage-list-driven — Phase 2b stages resolve
+    automatically). Extracts the rendered message content from `request_json` (system-role
+    content for `*.system` keys; user-role content for agent keys). When no run exists yet,
+    renders the active template with `[token_name]` placeholders so the admin sees the token
+    injection map before any article has been generated. Clearly labelled in the UI
+    ("Tokens from last run · <date>" vs. "Sample render — no run found yet").
+
+  - **Version history accordion (per prompt):** Collapsible list below the editor showing
+    every stored version (version number, author, created_at, active badge). Read-only;
+    never mutates the registry. The "Diff" button computes and shows an inline line-level diff
+    between adjacent versions (v(N-1) → vN) using a pure-PHP LCS implementation with a
+    3-line context window and `omitted: N lines unchanged` collapse for distant context.
+    Diff text is rendered by type (added/removed/context/omitted) with colour coding matching
+    the designer mockup. All diff output is `esc_html`'d server-side and inserted via
+    `textContent` in JS (double-escaped path).
+
+  - **New AJAX endpoints (both `manage_options` + nonce gated):**
+    - `prautoblogger_pipeline_preview` — returns rendered preview text (from last run or
+      sample); no save path; server-side read-only contract.
+    - `prautoblogger_pipeline_history` — returns version list for a key.
+    - `prautoblogger_pipeline_diff` — returns LCS diff between two versions.
+    All endpoints validate the prompt key against `Step_Map::allowed_prompt_keys()` (the
+    same allowlist the save handler uses) before any DB access.
+
+  - **Stage-list-driven throughout:** all preview/history/diff logic goes through
+    `Stage_Display_Map::all()` and `Step_Map::allowed_prompt_keys()`; no hard-coded stage
+    names — Phase 2b `curate`/`seo` stages will work without rework.
+
+### New Files
+- `includes/ajax/class-pipeline-preview-handler.php` — Preview AJAX endpoint.
+- `includes/ajax/class-pipeline-history-handler.php` — History + diff AJAX endpoint.
+- `includes/admin/class-pipeline-preview-source.php` — Last-run / sample render logic.
+- `tests/unit/Ajax/PipelineHistoryHandlerTest.php` — Tests for diff algorithm + slug resolution.
+- `tests/unit/Ajax/PipelinePreviewSourceTest.php` — Tests for message extraction + stage mapping.
+
+### Changed
+- `includes/admin/class-pipeline-settings-renderer.php` — M3: passes `preview_nonce`,
+  `history_nonce`, `diff_nonce`, action names, and `panel.versions` list to the template;
+  `build_prompt_panel_data()` now includes the full `versions` array for server-side
+  history rendering.
+- `includes/admin/class-pipeline-settings-page.php` — M3: localizes `prabPipeline` JS
+  object with AJAX actions + nonces; no menu changes.
+- `templates/admin/pipeline-settings-prompt-panel.php` — Redesigned: added Template/Preview
+  toggle (`pab-tp-toggle`), preview block with read-only badge + source note,
+  version history accordion with Diff buttons, and inline diff panel.
+- `templates/admin/pipeline-settings-page.php` — Passes full `$view` to the prompt panel
+  partial (required for nonce data-attributes).
+- `assets/js/pipeline-settings.js` — M3: toggle logic, preview AJAX fetch, history
+  accordion expand/collapse, diff AJAX fetch + render, diff close.
+- `assets/css/pipeline-settings.css` — M3: styles for tp-toggle, preview block,
+  history accordion, diff panel (appended; all existing styles preserved).
+- `includes/class-prautoblogger.php` — Registers `Pipeline_Preview_Handler` and
+  `Pipeline_History_Handler` hooks in `register_ajax_hooks()`.
+
+### Tests
+- `PipelineHistoryHandlerTest`: covers `compute_diff()` (change detection, identical texts,
+  line shape, omitted-context collapse) and `resolve_key_from_slug()` round-trip.
+  Brace count: 12/12.
+- `PipelinePreviewSourceTest`: covers `extract_rendered_from_messages()` (system vs user role
+  preference, longest fallback, empty input) and `stage_for_key()` (known + unknown keys).
+  Brace count: 8/8. All methods use reflection on private statics — no `Functions\when()`
+  on `Class::method` (DoD invariant preserved).
+
+### Fixed
+- `PipelinePreviewSourceTest::test_stage_for_key_maps_research_system`: corrected expected
+  value from `'research'` to `'llm_research'`. The production `stage_for_key('research.system')`
+  returns `'llm_research'` because `Stage_Display_Map::MAP` lists `llm_research` before the
+  Phase 2b `research` entry (both share `prompt_key => 'research.system'`; first match wins).
+  The real `prab_generation_log.stage` value written by `LLM_Research_Provider::collect_data()`
+  is `'llm_research'` — confirmed in `includes/providers/class-llm-research-provider.php` line 74.
+  The mapping was correct; the test assertion was wrong.
+
+
 ## [0.24.0] - 2026-06-23
 
 ### Added

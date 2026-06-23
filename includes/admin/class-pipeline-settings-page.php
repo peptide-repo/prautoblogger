@@ -9,19 +9,24 @@ declare(strict_types=1);
  * What: Adds a "Pipeline" submenu under the PRAutoBlogger parent menu so
  *       operators can configure per-step model, system instructions, agent
  *       prompts, and parameters for every LLM stage in one place. This
- *       page is ADDITIVE in M1 — the existing Settings sections remain
+ *       page is ADDITIVE in M1 -- the existing Settings sections remain
  *       unchanged and both surfaces edit the same wp_options / prompts
  *       table. Decomposition of redundant tabs is M2.
+ *       M3 localizes preview / history / diff nonces so pipeline-settings.js
+ *       can make authenticated AJAX requests for the assembled-instructions
+ *       preview and per-prompt version history/diff.
  * Who calls it: PRAutoBlogger::register_admin_hooks() via add_action
  *               ('admin_menu', ..., 13) and ('admin_enqueue_scripts', ...).
  * Dependencies: PRAutoBlogger_Pipeline_Settings_Save_Handler (save),
  *               PRAutoBlogger_Pipeline_Settings_Renderer (render).
  *
- * @see admin/class-pipeline-settings-renderer.php  — Step rail + panel HTML.
- * @see admin/class-pipeline-settings-save-handler.php — nonce + save logic.
- * @see admin/class-admin-page.php   — Parent menu registration (priority 10).
- * @see ARCHITECTURE.md              — Admin pages table.
- * @see INFORMATION-ARCHITECTURE.md — Admin page slug registry.
+ * @see admin/class-pipeline-settings-renderer.php      -- Step rail + panel HTML.
+ * @see admin/class-pipeline-settings-save-handler.php  -- nonce + save logic.
+ * @see admin/class-admin-page.php   -- Parent menu registration (priority 10).
+ * @see ajax/class-pipeline-preview-handler.php   -- Preview AJAX (M3).
+ * @see ajax/class-pipeline-history-handler.php   -- History/diff AJAX (M3).
+ * @see ARCHITECTURE.md              -- Admin pages table.
+ * @see INFORMATION-ARCHITECTURE.md -- Admin page slug registry.
  */
 class PRAutoBlogger_Pipeline_Settings_Page {
 
@@ -37,7 +42,7 @@ class PRAutoBlogger_Pipeline_Settings_Page {
 	/**
 	 * Register the Pipeline submenu page under the PRAutoBlogger parent menu.
 	 *
-	 * Priority 13 — after board (11), dossier (12). The parent slug must be
+	 * Priority 13 -- after board (11), dossier (12). The parent slug must be
 	 * registered at priority 10 by PRAutoBlogger_Admin_Page::on_register_menu()
 	 * before any submenu can be attached.
 	 *
@@ -57,8 +62,8 @@ class PRAutoBlogger_Pipeline_Settings_Page {
 	/**
 	 * Enqueue CSS / JS required by the Pipeline Settings page.
 	 *
-	 * Reuses the existing admin + model-picker asset pairs; adds a small
-	 * pipeline-specific stylesheet and script.
+	 * M3 adds localized data for the assembled-instructions preview toggle
+	 * and the version history / diff panel (AJAX actions + nonces).
 	 *
 	 * @param string $hook_suffix Current admin page hook suffix.
 	 * @return void
@@ -87,6 +92,21 @@ class PRAutoBlogger_Pipeline_Settings_Page {
 				'imageModels' => PRAutoBlogger_Settings_Fields_Extended::get_image_models(),
 			)
 		);
+
+		// M3: localize preview + history + diff nonces for pipeline-settings.js.
+		wp_localize_script(
+			'prautoblogger-pipeline',
+			'prabPipeline',
+			array(
+				'ajaxUrl'       => admin_url( 'admin-ajax.php' ),
+				'previewAction' => PRAutoBlogger_Pipeline_Preview_Handler::ACTION,
+				'previewNonce'  => wp_create_nonce( PRAutoBlogger_Pipeline_Preview_Handler::ACTION ),
+				'historyAction' => PRAutoBlogger_Pipeline_History_Handler::ACTION_HISTORY,
+				'historyNonce'  => wp_create_nonce( PRAutoBlogger_Pipeline_History_Handler::ACTION_HISTORY ),
+				'diffAction'    => PRAutoBlogger_Pipeline_History_Handler::ACTION_DIFF,
+				'diffNonce'     => wp_create_nonce( PRAutoBlogger_Pipeline_History_Handler::ACTION_DIFF ),
+			)
+		);
 	}
 
 	/**
@@ -103,7 +123,6 @@ class PRAutoBlogger_Pipeline_Settings_Page {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'prautoblogger' ) );
 		}
 
-		// Process any pending save before output begins.
 		$save_result = PRAutoBlogger_Pipeline_Settings_Save_Handler::maybe_process_save();
 
 		$renderer = new PRAutoBlogger_Pipeline_Settings_Renderer();

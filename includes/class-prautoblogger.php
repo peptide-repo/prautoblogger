@@ -198,6 +198,10 @@ class PRAutoBlogger {
 		$ideas = new PRAutoBlogger_Ideas_Browser();
 		add_action( 'wp_ajax_prautoblogger_generate_from_idea', array( $ideas, 'on_ajax_generate_from_idea' ) );
 		add_action( 'wp_ajax_prautoblogger_idea_gen_status', array( $ideas, 'on_ajax_idea_gen_status' ) );
+
+		// v0.25.0 (M3): pipeline prompt preview + history/diff endpoints.
+		PRAutoBlogger_Pipeline_Preview_Handler::register_hooks();
+		PRAutoBlogger_Pipeline_History_Handler::register_hooks();
 	}
 
 	/**
