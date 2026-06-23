@@ -59,7 +59,10 @@ class PRAutoBlogger_Gen_History_Query {
 	public function get_page( int $page = 1, int $per_page = self::PAGE_SIZE ): array {
 		global $wpdb;
 		if ( null === $wpdb ) {
-			return array( 'rows' => array(), 'total' => 0 );
+			return array(
+				'rows' => array(),
+				'total' => 0,
+			);
 		}
 
 		$per_page = min( max( 1, $per_page ), self::PAGE_SIZE_MAX );

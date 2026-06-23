@@ -143,10 +143,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 		</tbody>
 	</table>
 
-	<?php if ( $pagination['total'] > 1 ) : ?>
+		<?php if ( $pagination['total'] > 1 ) : ?>
 	<div class="prab-gen-history__pagination">
-		<?php for ( $p = 1; $p <= $pagination['total']; $p++ ) : ?>
-			<?php if ( $p === $pagination['current'] ) : ?>
+			<?php for ( $p = 1; $p <= $pagination['total']; $p++ ) : ?>
+				<?php if ( $p === $pagination['current'] ) : ?>
 				<span class="prab-gen-history__page-current"><?php echo (int) $p; ?></span>
 			<?php else : ?>
 				<a href="<?php echo esc_url( add_query_arg( 'paged', $p, $pagination['base'] ) ); ?>">
