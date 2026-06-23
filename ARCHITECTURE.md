@@ -907,6 +907,23 @@ not via a POST-key allowlist, since the save handler iterates field defs directl
 **Prompt writes (M1, unchanged):** Immutable registry rows via
 `PRAutoBlogger_Prompt_Registry_Writer::create_version()`; only allowlisted prompt keys.
 
+**M3 (v0.25.0 — assembled-instructions preview + version history/diff):**
+A per-prompt Template/Preview toggle replaces the static editor header. The editable
+"Template" view remains unchanged; the "Preview assembled instructions" tab is read-only
+and shows the actual rendered text the LLM received (sourced from the last successful
+`generation_log.request_json` for the stage, extracted via `Stage_Display_Map`). Falls
+back to a sample render with `[token_name]` placeholders when no run exists yet. A
+collapsible version history accordion beneath each editor lists all stored versions
+(number, author, timestamp, active badge) with "Diff" buttons that compute and render
+an LCS-based inline diff (added/removed/context/omitted lines, 3-line context window).
+
+**M3 new files:** `ajax/class-pipeline-preview-handler.php`,
+`ajax/class-pipeline-history-handler.php`, `admin/class-pipeline-preview-source.php`.
+
+**Security (M3):** All three new AJAX actions require `manage_options` + nonce. Prompt
+keys validated against `Step_Map::allowed_prompt_keys()`. Preview returned as `esc_html`
+server-side; diff text inserted via `textContent` (not innerHTML) in JS.
+
 
 ---
 
