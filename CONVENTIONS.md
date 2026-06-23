@@ -711,3 +711,44 @@ Every pipeline-style page must have PHPUnit coverage for:
 
 Place tests under `tests/unit/Admin/PipelineSettings*Test.php`, extending
 `PRAutoBlogger\Tests\BaseTestCase`.
+
+---
+
+## Authority Pipeline — Phase 2b conventions (v0.28.0)
+
+### Adding a new pipeline stage
+
+Each stage is a self-contained class behind an interface. Pattern:
+
+1. Create `includes/providers/interface-<stage>-<role>.php` (the contract).
+2. Create `includes/core/class-<stage>-<role>.php` implementing it.
+3. If the implementation grows past 200 lines of logic, extract helpers into a
+   `class-<stage>-<helper>.php` — see `Research_Batch` (curl_multi layer) and
+   `Research_Source_Scorer` (weighting math) as examples.
+4. Register the stage in `Stage_Display_Map::MAP` if it is net-new vocabulary.
+5. PHPUnit tests must cover: quorum/gating logic, cost-reserve call verification,
+   invalid-output exclusion, graceful absent-table degradation.
+
+### Research fan-out settings
+
+| Option key | Default | Notes |
+|---|---|---|
+| `prautoblogger_research_agent_count` | 3 | Clamped 1–5. |
+| `prautoblogger_research_model` | `PRAUTOBLOGGER_DEFAULT_ANALYSIS_MODEL` | Per-run; read at call time. |
+
+### Cost-reserve discipline for fan-out batches
+
+Before dispatching N parallel calls, always reserve the SUMMED worst-case estimate:
+
+```php
+$per_estimate   = PRAutoBlogger_Cost_Governor::estimate_chat_cost( $model, $messages[0], $options );
+$reservation    = PRAutoBlogger_Cost_Governor::open_amount_reservation(
+    $per_estimate * $n,
+    "stage_name:n={$n}:{$model}"
+);
+// ... dispatch ...
+PRAutoBlogger_Cost_Governor::settle( $reservation, $actual_total );
+```
+
+Never reserve inside the per-agent loop — that creates a race between the ceiling
+check and concurrent call dispatch.

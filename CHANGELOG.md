@@ -5,6 +5,17 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.28.0] - 2026-06-23
+
+### Added
+- **P2b.1 — Research_Fanout + Research_Judge (the `curate` stage)** — additive only; not wired into the live Economy (single-pass) path until P2b.4 (tier routing).
+  - `PRAutoBlogger_Research_Fanout` — dispatches N specialist LLM research agents in parallel via `curl_multi` (default 3 agents, configurable 1–5 via `prautoblogger_research_agent_count`). Reserves the SUMMED worst-case cost of the entire batch from the per-run cost governor before dispatch (atomic conditional write — concurrent writers cannot slip past the per-run ceiling). Quorum check: ⌈N/2⌉+1 agents must return usable results, else returns empty array (caller holds the run). Invalid/schema-mismatched agent results are excluded and never silently passed. Per-agent `run_stages` rows written with `researcher:<role>` agent_role.
+  - `PRAutoBlogger_Research_Batch` — extracted curl_multi execution layer (mirrors `class-open-router-image-batch.php` pattern); keeps Research_Fanout under 300 lines and independently testable.
+  - `PRAutoBlogger_Research_Judge` — the `curate` stage; deduplicates sources by URL-canonical match then semantic similarity (OpenRouter embeddings / cosine similarity, matching Semantic_Dedup), with keyword-overlap fallback. Assigns `quality_score` = relevance × source-type authority weight. Writes `run_sources` rows (kept=1 / kept=0 with reason + quality_score) via `Audit_Writer`. Returns top-12 scored sources for the draft stage.
+  - `PRAutoBlogger_Research_Source_Scorer` — authority weighting helper (peer-reviewed→1.0, institutional→0.85, preprint→0.70, HTTPS→0.60, HTTP→0.40); extracted from judge to keep line count under 300.
+  - Both subsystems behind interfaces (`PRAutoBlogger_Research_Fanout_Interface`, `PRAutoBlogger_Research_Judge_Interface`) for provider-swappability. Stage_Display_Map already contains `research` + `curate` from v0.18.0; no new stage vocabulary added.
+- PHPUnit: `ResearchFanoutTest` (quorum logic, cost-reserve wiring, partial-failure) + `ResearchJudgeTest` (dedup, quality_score, run_sources writes, graceful absent-table degradation).
+
 ## [0.27.1] - 2026-06-23
 
 ### Fixed (M4 P2 cleanup)
