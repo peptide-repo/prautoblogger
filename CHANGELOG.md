@@ -40,6 +40,10 @@ and this project uses [Semantic Versioning](https://semver.org/).
   also asserts `prautoblogger_reddit_time_filter` and that the posts-per-subreddit
   value is an integer. Second test asserts that unknown source keys are stripped
   by the choices allowlist while valid keys (`reddit`, `llm_research`) survive.
+- **Parse-error fix (P1-2 QA fix):** Moved the two research test methods inside
+  the `PipelineSettingsStepSaveTest` class body; a premature class-closing brace
+  after `test_missing_nonce_field_returns_idle()` caused a PHP parse error
+  (CI red on all 3 PHP versions). Brace count corrected: 21 `{` = 21 `}`.
 
 ## [0.23.0] - 2026-06-22
 

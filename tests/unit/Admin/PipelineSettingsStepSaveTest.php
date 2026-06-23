@@ -230,7 +230,6 @@ class PipelineSettingsStepSaveTest extends BaseTestCase {
 		$this->assertSame( 'idle', $result['status'] );
 		$this->assertEmpty( $this->saved_options );
 	}
-}
 
 	// =========================================================================
 	// § RESEARCH CONTEXT
