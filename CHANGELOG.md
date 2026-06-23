@@ -5,6 +5,38 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.27.0] - 2026-06-23
+
+### Added
+- **Pipeline Board M5 -- Mission Brief (board redesign, CEO-selected Direction C):**
+
+  - **Vertical run list:** replaces the four-column kanban with a status-grouped vertical
+    list (Generating | In review | Published | Failed). Each row shows a verdict-style
+    status chip, article title, current stage, cost (IBM Plex Mono), and elapsed time.
+    Stalled/failed rows have a red left-border accent and are never softened to grey.
+
+  - **Persistent right-rail inspector:** selecting any run row fetches full per-stage
+    I/O via new `PRAutoBlogger_Board_Inspector_Handler` (AJAX) and populates the rail
+    without navigation. Inspector shows: stage breakdown with status dots, model,
+    per-stage cost, expandable prompt/response text (textContent -- XSS-safe), total
+    cost receipt, and an "Open dossier" CTA.
+
+  - **Reuses M4 data layer:** `PRAutoBlogger_Gen_History_Query::get_run_io()` and
+    `get_run_meta()` power the inspector -- no new DB queries or schema changes.
+
+  - **Stage-display-map driven:** stage labels resolve via `Stage_Display_Map::label()`;
+    Phase 2b stages (curate/seo) appear automatically.
+
+  - **New Article action** preserved (top-right of board heading, links to Ideas Browser).
+
+  - All existing board capabilities preserved: per-run dossier deep-link, status counts,
+    live AJAX polling with backoff, published-window filter, poll-interval setting,
+    human-modified badge, error banner on poll failure, empty state per section.
+
+  - **Security:** inspector AJAX uses `prautoblogger_board` nonce (same page as poller),
+    `manage_options` cap; all output `esc_html`'d before JSON; JS renders prompt/response
+    via `textContent`, never `innerHTML`. API key never exposed (architecture contract).
+
 ## [0.26.0] - 2026-06-23
 
 ### Added

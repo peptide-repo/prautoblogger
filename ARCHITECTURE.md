@@ -121,13 +121,13 @@ prautoblogger/
 │   │   └── OFL.txt                    # SIL Open Font License
 │   ├── css/
 │   │   ├── admin.css                  # Admin page styles (wp-admin conventions)
-│   │   ├── board.css                  # Kanban board styles -- warm editorial palette (v0.19.0)
+│   │   ├── board.css                  # Mission Brief board styles -- verdict chips, run-list, inspector (v0.19.0, v0.27.0)
 │   │   ├── dossier.css                # Article dossier page styles: verdict pills, cost receipt, trace toggle (v0.19.2)
 │   │   ├── dossier-edit.css           # M3 edit/re-run layer: chips, edit panel, image grid, spend warning (v0.20.0)
 │   │   └── posts-widget.css           # Frontend posts widget styles (uses theme CSS vars)
 │   └── js/
 │       ├── admin.js                   # Admin page interactivity (vanilla JS / Alpine.js)
-│       ├── board.js                   # Board poller: AJAX poll + DOM updates + backoff (v0.19.0)
+│       ├── board.js                   # Mission Brief board: AJAX poll, run-list render, inspector rail (v0.19.0, v0.27.0)
 │       ├── dossier.js                 # Per-stage raw-trace toggle: aria-expanded / aria-controls (v0.19.2)
 │       ├── dossier-edit.js            # M3 edit/re-run actions + stage-status polling (queued -> pickup -> result) (v0.20.0)
 │       └── posts-widget.js            # React component for frontend post cards (wp.element)
@@ -146,8 +146,8 @@ prautoblogger/
 │   ├── class-autoloader.php           # PSR-4-style autoloader for plugin classes
 │   │
 │   ├── admin/
-│   │   ├── class-board-page.php       # Kanban board -- primary landing screen (v0.19.0)
-│   │   ├── class-board-data-provider.php # Board orchestrator: 4-column snapshot + dossier deep-links (v0.19.0, v0.19.2)
+│   │   ├── class-board-page.php       # Mission Brief board -- primary landing screen (v0.19.0, v0.27.0)
+│   │   ├── class-board-data-provider.php # Board orchestrator: run-list snapshot + stage dots (v0.19.0, v0.27.0)
 │   │   ├── class-board-gen-log-query.php # Board gen_log queries: Generating + Failed column raw DB reads (v0.19.0)
 │   │   ├── class-dossier-page.php     # Article dossier admin page: options.php-parent hidden-page, priority 12, enqueue, nonce (v0.19.3)
 │   │   ├── class-dossier-data-assembler.php # 5-query view-model builder: runs+stages+gen_log+decisions+meta (v0.19.2)
@@ -273,7 +273,7 @@ prautoblogger/
 │
 ├── templates/
 │   └── admin/
-│       ├── board-page.php             # Kanban board template (4-column editorial layout) (v0.19.0)
+│       ├── board-page.php             # Mission Brief board template (run-list + inspector layout) (v0.19.0, v0.27.0)
 │       ├── dossier-page.php           # Article dossier: two-column layout, sidebar, stage sections (v0.19.2)
 │       ├── dossier-stage-section.php  # Stage section partial: output, raw trace, M3 chips + rerun footer
 │       ├── dossier-edit-panel.php     # M3 per-stage edit panel: message textareas, fork info, spend strip (v0.20.0)
@@ -677,7 +677,7 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_image_compose_variants` | Comma list of composed variants for Image A (default 'og,square'; whitelisted at point of use) |
 | `prautoblogger_image_featured_mark_enabled` | Toggle: subtle corner mark on featured images (default '1') |
 | `prautoblogger_image_compose_capability` | Cached capability probe `{fingerprint, capability}`; fingerprint = PHP version + imagick/gd presence, so it auto-invalidates on host changes |
-| `prautoblogger_board_poll_interval`     | Kanban board poll interval in seconds (default 5, min 3). Localized into board.js. |
+| `prautoblogger_board_poll_interval`     | Mission Brief board poll interval in seconds (default 5, min 3). Localized into board.js. |
 | `prautoblogger_board_published_window_days` | Days back to show in the Published column (default 7). |
 
 ### Post Meta
@@ -1010,16 +1010,15 @@ Tests use Brain\Monkey for WordPress function mocking (no database required). Th
 
 **Hidden admin page convention (v0.19.3):** See CONVENTIONS.md §Hidden Admin Pages for the full rule. Summary: hidden admin pages (link-accessed only, not visible in nav) MUST use `options.php` as the `add_submenu_page()` parent. NEVER unset/remove registered pages from `$submenu` after registration -- doing so causes `get_admin_page_parent()` to fail at request time, which makes WP recompute the hookname in the `admin_page_*` orphan namespace, find no registered handler, and call `wp_die(403)`. This is the dossier 403 incident (v0.19.2→v0.19.3). Same hookname-mismatch class as the board 404 (v0.19.0→v0.19.1); the only difference is that the board bug was a priority-ordering issue at registration time while the dossier bug was a post-registration $submenu mutation.
 
-The primary admin screen is now a kanban board (Direction C "Editorial Record") with four
-columns: Generating | In Review | Published | Failed. A separate `class-board-page.php`
-registers the `Board` submenu and a `$submenu` reorder makes it the first (primary) entry.
-`class-board-data-provider.php` orchestrates the four columns and handles WP_Query columns
-(In Review, Published). Raw `prab_generation_log` queries (Generating, Failed) are in the
-extracted `class-board-gen-log-query.php` (split for 300-line compliance) -- no new schema
-required for M1. The data provider uses the `prautoblogger_generation_status` transient
-(written by the Executor for manual/daily runs) as the primary active-run signal, with a
-secondary query on recent `prab_generation_log` run_ids that have no linked post as a
-fallback. M2 will rename Runs & Audit -> Articles and wire board cards to the Article Dossier.
+The primary admin screen is now a Mission Brief board (M5, v0.27.0) -- a vertical run-list
++ right-rail inspector layout (CEO-selected Direction C "Mission Brief"). A separate
+`class-board-page.php` registers the `Board` submenu and a `$submenu` reorder makes it
+the first (primary) entry. `class-board-data-provider.php` orchestrates the four status
+sections (Generating | In review | Published | Failed) and enriches each card with a
+lightweight `run_stages_summary` for the dot-rail. Raw `prab_generation_log` queries
+(Generating, Failed) remain in `class-board-gen-log-query.php`. The right-rail inspector
+is powered by `ajax/class-board-inspector-handler.php`, which reuses
+`PRAutoBlogger_Gen_History_Query::get_run_io()` from M4 (no new DB queries/schema).
 Poll interval and published window are settings-backed, localized into board.js, never
 hardcoded.
 

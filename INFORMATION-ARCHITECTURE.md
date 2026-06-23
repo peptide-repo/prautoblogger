@@ -10,7 +10,7 @@ Maintained per DoD v1.1.0 (same-PR update rule).
 | Slug | Class | Template | Purpose |
 |------|-------|----------|---------|
 | `prautoblogger-settings` | `PRAutoBlogger_Admin_Page` | `admin-page.php` | Main settings: API Keys, Schedule & Budget, Publishing, Analytics, Display, Images. AI Models / Content / Sources retired to Pipeline Settings in M2 (v0.24.0). |
-| `prautoblogger-board` | `PRAutoBlogger_Board_Page` | `board-page.php` | Kanban board: Generating / Failed / In Review / Published columns. New Article button (v0.21.0). |
+| `prautoblogger-board` | `PRAutoBlogger_Board_Page` | `board-page.php` | Mission Brief board (M5): vertical run-list + right-rail inspector. Status sections: Generating / In review / Published / Failed. New Article button. Stage dot-rail. Inspector: per-stage I/O, cost receipt, dossier link (v0.21.0, v0.27.0). |
 | `prautoblogger-pipeline` | `PRAutoBlogger_Pipeline_Settings_Page` | `pipeline-settings-page.php` | Per-step pipeline config: Global Content Context (niche), step option fields, model picker, system instructions, agent prompts, params (M1 v0.23.0; M2 v0.24.0 adds editable step options, retires AI Models/Content/Sources Settings tabs). M3 v0.25.0 adds Template/Preview toggle (assembled-instructions preview from last-run gen_log), version history accordion, and inline diff panel. Three new AJAX endpoints: `prautoblogger_pipeline_preview`, `prautoblogger_pipeline_history`, `prautoblogger_pipeline_diff` (all `manage_options` + nonce gated). |
 | `prautoblogger-gen-history` | `PRAutoBlogger_Gen_History_Page` | `gen-history-page.php` | M4: Paginated list of all generation runs — title, date, status, models, cost, duration; Stage I/O toggle for inline per-step input/output drill-down (AJAX). Hidden options.php-parent page. `manage_options` + `prautoblogger_gen_run_io` nonce. |
 | `prautoblogger-dossier` | `PRAutoBlogger_Dossier_Page` | `dossier-page.php` | Per-article generation log + stage edit/re-run (M3). Preferred per-step I/O surface for runs with a linked post. |
@@ -65,7 +65,7 @@ DB version history: 1.0→1.1 (schema normalisation), 1.1→1.2 (M2 dossier), 1.
 
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
-| `prautoblogger_board_column_limit` | int | 20 | Max cards per board column |
+| `prautoblogger_board_column_limit` | int | 20 | Max runs per board section |
 | `prautoblogger_ideas_per_page` | int | 30 | Ideas browser page size |
 | `prautoblogger_article_queue` | array | — | Checkpoint queue (run_id + ideas + results) |
 | `prautoblogger_checkpoint_run_id` | string | — | Current run UUID for Tick 2..N finalize path |
