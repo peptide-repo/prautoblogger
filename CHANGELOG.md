@@ -83,6 +83,15 @@ and this project uses [Semantic Versioning](https://semver.org/).
   Brace count: 8/8. All methods use reflection on private statics — no `Functions\when()`
   on `Class::method` (DoD invariant preserved).
 
+### Fixed
+- `PipelinePreviewSourceTest::test_stage_for_key_maps_research_system`: corrected expected
+  value from `'research'` to `'llm_research'`. The production `stage_for_key('research.system')`
+  returns `'llm_research'` because `Stage_Display_Map::MAP` lists `llm_research` before the
+  Phase 2b `research` entry (both share `prompt_key => 'research.system'`; first match wins).
+  The real `prab_generation_log.stage` value written by `LLM_Research_Provider::collect_data()`
+  is `'llm_research'` — confirmed in `includes/providers/class-llm-research-provider.php` line 74.
+  The mapping was correct; the test assertion was wrong.
+
 
 ## [0.24.0] - 2026-06-23
 

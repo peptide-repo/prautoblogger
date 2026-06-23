@@ -95,14 +95,19 @@ class PipelinePreviewSourceTest extends BaseTestCase {
 	}
 
 	/**
-	 * stage_for_key maps 'research.system' to 'research' stage.
+	 * stage_for_key maps 'research.system' to 'llm_research' stage.
+	 *
+	 * Stage_Display_Map::MAP lists 'llm_research' before the Phase 2b 'research'
+	 * entry; both share prompt_key => 'research.system' so the first-match-wins
+	 * foreach returns 'llm_research'. This is correct: current prod runs write
+	 * 'llm_research' to prab_generation_log.stage (LLM_Research_Provider line 74).
 	 */
 	public function test_stage_for_key_maps_research_system(): void {
 		$method = new \ReflectionMethod( 'PRAutoBlogger_Pipeline_Preview_Source', 'stage_for_key' );
 		$method->setAccessible( true );
 
 		$result = $method->invoke( null, 'research.system' );
-		$this->assertEquals( 'research', $result );
+		$this->assertEquals( 'llm_research', $result );
 	}
 
 	/**
