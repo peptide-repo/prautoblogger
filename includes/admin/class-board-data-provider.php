@@ -103,7 +103,7 @@ class PRAutoBlogger_Board_Data_Provider {
 			array(
 				'post_type'      => 'post',
 				'post_status'    => 'draft',
-				'posts_per_page' => 20,
+				'posts_per_page' => max( 5, (int) get_option( 'prautoblogger_board_column_limit', PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT ) ),
 				'meta_query'     => array(
 					array(
 						'key'   => '_prautoblogger_generated',
@@ -152,7 +152,7 @@ class PRAutoBlogger_Board_Data_Provider {
 			array(
 				'post_type'      => 'post',
 				'post_status'    => 'publish',
-				'posts_per_page' => 20,
+				'posts_per_page' => max( 5, (int) get_option( 'prautoblogger_board_column_limit', PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT ) ),
 				'date_query'     => array(
 					array(
 						'after'     => $date_after,

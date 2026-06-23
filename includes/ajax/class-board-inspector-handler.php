@@ -73,6 +73,7 @@ class PRAutoBlogger_Board_Inspector_Handler {
 				array( 'message' => __( 'Insufficient permissions.', 'prautoblogger' ) ),
 				403
 			);
+			return;
 		}
 
 		check_ajax_referer( PRAutoBlogger_Board_Page::NONCE_ACTION, 'nonce' );

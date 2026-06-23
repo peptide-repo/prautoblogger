@@ -7,6 +7,22 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [0.27.0] - 2026-06-23
 
+### Fixed (QA P1/P2 sweep — post-3cd2843)
+- **P1-C (regression):** Restored `get_option( 'prautoblogger_board_column_limit', PRAUTOBLOGGER_DEFAULT_BOARD_COLUMN_LIMIT )`
+  in both `get_in_review_cards()` and `get_published_cards()` — the M5 commit had hard-coded
+  `posts_per_page => 20`, silently bypassing the board column-limit admin setting.
+- **P1-D (test):** Removed invalid `Functions\when( 'PRAutoBlogger_Run_Stage_State::is_available' )` stub
+  from `BoardInspectorHandlerTest.php` line 99. `Brain\Monkey\Functions\when()` only intercepts
+  global functions; the static-method stub was a silent no-op violating the repo rule against
+  `Functions\when()` on `Class::method`.
+- **P1-A (docs):** Added `class-board-stage-dots.php` (admin/) and `class-board-inspector-handler.php`
+  (ajax/) to the ARCHITECTURE.md file tree.
+- **P1-B (docs):** Added Mission Brief domain vocabulary (Mission Brief, inspector rail, dot-rail,
+  run_stages_summary) to CONTEXT.md.
+- **P2-A:** Deleted dead `assets/js/board-generate.js` (no longer enqueued; button gone in M5).
+- **P2-B:** Added `return;` after `wp_send_json_error()` in
+  `class-board-inspector-handler.php` handle() for explicit early-exit consistency.
+
 ### Added
 - **Pipeline Board M5 -- Mission Brief (board redesign, CEO-selected Direction C):**
 

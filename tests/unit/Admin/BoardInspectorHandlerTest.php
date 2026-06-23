@@ -95,9 +95,6 @@ class BoardInspectorHandlerTest extends BaseTestCase {
 		// integration with Stage_Display_Map without needing the map to be
 		// defined: the fallback returns ucwords(str_replace(...)) of the stage.)
 
-		// Stub Run_Stage_State availability.
-		Functions\when( 'PRAutoBlogger_Run_Stage_State::is_available' )->justReturn( false );
-
 		$mock_meta = array(
 			'run_id'      => 'run-abc123',
 			'status'      => 'complete',

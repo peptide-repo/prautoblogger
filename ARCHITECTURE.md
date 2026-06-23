@@ -148,6 +148,7 @@ prautoblogger/
 │   ├── admin/
 │   │   ├── class-board-page.php       # Mission Brief board -- primary landing screen (v0.19.0, v0.27.0)
 │   │   ├── class-board-data-provider.php # Board orchestrator: run-list snapshot + stage dots (v0.19.0, v0.27.0)
+│   │   ├── class-board-stage-dots.php       # Dot-rail enrichment: batched run_stages query per board section (M5, v0.27.0)
 │   │   ├── class-board-gen-log-query.php # Board gen_log queries: Generating + Failed column raw DB reads (v0.19.0)
 │   │   ├── class-dossier-page.php     # Article dossier admin page: options.php-parent hidden-page, priority 12, enqueue, nonce (v0.19.3)
 │   │   ├── class-dossier-data-assembler.php # 5-query view-model builder: runs+stages+gen_log+decisions+meta (v0.19.2)
@@ -173,7 +174,8 @@ prautoblogger/
 │   │   ├── class-model-registry-refresh.php # AJAX: refresh OpenRouter model registry (manual trigger)
 │   │   ├── class-pipeline-preview-handler.php # M3: assembled-instructions preview from last-run gen_log (v0.25.0)
 │   │   ├── class-pipeline-history-handler.php # M3: prompt version list + LCS diff (history + diff actions) (v0.25.0)
-│   │   └── class-gen-run-io-handler.php # M4: per-run stage I/O drill-down (prautoblogger_gen_run_io) (v0.26.0)
+│   │   ├── class-gen-run-io-handler.php # M4: per-run stage I/O drill-down (prautoblogger_gen_run_io) (v0.26.0)
+│   │   └── class-board-inspector-handler.php # M5: per-run stage inspector AJAX (prautoblogger_board_inspector) (v0.27.0)
 │   │
 │   ├── core/
 │   │   ├── class-scheduler.php        # WP-Cron / Action Scheduler job management
