@@ -144,6 +144,37 @@ class ResearchFanoutTest extends BaseTestCase {
 		$this->assertCount( 3, $results );
 	}
 
+	/**
+	 * When open_amount_reservation() throws PRAutoBlogger_Cost_Ceiling_Exception,
+	 * batch->execute() must NEVER be called — cost governance aborts before dispatch.
+	 */
+	public function test_ceiling_breach_exception_aborts_before_dispatch(): void {
+		$batch = $this->getMockBuilder( \PRAutoBlogger_Research_Batch::class )
+			->disableOriginalConstructor()
+			->onlyMethods( array( 'execute' ) )
+			->getMock();
+
+		// PHPUnit enforces this: execute() must NEVER be called when ceiling is breached.
+		$batch->expects( $this->never() )->method( 'execute' );
+
+		// ceiling_usd=0.0: any reservation attempt breaches → UPDATE affects 0 rows → exception.
+		$this->wpdb->method( 'get_row' )->willReturn( (object) array(
+			'run_id'       => 'run-ceiling',
+			'ceiling_usd'  => 0.0,
+			'reserved_usd' => 0.0,
+			'settled_usd'  => 0.0,
+			'status'       => 'running',
+		) );
+		$this->wpdb->method( 'query' )->willReturn( 0 );
+
+		\PRAutoBlogger_Run_Context::set( 'run-ceiling' );
+
+		$fanout = $this->make_fanout( $batch );
+
+		$this->expectException( \PRAutoBlogger_Cost_Ceiling_Exception::class );
+		$fanout->dispatch( 'run-ceiling', 'idea:abc', $this->make_idea(), $this->make_cost_tracker() );
+	}
+
 	// ── Helpers ─────────────────────────────────────────────────────────
 
 	/**
@@ -236,3 +267,4 @@ class ResearchFanoutTest extends BaseTestCase {
 		return $ct;
 	}
 }
+

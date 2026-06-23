@@ -157,3 +157,22 @@ Full table names are defined in `class-activator.php`.
 | **inspector rail** | The persistent right-hand panel that opens when a run row is clicked. Fetches per-stage I/O via AJAX (`prautoblogger_board_inspector`) and renders the full stage breakdown — status dots, model, cost, expandable prompt/response text, total cost receipt, and an "Open dossier" CTA — without navigating away from the board. Class: `PRAutoBlogger_Board_Inspector_Handler`. |
 | **dot-rail** | The lightweight row-level stage-progress indicator in the Mission Brief run list. Each stage in the run is represented by a small dot coloured by its status (e.g. complete = teal, failed = red). Populated by `PRAutoBlogger_Board_Stage_Dots::enrich()`, which adds a `run_stages_summary` key to each card. |
 | **run_stages_summary** | A card-level enrichment key added by `PRAutoBlogger_Board_Stage_Dots::enrich()`. Array of `{stage, status}` objects for each stage in the run, sourced from the `wp_prautoblogger_run_stages` table in a single batched query per board section. Consumed by `board.js` to render the dot-rail. |
+
+---
+
+## Phase 2b P2b.1 — Research_Fanout + Research_Judge (v0.28.0)
+
+These terms are introduced by the Authority-tier research pipeline (additive; not wired
+into the live Economy path until P2b.4).
+
+| Term | Definition |
+|------|-----------|
+| **fan-out** | The pattern of dispatching N independent LLM requests in parallel (via `curl_multi`), each covering a different specialist angle of the same topic, then collecting and filtering results. Contrasts with the Economy single-pass where one LLM call produces all research. |
+| **Research_Fanout** | `PRAutoBlogger_Research_Fanout` — the orchestrator class that implements the fan-out pattern. Reserves the SUMMED worst-case cost of all N agents from the cost governor before dispatch, applies quorum enforcement after, and returns per-agent result arrays to the caller. Not live until P2b.4 wires it into the tier router. |
+| **curate stage** | The pipeline stage (`stage = 'curate'`) that follows fan-out. Implemented by `PRAutoBlogger_Research_Judge`. Deduplicates sources from all agents, scores each by `quality_score`, and writes the top-12 results to `run_sources`. Already present in `Stage_Display_Map` since v0.18.0. |
+| **Research_Judge** | `PRAutoBlogger_Research_Judge` — the class that executes the curate stage. Dedup chain: URL-canonical → semantic cosine (OpenRouter embeddings) → keyword-overlap fallback. Scores via `Research_Source_Scorer`. Writes `kept=1` / `kept=0` rows to `run_sources` with `quality_score` and `reason`. |
+| **quorum** | Minimum number of research agents that must return usable results for the fan-out to proceed. Formula: ⌈N/2⌉+1 (one strict majority). Example: N=3 → quorum=3; N=5 → quorum=4. If fewer than quorum agents return valid results, `Research_Fanout::dispatch()` returns an empty array and the caller **must hold the run** rather than proceeding on thin research. |
+| **specialist role** | One of `{mechanisms, clinical, safety, comparison, practical}`. Each agent in the fan-out is assigned a distinct role and receives a role-specific user prompt. The first N roles in priority order are used (N = `prautoblogger_research_agent_count`). Written to `run_stages` as `agent_role = 'researcher:<role>'`. |
+| **quality_score** | A composite score for a source: `relevance × authority_weight`. `relevance` comes from the agent's self-reported score (0.0–1.0). `authority_weight` is the source-type multiplier from `Research_Source_Scorer`. Higher scores sort the source closer to the top-12 kept set. Stored in `run_sources.quality_score`. |
+| **authority weight** | A source-type multiplier applied by `PRAutoBlogger_Research_Source_Scorer` to produce `quality_score`. Values: DOI/PubMed/NCBI peer-reviewed → 1.0; .gov/.edu/WHO/FDA institutional → 0.85; preprint → 0.70; HTTPS → 0.60; HTTP → 0.40. Reflects the editorial preference for peer-reviewed sources in Authority-tier articles. |
+| **MIN_AGENTS floor** | `Research_Fanout::MIN_AGENTS = 2`. The minimum configurable agent count. Set to 2 (not 1) because quorum = ⌈N/2⌉+1 = 2 for N=1, making a single-agent dispatch mathematically impossible to satisfy. Clamping to 2 ensures at least a 2-agent fan-out where quorum=2 is achievable (both must succeed). |

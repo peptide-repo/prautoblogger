@@ -36,8 +36,8 @@ class PRAutoBlogger_Research_Fanout implements PRAutoBlogger_Research_Fanout_Int
 	/** Maximum configurable agent count. */
 	private const MAX_AGENTS = 5;
 
-	/** Minimum configurable agent count. */
-	private const MIN_AGENTS = 1;
+	/** Minimum configurable agent count. Floor=2: quorum=⌈N/2⌉+1=2 for N=1 is unsatisfiable. See CONTEXT.md §Phase 2b. */
+	private const MIN_AGENTS = 2;
 
 	/** Specialist roles in priority order; first N are used per run. */
 	private const SPECIALIST_ROLES = array(
@@ -118,61 +118,67 @@ class PRAutoBlogger_Research_Fanout implements PRAutoBlogger_Research_Fanout_Int
 			PRAutoBlogger_Run_Stage_State::start( $run_id, 'research', 'researcher:' . $role, $item_key );
 		}
 
-		$raw_results   = $this->batch->execute( $model, $messages_per_agent, $options, $roles );
 		$valid_results = array();
 		$actual_total  = 0.0;
 
-		foreach ( $raw_results as $idx => $raw ) {
-			$role = $roles[ $idx ];
-			if ( isset( $raw['error'] ) ) {
-				PRAutoBlogger_Logger::instance()->warning(
-					sprintf( 'Research agent "%s" failed: %s', $role, $raw['error'] ),
-					'research-fanout'
+		// try/finally: settle() ALWAYS runs — even if batch->execute() throws.
+		// Without this, an uncaught exception leaves reserved_usd open in the ledger
+		// until the run reaper, silently eroding the ceiling. Settles 0.0 on throw.
+		try {
+			$raw_results = $this->batch->execute( $model, $messages_per_agent, $options, $roles );
+
+			foreach ( $raw_results as $idx => $raw ) {
+				$role = $roles[ $idx ];
+				if ( isset( $raw['error'] ) ) {
+					PRAutoBlogger_Logger::instance()->warning(
+						sprintf( 'Research agent "%s" failed: %s', $role, $raw['error'] ),
+						'research-fanout'
+					);
+					PRAutoBlogger_Run_Stage_State::fail( $run_id, 'research', 'researcher:' . $role, $item_key );
+					continue;
+				}
+
+				$parsed  = PRAutoBlogger_Json_Extractor::decode( $raw['content'] ?? '' );
+				$sources = $this->validate_sources( $parsed );
+
+				if ( null === $sources ) {
+					PRAutoBlogger_Logger::instance()->warning(
+						sprintf( 'Research agent "%s" returned invalid schema; excluding.', $role ),
+						'research-fanout'
+					);
+					PRAutoBlogger_Run_Stage_State::fail( $run_id, 'research', 'researcher:' . $role, $item_key );
+					continue;
+				}
+
+				$actual_cost   = (float) ( $raw['actual_cost'] ?? 0.0 );
+				$actual_total += $actual_cost;
+
+				$cost_tracker->log_api_call(
+					null,
+					'research',
+					'openrouter',
+					$raw['model'] ?? $model,
+					(int) ( $raw['prompt_tokens'] ?? 0 ),
+					(int) ( $raw['completion_tokens'] ?? 0 )
 				);
-				PRAutoBlogger_Run_Stage_State::fail( $run_id, 'research', 'researcher:' . $role, $item_key );
-				continue;
-			}
 
-			$parsed  = PRAutoBlogger_Json_Extractor::decode( $raw['content'] ?? '' );
-			$sources = $this->validate_sources( $parsed );
-
-			if ( null === $sources ) {
-				PRAutoBlogger_Logger::instance()->warning(
-					sprintf( 'Research agent "%s" returned invalid schema; excluding.', $role ),
-					'research-fanout'
+				PRAutoBlogger_Run_Stage_State::done(
+					$run_id,
+					'research',
+					'researcher:' . $role,
+					$item_key,
+					wp_json_encode( array( 'source_count' => count( $sources ) ) ),
+					$actual_cost
 				);
-				PRAutoBlogger_Run_Stage_State::fail( $run_id, 'research', 'researcher:' . $role, $item_key );
-				continue;
+
+				$valid_results[] = array(
+					'sources'    => $sources,
+					'agent_role' => 'researcher:' . $role,
+				);
 			}
-
-			$actual_cost   = (float) ( $raw['actual_cost'] ?? 0.0 );
-			$actual_total += $actual_cost;
-
-			$cost_tracker->log_api_call(
-				null,
-				'research',
-				'openrouter',
-				$raw['model'] ?? $model,
-				(int) ( $raw['prompt_tokens'] ?? 0 ),
-				(int) ( $raw['completion_tokens'] ?? 0 )
-			);
-
-			PRAutoBlogger_Run_Stage_State::done(
-				$run_id,
-				'research',
-				'researcher:' . $role,
-				$item_key,
-				wp_json_encode( array( 'source_count' => count( $sources ) ) ),
-				$actual_cost
-			);
-
-			$valid_results[] = array(
-				'sources'    => $sources,
-				'agent_role' => 'researcher:' . $role,
-			);
+		} finally {
+			PRAutoBlogger_Cost_Governor::settle( $reservation, $actual_total ); // Always settles (0 on throw).
 		}
-
-		PRAutoBlogger_Cost_Governor::settle( $reservation, $actual_total );
 
 		$valid_count = count( $valid_results );
 		PRAutoBlogger_Logger::instance()->info(
@@ -200,6 +206,7 @@ class PRAutoBlogger_Research_Fanout implements PRAutoBlogger_Research_Fanout_Int
 
 	/**
 	 * Read the configured agent count, clamped to [MIN_AGENTS, MAX_AGENTS].
+	 * MIN_AGENTS=2 since quorum=⌈N/2⌉+1=2 for N=1 is unsatisfiable; see CONTEXT.md §Phase 2b.
 	 *
 	 * @return int
 	 */
@@ -289,3 +296,4 @@ class PRAutoBlogger_Research_Fanout implements PRAutoBlogger_Research_Fanout_Int
 		return count( $out ) > 0 ? $out : null;
 	}
 }
+
