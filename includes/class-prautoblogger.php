@@ -72,6 +72,11 @@ class PRAutoBlogger {
 		add_action( 'admin_menu', array( $board_page, 'on_register_menu' ), 11 );
 		add_action( 'admin_enqueue_scripts', array( $board_page, 'on_enqueue_assets' ) );
 
+		// Pipeline Settings: visible submenu, priority 13 (after dossier).
+		$pipeline_page = new PRAutoBlogger_Pipeline_Settings_Page();
+		add_action( 'admin_menu', array( $pipeline_page, 'on_register_menu' ), 13 );
+		add_action( 'admin_enqueue_scripts', array( $pipeline_page, 'on_enqueue_assets' ) );
+
 		// Dossier: link-accessed hidden submenu, priority 12 (after board).
 		$dossier_page = new PRAutoBlogger_Dossier_Page();
 		add_action( 'admin_menu', array( $dossier_page, 'on_register_menu' ), 12 );

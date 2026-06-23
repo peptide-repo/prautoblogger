@@ -11,6 +11,7 @@ Maintained per DoD v1.1.0 (same-PR update rule).
 |------|-------|----------|---------|
 | `prautoblogger-settings` | `PRAutoBlogger_Admin_Page` | `admin-page.php` | Main settings (schedule, models, budget, board limits) |
 | `prautoblogger-board` | `PRAutoBlogger_Board_Page` | `board-page.php` | Kanban board: Generating / Failed / In Review / Published columns. New Article button (v0.21.0). |
+| `prautoblogger-pipeline` | `PRAutoBlogger_Pipeline_Settings_Page` | `pipeline-settings-page.php` | Per-step pipeline config: model picker, system instructions, agent prompts, params (M1, v0.23.0). |
 | `prautoblogger-articles` | `PRAutoBlogger_Articles_Page` | `articles-page.php` | Paginated list of all articles/runs |
 | `prautoblogger-dossier` | `PRAutoBlogger_Dossier_Page` | `dossier-page.php` | Per-article generation log + stage edit/re-run (M3) |
 | `prautoblogger-ideas` | `PRAutoBlogger_Ideas_Browser` | `ideas-browser.php` | Analysis results browser with per-idea generation |
