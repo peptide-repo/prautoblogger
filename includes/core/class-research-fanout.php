@@ -230,13 +230,16 @@ class PRAutoBlogger_Research_Fanout implements PRAutoBlogger_Research_Fanout_Int
 		$sets   = array();
 		foreach ( $roles as $role ) {
 			$sets[] = array(
-				array( 'role' => 'system', 'content' => $system ),
+				array(
+					'role' => 'system',
+					'content' => $system,
+				),
 				array(
 					'role'    => 'user',
 					'content' => sprintf(
 						"Topic: %s\nProposed title: %s\n\nSpecialist focus: %s\n\n" .
 						"Find 3-6 high-quality sources for this topic from a '%s' perspective. " .
-						"Return JSON: {\"sources\":[{\"url\":\"\",\"title\":\"\",\"excerpt\":\"\",\"relevance\":0.0}]}",
+						'Return JSON: {"sources":[{"url":"","title":"","excerpt":"","relevance":0.0}]}',
 						$topic,
 						$title,
 						$role,

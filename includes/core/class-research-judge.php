@@ -108,7 +108,12 @@ class PRAutoBlogger_Research_Judge implements PRAutoBlogger_Research_Judge_Inter
 			'curate',
 			(string) PRAutoBlogger_Stage_Display_Map::default_agent_role( 'curate' ),
 			$item_key,
-			wp_json_encode( array( 'kept' => count( $kept ), 'total' => count( $all_sources ) ) )
+			wp_json_encode(
+				array(
+					'kept' => count( $kept ),
+					'total' => count( $all_sources ),
+				)
+			)
 		);
 
 		PRAutoBlogger_Logger::instance()->info(
@@ -224,8 +229,20 @@ class PRAutoBlogger_Research_Judge implements PRAutoBlogger_Research_Judge_Inter
 		$table   = $wpdb->prefix . 'prautoblogger_run_sources';
 		$now     = current_time( 'mysql' );
 		$sources = array_merge(
-			array_map( static fn( $s ) => $s + array( 'is_kept' => 1, 'discard_reason' => '' ), $kept ),
-			array_map( static fn( $s ) => $s + array( 'is_kept' => 0, 'discard_reason' => 'Exceeded maximum kept sources per run' ), $discarded )
+			array_map(
+				static fn( $s ) => $s + array(
+					'is_kept' => 1,
+					'discard_reason' => '',
+				),
+				$kept
+			),
+			array_map(
+				static fn( $s ) => $s + array(
+					'is_kept' => 0,
+					'discard_reason' => 'Exceeded maximum kept sources per run',
+				),
+				$discarded
+			)
 		);
 		foreach ( $sources as $s ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
