@@ -105,3 +105,17 @@ Full table names are defined in `class-activator.php`.
 ---
 
 *See also: `ARCHITECTURE.md` §25 (checkpoint design), `CONVENTIONS.md` (coding rules).*
+
+---
+
+## Pipeline Settings M2 (v0.24.0)
+
+| Term | Definition |
+|------|-----------|
+| **step context** | A routing key (`global\|research\|analysis\|writer\|editorial`) that identifies which group of option fields is being edited in the `save_step_settings` handler. Validated against the `PRAutoBlogger_Pipeline_Settings_Option_Fields::contexts()` allowlist before any write. Distinct from "step" (the display unit in the step rail) — `global` is a context with no corresponding step button. |
+| **Global Content Context** | The editable form block rendered above the step rail in the Pipeline Settings page (v0.24.0). Surfaces `prautoblogger_niche_description` and any future cross-step fields. Uses `step_context=global` in its save form. Not associated with an LLM step. |
+| **option field** | A `wp_option`-backed field surfaced in a step panel or the Global Content Context block. Defined in `PRAutoBlogger_Pipeline_Settings_Option_Fields_Data`. Distinct from a "prompt panel" (which edits the prompt registry). Types: `textarea`, `select`, `number`, `toggle`, `checkboxes`. |
+| **step option** | Synonym for option field when it appears inside a step panel (i.e., not in the Global Content Context). |
+| **`step_context`** | The POST key that routes `save_step_settings` to the correct field set. Expected values: `global`, `research`, `analysis`, `writer`, `editorial`. Validated with `sanitize_key()` before use. |
+| **`pipeline_action=save_step_settings`** | POST contract key introduced in M2. Triggers `PRAutoBlogger_Pipeline_Settings_Save_Handler::handle_step_settings_save()`. Parallel to the existing `save_model`, `save_prompt`, and `reset_prompt` action values. |
+| **relocated-tabs concept** | The Settings tabs `prautoblogger_models`, `prautoblogger_content`, and `prautoblogger_sources` were retired in M2; their 17 option fields moved to per-step panels in the Pipeline page. The `wp_option` keys are unchanged — only the admin UI surface that edits them moved. See `CONVENTIONS.md §Retired Settings Tabs`. |

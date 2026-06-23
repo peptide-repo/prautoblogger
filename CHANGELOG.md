@@ -29,6 +29,18 @@ and this project uses [Semantic Versioning](https://semver.org/).
 - `includes/admin/class-pipeline-settings-option-fields-data.php`
 - `templates/admin/pipeline-settings-step-options.php`
 
+
+### Tests
+- **PHPUnit (P1-1 QA fix):** Added `test_research_context_saves_source_settings()` and
+  `test_research_context_checkboxes_filters_unknown_sources()` to
+  `tests/unit/Admin/PipelineSettingsStepSaveTest.php`. Covers the research context
+  integration path end-to-end: `step_context=research` → fields fetched → POST read
+  → `sanitize_option()` (checkboxes type) → `update_option()` persisted. First test
+  asserts `status=saved` and that `prautoblogger_enabled_sources` decodes to `["reddit"]`;
+  also asserts `prautoblogger_reddit_time_filter` and that the posts-per-subreddit
+  value is an integer. Second test asserts that unknown source keys are stripped
+  by the choices allowlist while valid keys (`reddit`, `llm_research`) survive.
+
 ## [0.23.0] - 2026-06-22
 
 ### Added

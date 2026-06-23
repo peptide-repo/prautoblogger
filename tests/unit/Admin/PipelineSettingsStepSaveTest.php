@@ -231,3 +231,65 @@ class PipelineSettingsStepSaveTest extends BaseTestCase {
 		$this->assertEmpty( $this->saved_options );
 	}
 }
+
+	// =========================================================================
+	// § RESEARCH CONTEXT
+	// =========================================================================
+
+	/**
+	 * The research context is the only step context containing a `checkboxes`-type
+	 * field (prautoblogger_enabled_sources). Its save path is distinct: the POST
+	 * value is an array → each item sanitize_key'd → filtered against the choices
+	 * allowlist → JSON-encoded string persisted via update_option().
+	 *
+	 * This test exercises the full integration path for that field and asserts
+	 * that an unknown source key is stripped and only allowlisted keys survive.
+	 */
+	public function test_research_context_saves_source_settings(): void {
+		$_POST = array(
+			\PRAutoBlogger_Pipeline_Settings_Page::NONCE_FIELD => 'valid',
+			'pipeline_action'                          => 'save_step_settings',
+			'step_context'                             => 'research',
+			'prautoblogger_enabled_sources'            => array( 'reddit' ),
+			'prautoblogger_target_subreddits'          => 'peptides, Nootropics',
+			'prautoblogger_reddit_time_filter'         => 'week',
+			'prautoblogger_reddit_posts_per_subreddit' => '20',
+			'prautoblogger_pullpush_cache_ttl'         => '12',
+			'prautoblogger_research_prompt'            => 'Find trending topics in {niche}.',
+		);
+
+		$result = \PRAutoBlogger_Pipeline_Settings_Save_Handler::maybe_process_save();
+
+		$this->assertSame( 'saved', $result['status'] );
+		$decoded = json_decode( $this->saved_options['prautoblogger_enabled_sources'], true );
+		$this->assertSame( array( 'reddit' ), $decoded );
+		$this->assertSame( 'week', $this->saved_options['prautoblogger_reddit_time_filter'] );
+		$this->assertIsInt( $this->saved_options['prautoblogger_reddit_posts_per_subreddit'] );
+	}
+
+	/**
+	 * Unknown source keys supplied in the checkboxes array must be stripped —
+	 * only values present in the field's `choices` allowlist survive.
+	 */
+	public function test_research_context_checkboxes_filters_unknown_sources(): void {
+		$_POST = array(
+			\PRAutoBlogger_Pipeline_Settings_Page::NONCE_FIELD => 'valid',
+			'pipeline_action'               => 'save_step_settings',
+			'step_context'                  => 'research',
+			'prautoblogger_enabled_sources' => array( 'reddit', 'unknown_source', 'llm_research' ),
+			'prautoblogger_target_subreddits'          => '',
+			'prautoblogger_reddit_time_filter'         => 'day',
+			'prautoblogger_reddit_posts_per_subreddit' => '25',
+			'prautoblogger_pullpush_cache_ttl'         => '6',
+			'prautoblogger_research_prompt'            => '',
+		);
+
+		$result = \PRAutoBlogger_Pipeline_Settings_Save_Handler::maybe_process_save();
+
+		$this->assertSame( 'saved', $result['status'] );
+		$decoded = json_decode( $this->saved_options['prautoblogger_enabled_sources'], true );
+		$this->assertContains( 'reddit', $decoded );
+		$this->assertContains( 'llm_research', $decoded );
+		$this->assertNotContains( 'unknown_source', $decoded );
+	}
+}
