@@ -1146,7 +1146,8 @@ If the host kills any tick:
 | Caller | Path |
 |--------|------|
 | Board "New Article" button | AJAX `prautoblogger_generate_now` → `Generation_Status_Poller::on_ajax_generate_now()` → schedules `prautoblogger_manual_generation` → `Executor::on_manual_generation()` → `kick_off()` |
-| WP-CLI | `wp prautoblogger generate` → `WP_CLI_Commands::generate_command()` → `kick_off()` |
+| WP-CLI (async) | `wp prautoblogger generate` → `WP_CLI_Commands::generate_command()` → `kick_off()` |
+| WP-CLI (sync / VPS) | `wp prautoblogger generate --sync` → `WP_CLI_Commands::run_sync()` → `set_sync_mode(true)` → `on_orchestrate_tick()` → tick loop `on_generate_tick()` (×N) → `set_sync_mode(false)` |
 | Old cron hook (retained) | `prautoblogger_manual_generation` → `Executor::on_manual_generation()` → `kick_off()` |
 
 ### SSH Workaround Retirement
