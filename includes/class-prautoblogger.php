@@ -210,6 +210,9 @@ class PRAutoBlogger {
 
 		// v0.26.0 (M4): generation run I/O drill-down.
 		PRAutoBlogger_Gen_Run_IO_Handler::register_hooks();
+
+		// v0.27.0 (M5): board inspector rail AJAX.
+		PRAutoBlogger_Board_Inspector_Handler::register_hooks();
 	}
 
 	/**

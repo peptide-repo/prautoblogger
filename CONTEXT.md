@@ -146,3 +146,14 @@ Full table names are defined in `class-activator.php`.
 | **output** | The LLM's raw response text from `run_stages.meta_json.output`. Null when the stage is log-only (image_a, image_b, llm_research, image_prompt_rewrite — no run_stages row). |
 | **output_pruned** | True when `run_stages.meta_json` exists but has no `output` key — indicating the output was pruned by the `prautoblogger_request_json_retention_days` setting. The UI shows an explicit message instead of a blank field. |
 | **log-only stage** | A generation_log stage with no corresponding run_stages row. Image stages (image_a, image_b, image_prompt_rewrite) and llm_research fall here. Their output is null (not pruned) in the drill-down. |
+
+---
+
+## Pipeline Board M5 — Mission Brief (v0.27.0)
+
+| Term | Definition |
+|------|-----------|
+| **Mission Brief** | The new board layout (CEO-selected Direction C, v0.27.0). Replaces the four-column kanban with a status-grouped vertical run list (Generating / In Review / Published / Failed). Each section is independently expandable; the board name reflects the editorial-command framing of the design. Class: `PRAutoBlogger_Board_Page`. |
+| **inspector rail** | The persistent right-hand panel that opens when a run row is clicked. Fetches per-stage I/O via AJAX (`prautoblogger_board_inspector`) and renders the full stage breakdown — status dots, model, cost, expandable prompt/response text, total cost receipt, and an "Open dossier" CTA — without navigating away from the board. Class: `PRAutoBlogger_Board_Inspector_Handler`. |
+| **dot-rail** | The lightweight row-level stage-progress indicator in the Mission Brief run list. Each stage in the run is represented by a small dot coloured by its status (e.g. complete = teal, failed = red). Populated by `PRAutoBlogger_Board_Stage_Dots::enrich()`, which adds a `run_stages_summary` key to each card. |
+| **run_stages_summary** | A card-level enrichment key added by `PRAutoBlogger_Board_Stage_Dots::enrich()`. Array of `{stage, status}` objects for each stage in the run, sourced from the `wp_prautoblogger_run_stages` table in a single batched query per board section. Consumed by `board.js` to render the dot-rail. |

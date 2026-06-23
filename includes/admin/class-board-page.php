@@ -4,27 +4,35 @@ declare(strict_types=1);
 /**
  * phpcs:ignore WordPress.Files.FileName.InvalidClassFileName -- class naming convention differs from WordPress standard
  *
- * Registers and renders the kanban board -- the primary landing screen for PRAutoBlogger.
+ * Registers and renders the Mission Brief board -- the primary landing screen.
  *
- * Board columns: Generating | In Review | Published | Failed.
- * Cards live-update via AJAX polling at a settings-backed interval (default 5s),
- * backing off to 2x when no active generating run is detected.
+ * M5 (v0.27.0): replaces the kanban column layout with a vertical run list
+ * grouped by status section (Generating | In Review | Published | Failed),
+ * plus a persistent right-rail inspector. Selecting a row fetches full per-stage
+ * I/O via PRAutoBlogger_Board_Inspector_Handler (AJAX) and populates the rail
+ * without navigating away. The dossier remains the deep-dive destination.
  *
- * Card click-throughs (M1):
- *   - Generating -> Activity Log filtered to run context
- *   - In Review  -> Review Queue
- *   - Published  -> Post edit screen
- *   - Failed     -> Activity Log
- *
- * M2 will rewire all click-throughs to the Article Dossier page.
+ * Board capabilities preserved from M4:
+ *   - New Article action (links to Ideas Browser).
+ *   - Per-run dossier deep-link (click row or rail "Open dossier" button).
+ *   - Status sections with counts.
+ *   - Live AJAX polling with backoff (prautoblogger_board_status).
+ *   - Published-window filter (prautoblogger_board_published_window_days).
+ *   - Poll-interval setting (prautoblogger_board_poll_interval).
+ *   - Human-modified badge.
+ *   - Stalled/failed rows read RED (never softened).
+ *   - Error banner on poll failure.
+ *   - Empty state per section.
  *
  * Triggered by: PRAutoBlogger::register_admin_hooks() on `admin_menu`.
- * Dependencies: PRAutoBlogger_Board_Data_Provider, wp_localize_script.
+ * Dependencies: PRAutoBlogger_Board_Data_Provider, PRAutoBlogger_Board_Inspector_Handler,
+ *               wp_localize_script.
  *
- * @see admin/class-board-data-provider.php -- Supplies card data.
- * @see templates/admin/board-page.php      -- HTML template.
- * @see assets/js/board.js                  -- Polling + DOM updates.
- * @see ARCHITECTURE.md                     -- Section: Board (kanban dashboard).
+ * @see admin/class-board-data-provider.php    -- Supplies run-list snapshot.
+ * @see ajax/class-board-inspector-handler.php -- Inspector AJAX (per-run stage I/O).
+ * @see templates/admin/board-page.php         -- HTML template (Mission Brief layout).
+ * @see assets/js/board.js                     -- Polling + inspector rail JS.
+ * @see ARCHITECTURE.md                        -- §Board (M5 Mission Brief).
  */
 class PRAutoBlogger_Board_Page {
 
@@ -33,7 +41,7 @@ class PRAutoBlogger_Board_Page {
 	/** AJAX action name for board polling. */
 	public const AJAX_ACTION = 'prautoblogger_board_status';
 
-	/** Nonce action string for board AJAX. */
+	/** Nonce action string for board AJAX (polling + inspector share this nonce). */
 	public const NONCE_ACTION = 'prautoblogger_board';
 
 	/**
@@ -48,7 +56,7 @@ class PRAutoBlogger_Board_Page {
 	 * $admin_page_hooks['prautoblogger-settings'] before add_submenu_page()
 	 * runs here, so get_plugin_page_hookname() resolves to the correct
 	 * 'prautoblogger_page_prautoblogger-board' suffix rather than the fallback
-	 * 'admin_page_prautoblogger-board'. See ARCHITECTURE.md Section: Board.
+	 * 'admin_page_prautoblogger-board'. See ARCHITECTURE.md §Board.
 	 *
 	 * @return void
 	 */
@@ -70,8 +78,7 @@ class PRAutoBlogger_Board_Page {
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- intentional submenu reorder.
 		global $submenu;
 		if ( isset( $submenu['prautoblogger-settings'] ) ) {
-			$items = $submenu['prautoblogger-settings'];
-			// Find the Board entry and move it to position 0.
+			$items     = $submenu['prautoblogger-settings'];
 			$board_idx = null;
 			foreach ( $items as $i => $item ) {
 				if ( isset( $item[2] ) && self::PAGE_SLUG === $item[2] ) {
@@ -82,7 +89,6 @@ class PRAutoBlogger_Board_Page {
 			if ( null !== $board_idx && $board_idx > 0 ) {
 				$board_item = $items[ $board_idx ];
 				unset( $items[ $board_idx ] );
-				// Prepend board item at position 0 while preserving remaining order.
 				$submenu['prautoblogger-settings'] = array_merge( array( $board_item ), array_values( $items ) );
 			}
 		}
@@ -101,7 +107,7 @@ class PRAutoBlogger_Board_Page {
 	}
 
 	/**
-	 * Enqueue board-specific JS + CSS and localize the poller config.
+	 * Enqueue board-specific JS + CSS and localize the poller + inspector config.
 	 *
 	 * Called via `admin_enqueue_scripts` action, gated to this page's hook suffix.
 	 *
@@ -128,50 +134,52 @@ class PRAutoBlogger_Board_Page {
 			PRAUTOBLOGGER_VERSION,
 			true
 		);
-		wp_enqueue_script(
-			'prautoblogger-board-generate',
-			PRAUTOBLOGGER_PLUGIN_URL . 'assets/js/board-generate.js',
-			array( 'jquery', 'prautoblogger-board' ),
-			PRAUTOBLOGGER_VERSION,
-			true
-		);
 
-		$poll_interval   = max( 3, (int) get_option( 'prautoblogger_board_poll_interval', 5 ) );
-		$published_days  = max( 1, (int) get_option( 'prautoblogger_board_published_window_days', 7 ) );
+		$poll_interval  = max( 3, (int) get_option( 'prautoblogger_board_poll_interval', 5 ) );
+		$published_days = max( 1, (int) get_option( 'prautoblogger_board_published_window_days', 7 ) );
 
 		wp_localize_script(
 			'prautoblogger-board',
 			'prabBoard',
 			array(
-				'ajaxUrl'           => admin_url( 'admin-ajax.php' ),
-				'nonce'             => wp_create_nonce( self::NONCE_ACTION ),
-				'generateNonce'     => wp_create_nonce( 'prautoblogger_generate_now' ),
-				'pollInterval'      => $poll_interval * 1000,
+				'ajaxUrl'             => admin_url( 'admin-ajax.php' ),
+				'nonce'               => wp_create_nonce( self::NONCE_ACTION ),
+				'pollInterval'        => $poll_interval * 1000,
 				'publishedWindowDays' => $published_days,
-				'action'            => self::AJAX_ACTION,
-				'strings'           => array(
-					'generating'   => __( 'Generating', 'prautoblogger' ),
-					'inReview'     => __( 'In Review', 'prautoblogger' ),
-					'published'    => __( 'Published', 'prautoblogger' ),
-					'failed'       => __( 'Failed', 'prautoblogger' ),
-					'empty'        => __( 'Nothing here yet.', 'prautoblogger' ),
-					'cost'         => __( 'Cost', 'prautoblogger' ),
-					'view'         => __( 'View', 'prautoblogger' ),
-					'edit'         => __( 'Edit', 'prautoblogger' ),
-					'viewLog'      => __( 'View Log', 'prautoblogger' ),
-					'pollError'    => __( 'Board update failed -- retrying.', 'prautoblogger' ),
-					'humanModified'  => __( 'Human-modified', 'prautoblogger' ),
-					'newArticle'     => __( 'New Article', 'prautoblogger' ),
-					'generatingBtn'  => __( 'Generating...', 'prautoblogger' ),
-					'genStarted'     => __( 'Generation started. Board will update automatically.', 'prautoblogger' ),
-					'genError'       => __( 'Generation failed to start. Check the Activity Log.', 'prautoblogger' ),
+				'action'              => self::AJAX_ACTION,
+				'inspectorAction'     => PRAutoBlogger_Board_Inspector_Handler::ACTION,
+				'ideasUrl'            => admin_url( 'admin.php?page=prautoblogger-ideas' ),
+				'strings'             => array(
+					'generating'      => __( 'Generating', 'prautoblogger' ),
+					'inReview'        => __( 'In review', 'prautoblogger' ),
+					'published'       => __( 'Published', 'prautoblogger' ),
+					'failed'          => __( 'Failed', 'prautoblogger' ),
+					'stalled'         => __( 'Stalled', 'prautoblogger' ),
+					'empty'           => __( 'Nothing here yet.', 'prautoblogger' ),
+					'cost'            => __( 'Cost', 'prautoblogger' ),
+					'view'            => __( 'View', 'prautoblogger' ),
+					'edit'            => __( 'Edit', 'prautoblogger' ),
+					'viewLog'         => __( 'View log', 'prautoblogger' ),
+					'pollError'       => __( 'Board update failed — retrying.', 'prautoblogger' ),
+					'humanModified'   => __( 'Human-modified', 'prautoblogger' ),
+					'inspectorEmpty'  => __( 'Select an article to preview its pipeline.', 'prautoblogger' ),
+					'inspectorLoad'   => __( 'Loading…', 'prautoblogger' ),
+					'inspectorError'  => __( 'Could not load run details.', 'prautoblogger' ),
+					'openDossier'     => __( 'Open dossier →', 'prautoblogger' ),
+					'newArticle'      => __( 'New article', 'prautoblogger' ),
+					'input'           => __( 'Input', 'prautoblogger' ),
+					'output'          => __( 'Output', 'prautoblogger' ),
+					'pruned'          => __( '[pruned — past retention window]', 'prautoblogger' ),
+					'noOutput'        => __( '[no output recorded]', 'prautoblogger' ),
+					'totalCost'       => __( 'Total cost', 'prautoblogger' ),
+					'tokens'          => __( 'tok', 'prautoblogger' ),
 				),
 			)
 		);
 	}
 
 	/**
-	 * AJAX handler: return the current board snapshot (all four columns).
+	 * AJAX handler: return the current board snapshot (all four sections).
 	 *
 	 * Nonce: `prautoblogger_board`. Requires `manage_options` capability.
 	 *

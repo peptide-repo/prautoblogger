@@ -4,25 +4,29 @@ declare(strict_types=1);
 /**
  * phpcs:ignore WordPress.Files.FileName.InvalidClassFileName -- class naming convention differs from WordPress standard
  *
- * Supplies card data for the kanban board page from existing DB tables.
+ * Supplies run-list data for the Mission Brief board (M5).
  *
- * Orchestrates the four board columns:
+ * Orchestrates the four status sections:
  *   Generating | In Review | Published | Failed
  *
- * Generation-log queries (Generating, Failed) are delegated to
- * PRAutoBlogger_Board_Gen_Log_Query. WP_Query columns (In Review, Published)
- * are handled here.
+ * M5 additions (v0.27.0): each card now includes `run_stages_summary`
+ * -- a lightweight array of { stage, status } entries derived from the
+ * run_stages table, used by the board's dot-rail (stage-progress indicator).
+ * The inspector's full I/O is fetched separately via Board_Inspector_Handler
+ * on row-click (not loaded up-front for every card).
  *
- * M2: cards now include `dossier_url` so board.js can deep-link to the
- * Article Dossier instead of the old per-column destinations.
+ * Generation-log queries (Generating, Failed) are delegated to
+ * PRAutoBlogger_Board_Gen_Log_Query. WP_Query sections (In Review, Published)
+ * are handled here.
  *
  * No schema changes -- all data comes from tables that already exist.
  *
  * Triggered by: PRAutoBlogger_Board_Page::on_ajax_board_status().
- * Dependencies: PRAutoBlogger_Board_Gen_Log_Query, PRAutoBlogger_Dossier_Page,
- *               WordPress WP_Query, get_option().
+ * Dependencies: PRAutoBlogger_Board_Gen_Log_Query, PRAutoBlogger_Board_Stage_Dots,
+ *               PRAutoBlogger_Dossier_Page, WordPress WP_Query, get_option().
  *
  * @see admin/class-board-gen-log-query.php -- Raw gen_log queries (Generating/Failed).
+ * @see admin/class-board-stage-dots.php      -- Stage dot-rail enrichment (M5).
  * @see admin/class-board-page.php          -- Calls get_board_snapshot().
  * @see admin/class-dossier-page.php        -- Provides url_for_post() for deep-links.
  * @see ARCHITECTURE.md                     -- Database schema.
@@ -56,6 +60,12 @@ class PRAutoBlogger_Board_Data_Provider {
 		$published  = $this->get_published_cards();
 		$failed     = $this->gen_log_query->get_failed_cards();
 
+		// Enrich cards with lightweight stage dots.
+		$generating = PRAutoBlogger_Board_Stage_Dots::enrich( $generating );
+		$in_review  = PRAutoBlogger_Board_Stage_Dots::enrich( $in_review );
+		$published  = PRAutoBlogger_Board_Stage_Dots::enrich( $published );
+		$failed     = PRAutoBlogger_Board_Stage_Dots::enrich( $failed );
+
 		return array(
 			'generating'      => $generating,
 			'in_review'       => $in_review,
@@ -85,7 +95,6 @@ class PRAutoBlogger_Board_Data_Provider {
 
 	/**
 	 * Cards for generated draft posts awaiting human review.
-	 * M2: cards include dossier_url for deep-linking.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
@@ -132,7 +141,6 @@ class PRAutoBlogger_Board_Data_Provider {
 
 	/**
 	 * Cards for published posts within the configured window.
-	 * M2: cards include dossier_url for deep-linking.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
@@ -187,10 +195,8 @@ class PRAutoBlogger_Board_Data_Provider {
 	}
 
 	/**
-	 * Set 'human_modified' on each card in ONE batched query (v0.20.0 —
-	 * CPO product AC: human-modified runs are visually distinct at the
-	 * run-list level). No per-card queries; self-healing on a missing
-	 * table/column (flag simply stays false).
+	 * Set 'human_modified' on each card in ONE batched query (v0.20.0).
+	 * No per-card queries; self-healing on a missing table/column.
 	 *
 	 * @param array<int, array<string, mixed>> $cards Column cards.
 	 * @return array<int, array<string, mixed>> Cards with the flag set.

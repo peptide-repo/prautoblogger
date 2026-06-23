@@ -1,249 +1,550 @@
 /**
- * PRAutoBlogger — Kanban Board Styles
+ * PRAutoBlogger — Mission Brief Board Styles (M5, v0.27.0)
  *
- * Warm editorial style (Proposal C / Direction C).
- * Inside wp-admin chrome; uses WP admin vars where available.
- * No build step — plain CSS, no preprocessor.
+ * Replaces the four-column kanban with a vertical run-list + right-rail
+ * inspector layout (Option C / "Mission Brief").
  *
- * Palette:
- *   Teal     #1B8A92   (brand primary — Generating pill, spinner)
- *   Cream    #FAF6EE   (card background)
- *   Ink      #0D0D0D   (primary text)
- *   Orange   #FF8A3D   (In Review pill)
- *   Lime     #7FD600   (Published pill — success)
- *   Red      #D94F4F   (Failed pill)
- *   Mid-grey #8A8A8A   (meta text, border)
+ * Design language (locked by CMO consult 2026-06-20):
+ *   Surface:    #FFFFFF  (bg-page / bg-surface)
+ *   Inset:      #F5F5F5  (bg-inset — sections, inspector bg)
+ *   Primary:    #1B8A92  (teal-500 — Generating chip, focus ring, CTA)
+ *   Hover:      #147178  (teal-600)
+ *   Lime:       #7FD600  (lime-500 — Published chip)
+ *   Orange:     #FF8A3D  (orange-500 — In Review chip)
+ *   Error:      #C0392B  (cautionary — Failed chip, failed row border)
+ *   Text:       #0D0D0D / #3D3D3D / #808080
+ *   Border:     #E8E8E8
  *
- * @see templates/admin/board-page.php  — Rendered HTML structure.
- * @see assets/js/board.js              — DOM updates that match these selectors.
+ * Fonts: Poppins (display), Inter (body/UI), IBM Plex Mono (all numerics).
+ *
+ * No dark mode. No glassmorphism. No glow effects.
+ * Namespace: .prab-board-wrap and .prab-* selectors only.
+ *
+ * @see templates/admin/board-page.php -- Rendered HTML structure.
+ * @see assets/js/board.js             -- DOM updates that match these selectors.
  */
+
+/* ── Google Fonts load (same subset as theme — no second copy if already loaded) */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap');
 
 /* ── Page wrapper ──────────────────────────────────────────────────────── */
 .prab-board-wrap {
 	padding: 0;
 }
 
+/* ── Top bar: heading + New Article CTA ───────────────────────────────── */
+.prab-board-topbar {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	padding: 18px 20px 12px;
+	border-bottom: 1px solid #E8E8E8;
+}
+
 .prab-board-heading {
-	font-size: 1.4rem;
-	font-weight: 700;
-	color: #0d0d0d;
-	margin: 20px 0 18px 0;
-	padding: 0 20px;
+	font-family: 'Poppins', sans-serif;
+	font-size: 20px;
+	font-weight: 600;
+	color: #0D0D0D;
+	margin: 0;
 	display: flex;
 	align-items: baseline;
 	gap: 10px;
 }
 
 .prab-board-heading-sub {
-	font-size: 1rem;
+	font-family: 'Inter', sans-serif;
+	font-size: 13px;
 	font-weight: 400;
-	color: #8a8a8a;
+	color: #808080;
 }
 
-/* ── Four-column board grid ────────────────────────────────────────────── */
-.prab-board {
+.prab-board-new-article-btn {
+	display: inline-flex;
+	align-items: center;
+	padding: 7px 16px;
+	background: #1B8A92;
+	color: #FFFFFF;
+	border-radius: 8px;
+	font-family: 'Inter', sans-serif;
+	font-size: 13px;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background 0.15s ease;
+}
+
+.prab-board-new-article-btn:hover,
+.prab-board-new-article-btn:focus {
+	background: #147178;
+	color: #FFFFFF;
+	outline: 2px solid #1B8A92;
+	outline-offset: 2px;
+}
+
+/* ── Two-pane Mission Brief layout ────────────────────────────────────── */
+.prab-board--mission-brief {
 	display: grid;
-	grid-template-columns: repeat(4, 1fr);
-	gap: 16px;
-	padding: 0 20px 24px;
+	grid-template-columns: 60% 40%;
 	align-items: start;
+	min-height: 400px;
 }
 
-@media (max-width: 1200px) {
-	.prab-board {
-		grid-template-columns: repeat(2, 1fr);
-	}
-}
-
-@media (max-width: 720px) {
-	.prab-board {
+@media (max-width: 900px) {
+	.prab-board--mission-brief {
 		grid-template-columns: 1fr;
 	}
 }
 
-/* ── Column ────────────────────────────────────────────────────────────── */
-.prab-board-column {
-	background: #f8f7f5;
-	border: 1px solid #e2ddd6;
-	border-radius: 8px;
-	min-height: 180px;
+/* ── Run list (left pane) ─────────────────────────────────────────────── */
+.prab-run-list {
+	border-right: 1px solid #E8E8E8;
+	min-height: 400px;
+	padding-bottom: 24px;
 }
 
-.prab-col-header {
+/* ── Section ──────────────────────────────────────────────────────────── */
+.prab-section {
+	border-bottom: 1px solid #E8E8E8;
+}
+
+.prab-section:last-child {
+	border-bottom: none;
+}
+
+.prab-section-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 12px 14px 10px;
-	border-bottom: 1px solid #e2ddd6;
+	padding: 10px 16px 8px;
+	background: #F5F5F5;
+	border-bottom: 1px solid #E8E8E8;
 }
 
-.prab-col-title {
-	font-size: 0.82rem;
+.prab-section-label {
+	font-family: 'Inter', sans-serif;
+	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
-	letter-spacing: 0.06em;
-	color: #4a4540;
+	letter-spacing: 0.08em;
+	color: #3D3D3D;
 }
 
-.prab-col-cards {
-	padding: 10px 10px 12px;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
+.prab-section-rows {
+	padding: 4px 0;
 }
 
-.prab-col-empty {
-	font-size: 0.82rem;
-	color: #b0a898;
-	text-align: center;
-	padding: 20px 0;
+.prab-section-empty {
+	font-family: 'Inter', sans-serif;
+	font-size: 13px;
+	color: #808080;
+	padding: 14px 16px;
 	margin: 0;
 }
 
-/* ── Status pills ──────────────────────────────────────────────────────── */
-.prab-pill {
+/* ── Verdict-style status chips ───────────────────────────────────────── */
+.prab-chip {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	padding: 1px 8px;
-	border-radius: 12px;
-	font-size: 0.75rem;
+	padding: 2px 10px;
+	border-radius: 999px;
+	font-family: 'Inter', sans-serif;
+	font-size: 11px;
 	font-weight: 600;
-	line-height: 1.5;
-	color: #fff;
-	min-width: 24px;
+	line-height: 1.6;
+	white-space: nowrap;
 }
 
-.prab-pill--generating {
-	background: #1b8a92;
+.prab-chip--generating {
+	background: #1B8A92;
+	color: #FFFFFF;
 }
 
-.prab-pill--review {
-	background: #ff8a3d;
+.prab-chip--in_review {
+	background: #FF8A3D;
+	color: #0D0D0D;
 }
 
-.prab-pill--published {
-	background: #5a9e28;
+.prab-chip--published {
+	background: #7FD600;
+	color: #0D0D0D;
 }
 
-.prab-pill--failed {
-	background: #d94f4f;
+.prab-chip--failed {
+	background: #C0392B;
+	color: #FFFFFF;
 }
 
-/* ── Card ──────────────────────────────────────────────────────────────── */
-.prab-board-card {
-	background: #faf6ee;
-	border: 1px solid #e0d8cc;
-	border-radius: 6px;
-	padding: 11px 12px 10px;
-	position: relative;
-	transition: box-shadow 0.15s ease, border-color 0.15s ease;
+.prab-chip--human {
+	background: #1B8A92;
+	color: #FFFFFF;
+	font-size: 9px;
+	padding: 1px 6px;
+	margin-left: 4px;
 }
 
-.prab-board-card:hover {
-	box-shadow: 0 2px 8px rgba(27, 138, 146, 0.12);
-	border-color: #b8cfd2;
+/* ── Run row ──────────────────────────────────────────────────────────── */
+.prab-run-row {
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 16px;
+	border-left: 3px solid transparent;
+	cursor: pointer;
+	transition: background 0.1s ease, border-color 0.1s ease;
+	background: #FFFFFF;
 }
 
-.prab-board-card--generating {
-	border-left: 3px solid #1b8a92;
+.prab-run-row:hover,
+.prab-run-row:focus {
+	background: #F5F5F5;
+	outline: none;
 }
 
-.prab-card-title {
-	font-size: 0.875rem;
+.prab-run-row.is-selected {
+	background: #F0F9FA;
+	border-left-color: #1B8A92;
+}
+
+.prab-run-row--failed {
+	border-left-color: #C0392B;
+}
+
+.prab-run-row--failed.is-selected {
+	border-left-color: #C0392B;
+	background: #FFF5F5;
+}
+
+/* Chip column */
+.prab-row-chip-wrap {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+/* Title + stage label column */
+.prab-row-main {
+	overflow: hidden;
+}
+
+.prab-row-title {
+	font-family: 'Inter', sans-serif;
+	font-size: 14px;
 	font-weight: 500;
-	color: #0d0d0d;
-	line-height: 1.4;
-	margin-bottom: 6px;
-	padding-right: 20px; /* room for spinner */
+	color: #0D0D0D;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-.prab-card-meta {
+.prab-run-row--failed .prab-row-title {
+	color: #C0392B;
+}
+
+.prab-row-stage-label {
+	font-family: 'Inter', sans-serif;
+	font-size: 11px;
+	color: #808080;
+	margin-top: 2px;
+}
+
+.prab-row-error {
+	font-family: 'Inter', sans-serif;
+	font-size: 11px;
+	color: #C0392B;
+	margin-top: 2px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Cost + elapsed column */
+.prab-row-meta {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 2px;
+	flex-shrink: 0;
+}
+
+.prab-row-cost,
+.prab-row-elapsed {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 12px;
+	color: #3D3D3D;
+	white-space: nowrap;
+}
+
+.prab-row-elapsed {
+	color: #808080;
+}
+
+/* ── Inspector rail (right pane) ─────────────────────────────────────── */
+.prab-inspector {
+	background: #F5F5F5;
+	min-height: 400px;
+	position: sticky;
+	top: 32px; /* WP admin bar height */
+	max-height: calc(100vh - 60px);
+	overflow-y: auto;
+}
+
+.prab-inspector-inner {
+	padding: 20px;
+}
+
+.prab-inspector-placeholder {
+	font-family: 'Inter', sans-serif;
+	font-size: 13px;
+	color: #808080;
+	text-align: center;
+	padding: 40px 20px;
+	margin: 0;
+}
+
+/* Inspector header */
+.prab-inspector-title {
+	font-family: 'Poppins', sans-serif;
+	font-size: 16px;
+	font-weight: 600;
+	color: #0D0D0D;
+	margin: 10px 0 4px;
+	word-break: break-word;
+}
+
+.prab-inspector-chip-row {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	margin-bottom: 5px;
+	margin-bottom: 16px;
+	flex-wrap: wrap;
 }
 
-.prab-card-cost {
-	font-size: 0.75rem;
-	color: #5a8a50;
-	font-weight: 600;
-	font-variant-numeric: tabular-nums;
+/* Inspector stage breakdown */
+.prab-inspector-stages {
+	margin: 0 0 16px;
+	padding: 0;
+	list-style: none;
 }
 
-.prab-card-stage {
-	font-size: 0.74rem;
-	color: #1b8a92;
-	font-weight: 500;
-	margin-bottom: 5px;
+.prab-inspector-stage {
+	display: grid;
+	grid-template-columns: 12px 1fr auto;
+	align-items: start;
+	gap: 8px;
+	padding: 8px 0;
+	border-bottom: 1px solid #E8E8E8;
 }
 
-.prab-card-error {
-	font-size: 0.74rem;
-	color: #d94f4f;
-	margin-bottom: 5px;
-	font-style: italic;
+.prab-inspector-stage:last-child {
+	border-bottom: none;
 }
 
-.prab-card-actions {
-	margin-top: 8px;
-}
-
-.prab-card-link {
-	display: inline-block;
-	font-size: 0.75rem;
-	color: #1b8a92;
-	text-decoration: none;
-	font-weight: 500;
-	border: 1px solid #b8d8db;
-	border-radius: 4px;
-	padding: 2px 8px;
-	transition: background 0.1s ease;
-}
-
-.prab-card-link:hover {
-	background: #e8f4f5;
-	color: #136870;
-	border-color: #8ac4c9;
-}
-
-/* ── Generating spinner ────────────────────────────────────────────────── */
-.prab-card-spinner {
-	position: absolute;
-	top: 11px;
-	right: 11px;
-	width: 14px;
-	height: 14px;
-	border: 2px solid #c8e6e8;
-	border-top-color: #1b8a92;
+.prab-stage-dot {
+	width: 10px;
+	height: 10px;
 	border-radius: 50%;
-	animation: prab-spin 0.9s linear infinite;
+	margin-top: 3px;
+	flex-shrink: 0;
+	background: #D0D0D0;
 }
 
-@keyframes prab-spin {
-	to { transform: rotate(360deg); }
+.prab-stage-dot--done     { background: #1B8A92; }
+.prab-stage-dot--active   { background: #1B8A92; animation: prab-pulse 2s ease-in-out infinite; }
+.prab-stage-dot--failed   { background: #C0392B; }
+.prab-stage-dot--pending  { background: #D0D0D0; }
+
+@keyframes prab-pulse {
+	0%, 100% { opacity: 1; }
+	50%       { opacity: 0.4; }
 }
 
-/* ── Board footer ──────────────────────────────────────────────────────── */
-.prab-board-footer {
-	padding: 0 20px 16px;
-	font-size: 0.78rem;
-	color: #a0998f;
+.prab-stage-info {
+	overflow: hidden;
+}
+
+.prab-stage-name {
+	font-family: 'Inter', sans-serif;
+	font-size: 12px;
+	font-weight: 600;
+	color: #3D3D3D;
+}
+
+.prab-stage-model {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 11px;
+	color: #808080;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.prab-stage-error-msg {
+	font-family: 'Inter', sans-serif;
+	font-size: 11px;
+	color: #C0392B;
+	margin-top: 2px;
+}
+
+.prab-stage-io-toggle {
+	font-family: 'Inter', sans-serif;
+	font-size: 10px;
+	color: #1B8A92;
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 0;
+	text-decoration: underline;
+}
+
+.prab-stage-io {
+	grid-column: 2 / 4;
+	margin-top: 6px;
+	background: #FFFFFF;
+	border: 1px solid #E8E8E8;
+	border-radius: 4px;
+	padding: 8px;
+}
+
+.prab-stage-io-label {
+	font-family: 'Inter', sans-serif;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: #808080;
+	margin-bottom: 4px;
+}
+
+.prab-stage-io-text {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 11px;
+	color: #0D0D0D;
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 200px;
+	overflow-y: auto;
+	margin: 0;
+}
+
+.prab-stage-cost {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 12px;
+	color: #3D3D3D;
+	flex-shrink: 0;
+	align-self: start;
+	padding-top: 3px;
+}
+
+/* Inspector receipt */
+.prab-inspector-receipt {
+	background: #FFFFFF;
+	border: 1px solid #E8E8E8;
+	border-radius: 8px;
+	padding: 12px 16px;
+	margin-bottom: 16px;
+}
+
+.prab-receipt-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 4px 0;
+	font-family: 'Inter', sans-serif;
+	font-size: 13px;
+	color: #3D3D3D;
+}
+
+.prab-receipt-label {
+	color: #808080;
+}
+
+.prab-receipt-value {
+	font-family: 'IBM Plex Mono', monospace;
+	font-weight: 600;
+	color: #0D0D0D;
+}
+
+/* Inspector CTA buttons */
+.prab-inspector-actions {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-top: 4px;
+}
+
+.prab-inspector-dossier-btn {
+	display: inline-flex;
+	align-items: center;
+	padding: 7px 16px;
+	background: #1B8A92;
+	color: #FFFFFF;
+	border-radius: 8px;
+	font-family: 'Inter', sans-serif;
+	font-size: 13px;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background 0.15s ease;
+}
+
+.prab-inspector-dossier-btn:hover,
+.prab-inspector-dossier-btn:focus {
+	background: #147178;
+	color: #FFFFFF;
 }
 
 /* ── Poll-error banner ─────────────────────────────────────────────────── */
 .prab-board-error {
-	background: #fff4f4;
-	border: 1px solid #f5c4c4;
-	color: #8b2020;
+	background: #FFF4F4;
+	border: 1px solid #F5C4C4;
+	color: #8B2020;
 	border-radius: 6px;
-	padding: 8px 14px;
-	margin: 0 20px 12px;
-	font-size: 0.82rem;
+	padding: 8px 16px;
+	margin: 8px 20px;
+	font-family: 'Inter', sans-serif;
+	font-size: 13px;
 	display: none;
 }
 
 .prab-board-error.is-visible {
 	display: block;
+}
+
+/* ── Board footer ──────────────────────────────────────────────────────── */
+.prab-board-footer {
+	padding: 10px 20px 16px;
+	font-family: 'Inter', sans-serif;
+	font-size: 12px;
+	color: #808080;
+	border-top: 1px solid #E8E8E8;
+}
+
+/* ── Inspector loading / error states ─────────────────────────────────── */
+.prab-inspector-loading,
+.prab-inspector-error {
+	font-family: 'Inter', sans-serif;
+	font-size: 13px;
+	color: #808080;
+	text-align: center;
+	padding: 30px 16px;
+	margin: 0;
+}
+
+.prab-inspector-error {
+	color: #C0392B;
+}
+
+/* ── Narrow viewport: inspector becomes full-width below list ─────────── */
+@media (max-width: 900px) {
+	.prab-run-list {
+		border-right: none;
+		border-bottom: 1px solid #E8E8E8;
+	}
+
+	.prab-inspector {
+		position: static;
+		max-height: none;
+	}
 }
