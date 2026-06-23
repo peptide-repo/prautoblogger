@@ -8,28 +8,27 @@ declare(strict_types=1);
  *
  * What: Reads current option values, active prompt versions, and registry
  *       params, then passes a typed data structure to the pipeline-settings-
- *       page.php template. The renderer contains NO business logic — it only
- *       reads and shapes data for the view. All output is escaped by the
- *       template or by helper methods on this class.
- * Who calls it: PRAutoBlogger_Pipeline_Settings_Page::render_page() after
- *               the save handler runs.
+ *       page.php template. Also reads current values of all per-step option
+ *       fields (M2) so the template can render editable forms without touching
+ *       WP globals. The renderer contains NO business logic — it only reads
+ *       and shapes data for the view.
+ * Who calls it: PRAutoBlogger_Pipeline_Settings_Page::render_page() after save.
  * Dependencies: PRAutoBlogger_Pipeline_Settings_Step_Map (step list),
+ *               PRAutoBlogger_Pipeline_Settings_Option_Fields (step option defs),
  *               PRAutoBlogger_Prompt_Registry (active row, versions, defs),
  *               PRAutoBlogger_OpenRouter_Model_Field (model picker render),
  *               PRAutoBlogger_Cost_Reporter (monthly spend header).
  *
- * @see admin/class-pipeline-settings-step-map.php — Step + key definitions.
- * @see admin/fields/class-open-router-model-field.php — Model picker component.
- * @see core/class-prompt-registry.php              — Registry read API.
- * @see templates/admin/pipeline-settings-page.php  — HTML template.
+ * @see admin/class-pipeline-settings-step-map.php        — Step + key definitions.
+ * @see admin/class-pipeline-settings-option-fields.php   — Step option field defs.
+ * @see admin/fields/class-open-router-model-field.php    — Model picker component.
+ * @see core/class-prompt-registry.php                    — Registry read API.
+ * @see templates/admin/pipeline-settings-page.php        — HTML template.
  */
 class PRAutoBlogger_Pipeline_Settings_Renderer {
 
 	/**
 	 * Build the view-data array and include the page template.
-	 *
-	 * Gathers budget and spend data here so the template receives plain scalars
-	 * and performs no business-logic instantiation of its own.
 	 *
 	 * @param array{status: string, message: string} $save_result Result from save handler.
 	 * @return void
@@ -39,10 +38,14 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 		$steps       = PRAutoBlogger_Pipeline_Settings_Step_Map::steps();
 		$step        = PRAutoBlogger_Pipeline_Settings_Step_Map::find( $active_step ) ?? $steps[0];
 
-		// Gather cost-header data in the renderer so the template stays logic-free.
 		$cost_reporter = new PRAutoBlogger_Cost_Reporter();
 		$monthly_spend = $cost_reporter->get_monthly_spend();
 		$budget        = (float) get_option( 'prautoblogger_monthly_budget_usd', 50.00 );
+
+		// Determine the step context for the step-options panel.
+		$step_context = in_array( $step['id'], PRAutoBlogger_Pipeline_Settings_Option_Fields::contexts(), true )
+			? $step['id']
+			: null;
 
 		$view = array(
 			'steps'         => $steps,
@@ -54,9 +57,31 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 			'step_data'     => $this->build_step_data( $step ),
 			'monthly_spend' => $monthly_spend,
 			'budget'        => $budget,
+			'global_fields' => $this->build_option_field_values( 'global' ),
+			'step_context'  => $step_context,
+			'step_fields'   => $step_context ? $this->build_option_field_values( $step_context ) : array(),
 		);
 
 		include PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/pipeline-settings-page.php';
+	}
+
+	/**
+	 * Build current option values for all fields in a context.
+	 *
+	 * Returns an array of [ field_def_with_current_value ] — each field
+	 * definition from Option_Fields augmented with a 'current' key holding
+	 * the live wp_option value (or the field's default when not set).
+	 *
+	 * @param string $context Step context identifier.
+	 * @return array<int, array<string, mixed>>
+	 */
+	public function build_option_field_values( string $context ): array {
+		$fields = PRAutoBlogger_Pipeline_Settings_Option_Fields::get_fields_for_context( $context );
+		foreach ( $fields as &$field ) {
+			$field['current'] = get_option( $field['id'], $field['default'] ?? '' );
+		}
+		unset( $field );
+		return $fields;
 	}
 
 	/**
@@ -69,21 +94,17 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 		$defs                = PRAutoBlogger_Prompt_Registry::defs();
 		$active_versions_map = PRAutoBlogger_Prompt_Registry::active_versions();
 
-		// Model info.
 		$model_option = (string) ( $step['model_option'] ?? '' );
 		$model_value  = '' !== $model_option ? (string) get_option( $model_option, '' ) : '';
 
-		// System prompt.
 		$system_key  = (string) ( $step['system_key'] ?? '' );
 		$system_data = $this->build_prompt_panel_data( $system_key, $defs, $active_versions_map );
 
-		// Agent/user prompts.
 		$agent_panels = array();
 		foreach ( ( $step['agent_keys'] ?? array() ) as $key ) {
 			$agent_panels[ $key ] = $this->build_prompt_panel_data( $key, $defs, $active_versions_map );
 		}
 
-		// Params from the def for the system key (canonical params are on system).
 		$params = isset( $defs[ $system_key ] ) ? ( $defs[ $system_key ]['params'] ?? array() ) : array();
 
 		return array(
@@ -116,8 +137,7 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 		$is_default     = ( $body === $default_body );
 		$created_at     = null !== $active_row ? (string) $active_row['created_at'] : '';
 		$author         = null !== $active_row ? (string) $active_row['author'] : 'seed';
-
-		$versions = PRAutoBlogger_Prompt_Registry_Writer::list_versions( $key );
+		$versions       = PRAutoBlogger_Prompt_Registry_Writer::list_versions( $key );
 
 		return array(
 			'key'            => $key,
@@ -134,10 +154,9 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 	/**
 	 * Render the model picker for a step using the existing field component.
 	 *
-	 * Public so the template can call it directly. Keeps markup generation
-	 * in one place and avoids duplicating the picker rendering logic.
+	 * Public so the template can call it directly.
 	 *
-	 * @param string               $model_option wp_option name (e.g. 'prautoblogger_writing_model').
+	 * @param string               $model_option wp_option name.
 	 * @param string               $model_value  Current model id stored in the option.
 	 * @param array<string, mixed> $field_args   Field args forwarded to the picker.
 	 * @return void Side effect: outputs HTML.

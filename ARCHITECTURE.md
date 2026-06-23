@@ -866,33 +866,46 @@ Kept here for history. Until v0.8.2 the default image backend was FLUX.1 schnell
 ### #15: Optional Cloudflare AI Gateway in front of OpenRouter
 We already use Cloudflare for DNS/CDN on peptiderepo.com, so layering AI Gateway in front of OpenRouter is zero marginal infrastructure. It gives us response caching (meaningful for repeated classification/scoring calls), a unified cost/latency dashboard, rate limiting, and provider fallback — all of which we would otherwise have to build ourselves to satisfy the CTO cost-tracking rules. Kept as an opt-in URL setting (`prautoblogger_ai_gateway_base_url`) so the plugin still works unchanged out of the box and can be bypassed instantly if the gateway misbehaves. The gateway is a transparent OpenRouter-compatible proxy; no new provider class is needed, and the response parsing path (`usage`, `choices[0].message.content`) is unchanged.
 
-### #25: Pipeline Settings page — per-step model, prompts, params (v0.23.0, M1)
+### #25: Pipeline Settings page — per-step model, prompts, params + step options (v0.23.0 M1, v0.24.0 M2)
 
-**Scope (M1 — additive):** A new "Pipeline" wp-admin submenu page
-(`prautoblogger-pipeline`, slug `prautoblogger_page_prautoblogger-pipeline`) that
-surfaces per-step configuration for every LLM stage. The page is ADDITIVE — the
-existing Settings sections (AI Models, Content, Sources) remain in place. Decomposition
-into stage-exclusive panels is M2.
+**M1 (v0.23.0 — additive):** A new "Pipeline" wp-admin submenu page surfacing per-step
+model picker, system instructions, and agent prompts for every LLM stage. In M1 the
+existing Settings sections (AI Models, Content, Sources) remained in place.
+
+**M2 (v0.24.0 — decomposition):** Retired the AI Models, Content, and Sources Settings
+tabs. All fields from those tabs now live exclusively in Pipeline Settings per-step panels.
+The underlying wp_options are unchanged; only the editing UI has moved. The Settings page
+now shows only: API Keys, Schedule & Budget, Publishing, Analytics, Display, Images.
+
+**Retired sections:** `prautoblogger_models`, `prautoblogger_content`, `prautoblogger_sources`
+removed from `PRAutoBlogger_Settings_Fields::get_sections()`. Their field definitions
+removed from `get_core_fields()` and `PRAutoBlogger_Settings_Fields_Extended::get_fields()`.
+The `uninstall.php` wildcard purge (`LIKE 'prautoblogger\_%'`) still covers all options.
+
+**New M2 classes:**
+- `PRAutoBlogger_Pipeline_Settings_Option_Fields` — public API: `contexts()`, `allowed_options()`, `get_fields_for_context()`, `sanitize_option()`.
+- `PRAutoBlogger_Pipeline_Settings_Option_Fields_Data` — raw field arrays per context (split for 300-line rule).
+
+**Save handler extension:** `pipeline_action = save_step_settings` with `step_context`
+(global|research|analysis|writer|editorial). Validates context, iterates field defs,
+sanitizes per type (textarea/select/number/toggle/checkboxes), persists via `update_option()`.
+
+**Template additions:** Global Content Context block (editable niche_description form)
+at top of Pipeline page; per-step `pipeline-settings-step-options.php` partial renders
+type-aware field controls inside the step panel.
 
 **Classes:** `PRAutoBlogger_Pipeline_Settings_Page` (registration + asset enqueue),
 `PRAutoBlogger_Pipeline_Settings_Renderer` (view data assembly + template include),
 `PRAutoBlogger_Pipeline_Settings_Save_Handler` (nonce + capability + sanitize + write),
-`PRAutoBlogger_Pipeline_Settings_Step_Map` (canonical step definitions + key allowlists).
+`PRAutoBlogger_Pipeline_Settings_Step_Map` (canonical step definitions + key allowlists),
+`PRAutoBlogger_Pipeline_Settings_Option_Fields` + `_Data` (step option allowlist + sanitizer).
 
-**Model picker reuse:** `PRAutoBlogger_OpenRouter_Model_Field::render()` is called
-directly — no fork, no new dropdown. The stage map in `get_stages_for_setting()` was
-extended to include `prautoblogger_research_model → [research, llm_research]` and
-`prautoblogger_image_model → [image_a, image_b]` so cost-preview is stage-accurate.
+**Security:** `manage_options` + nonce on every POST. Option names validated against
+`PRAutoBlogger_Pipeline_Settings_Option_Fields::allowed_options()` (enforced per field id,
+not via a POST-key allowlist, since the save handler iterates field defs directly).
 
-**Prompt writes:** Saving a prompt creates a new immutable row in `wp_prautoblogger_prompts`
-via `PRAutoBlogger_Prompt_Registry_Writer::create_version()` and activates it.
-Only the keys listed in `PRAutoBlogger_Pipeline_Settings_Step_Map::allowed_prompt_keys()`
-may be updated through this page (allowlist enforced in the save handler).
-
-**Security:** `manage_options` capability check + nonce verification on every POST.
-Prompt bodies are sanitized with `sanitize_textarea_field()`.
-
-**No new options:** M1 adds no persistent `wp_option` keys. Uninstall unchanged.
+**Prompt writes (M1, unchanged):** Immutable registry rows via
+`PRAutoBlogger_Prompt_Registry_Writer::create_version()`; only allowlisted prompt keys.
 
 
 ---
