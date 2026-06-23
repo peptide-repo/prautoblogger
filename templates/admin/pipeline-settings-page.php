@@ -12,26 +12,30 @@
  *   array   $view['step_data']    — assembled view data for the active step.
  *   float   $view['monthly_spend']— current month's LLM spend in USD.
  *   float   $view['budget']       — configured monthly budget cap in USD.
+ *   array   $view['global_fields']— field defs + current values for global context.
+ *   string  $view['step_context'] — context id matching the active step, or null.
+ *   array   $view['step_fields']  — field defs + current values for active step context.
  *
- * Prompt panels are rendered via the pipeline-settings-prompt-panel.php partial.
- *
- * @see admin/class-pipeline-settings-renderer.php — Provides $view.
- * @see admin/class-pipeline-settings-page.php     — Includes this template.
- * @see templates/admin/pipeline-settings-prompt-panel.php — Prompt editor partial.
+ * @see admin/class-pipeline-settings-renderer.php           — Provides $view.
+ * @see templates/admin/pipeline-settings-prompt-panel.php   — Prompt editor partial.
+ * @see templates/admin/pipeline-settings-step-options.php   — Step option fields partial.
  */
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$steps        = $view['steps'];
-$active_step  = $view['active_step'];
-$save_result  = $view['save_result'];
-$nonce_field  = $view['nonce_field'];
-$nonce_action = $view['nonce_action'];
-$page_slug    = $view['page_slug'];
-$step_data    = $view['step_data'];
+$steps         = $view['steps'];
+$active_step   = $view['active_step'];
+$save_result   = $view['save_result'];
+$nonce_field   = $view['nonce_field'];
+$nonce_action  = $view['nonce_action'];
+$page_slug     = $view['page_slug'];
+$step_data     = $view['step_data'];
 $monthly_spend = $view['monthly_spend'];
 $budget        = $view['budget'];
+$global_fields = $view['global_fields'];
+$step_context  = $view['step_context'];
+$step_fields   = $view['step_fields'];
 
 $base_url = admin_url( 'admin.php?page=' . rawurlencode( $page_slug ) );
 ?>
@@ -80,23 +84,13 @@ $base_url = admin_url( 'admin.php?page=' . rawurlencode( $page_slug ) );
 	<?php endif; ?>
 
 	<?php
-	$niche = (string) get_option( 'prautoblogger_niche_description', '' );
-	$niche_preview = '' !== $niche ? mb_strimwidth( $niche, 0, 80, '…' ) : '';
+	// ── Global Content Context block (editable — M2) ─────────────────────────
+	$context       = 'global';
+	$section_title = __( 'Global Content Context', 'prautoblogger' );
+	$step_id       = 'global';
+	$fields        = $global_fields;
+	include PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/pipeline-settings-step-options.php';
 	?>
-	<div class="pab-global-context-note">
-		<span class="dashicons dashicons-info-outline"></span>
-		<?php if ( '' !== $niche_preview ) : ?>
-			<?php
-			printf(
-				/* translators: %s = truncated niche description */
-				esc_html__( 'Niche context (used by all stages): "%s"', 'prautoblogger' ),
-				esc_html( $niche_preview )
-			);
-			?>
-		<?php else : ?>
-			<?php esc_html_e( 'Niche description not set — edit in Settings → Content.', 'prautoblogger' ); ?>
-		<?php endif; ?>
-	</div>
 
 	<div class="pab-pipeline-layout">
 
@@ -121,6 +115,17 @@ $base_url = admin_url( 'admin.php?page=' . rawurlencode( $page_slug ) );
 					<p class="pab-panel-desc"><?php echo esc_html( $active_step['description'] ); ?></p>
 				<?php endif; ?>
 			</div>
+
+			<?php
+			// ── Step option fields (M2) ───────────────────────────────────────
+			if ( null !== $step_context && ! empty( $step_fields ) ) :
+				$context       = $step_context;
+				$section_title = __( 'Step Settings', 'prautoblogger' );
+				$step_id       = $active_step['id'];
+				$fields        = $step_fields;
+				include PRAUTOBLOGGER_PLUGIN_DIR . 'templates/admin/pipeline-settings-step-options.php';
+			endif;
+			?>
 
 			<?php if ( ! empty( $step_data['model_option'] ) ) : ?>
 			<div class="pab-section">

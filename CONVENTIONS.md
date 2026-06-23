@@ -202,6 +202,29 @@ the uninstall prefix-sweep effective), then cover it in the unit ladder tests.
 
 ---
 
+
+---
+
+## Retired Settings Tabs (M2, v0.24.0)
+
+Settings tabs may be retired when their fields are promoted to a more contextual UI
+surface (e.g. Pipeline Settings per-step panels). The retirement pattern:
+
+1. **Remove the section** from `PRAutoBlogger_Settings_Fields::get_sections()`.
+2. **Remove field definitions** from `get_core_fields()` / `_Extended::get_fields()`.
+   This stops them appearing in the Settings page and stops `register_setting()` calls
+   for them — which is correct: the new UI surface (Pipeline page) has its own
+   nonce+capability+sanitize handler and does NOT use the WP Settings API.
+3. **DO NOT delete the wp_option.** The underlying data key is unchanged.
+   `uninstall.php` purges everything via `LIKE 'prautoblogger\_%'`.
+4. **Add field definitions to** `PRAutoBlogger_Pipeline_Settings_Option_Fields_Data`
+   under the appropriate context method.
+5. **Document** the retirement in ARCHITECTURE.md #25 and CHANGELOG.md.
+6. **Do not add `register_setting()`** in the Pipeline page — its save handler sanitizes
+   directly, so WP Settings API registration is not needed.
+
+Retired sections in M2: `prautoblogger_models`, `prautoblogger_content`, `prautoblogger_sources`.
+
 ## How To: Add a New Pipeline Stage
 
 Writing stages are methods on `Content_Generator` that delegate to its `execute_stage()`

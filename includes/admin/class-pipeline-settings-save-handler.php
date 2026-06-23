@@ -8,30 +8,27 @@ declare(strict_types=1);
  *
  * What: A stateless save handler for the Pipeline Settings page. On a valid
  *       POST it verifies the nonce, checks capabilities, sanitizes inputs,
- *       and either:
- *         - saves the model option via update_option(), or
- *         - creates a new immutable prompt version in the registry
- *           (PRAutoBlogger_Prompt_Registry_Writer::create_version()).
- *       Saving a prompt NEVER mutates the existing version — it creates a
- *       new one (the registry's core invariant). A "reset to default" POST
- *       creates a new version with the canonical default body.
- *       Model values are read from the POST key that matches the option name
- *       (e.g. $_POST['prautoblogger_research_model']), which is the hidden
- *       input name that PRAutoBlogger_OpenRouter_Model_Field::render() emits.
- *       Prompt keys arrive as a slug-encoded form value that is matched
- *       against the allowlist; the raw POST value is never used as a key
- *       before allowlist validation.
+ *       and dispatches to the correct sub-handler:
+ *         - save_model   — persists a step model option via update_option().
+ *         - save_prompt  — creates a new immutable prompt version in the registry.
+ *         - reset_prompt — creates a new version with the canonical default body.
+ *         - save_step_settings — persists one or more relocated option fields for
+ *           a step context (global/research/analysis/writer/editorial).
+ *       Saving a prompt NEVER mutates the existing version — the registry's core
+ *       invariant. Model + step-option values read from POST keys matching the
+ *       option name. Prompt keys are slug-matched against the allowlist.
  *       Returns a result array that render_page() passes to the template.
- * Who calls it: PRAutoBlogger_Pipeline_Settings_Page::render_page() before
- *               any output is produced.
+ * Who calls it: PRAutoBlogger_Pipeline_Settings_Page::render_page() before output.
  * Dependencies: PRAutoBlogger_Pipeline_Settings_Step_Map (key allowlists),
+ *               PRAutoBlogger_Pipeline_Settings_Option_Fields (step option allowlist),
  *               PRAutoBlogger_Prompt_Registry_Writer (create_version),
  *               PRAutoBlogger_Prompt_Registry (default_body, flush_cache).
  *
- * @see admin/class-pipeline-settings-step-map.php — Allowed key definitions.
- * @see admin/fields/class-open-router-model-field.php — Emits name="$option_name" hidden input.
- * @see core/class-prompt-registry-writer.php       — Immutable version writes.
- * @see core/class-prompt-registry.php              — Read side + default_body.
+ * @see admin/class-pipeline-settings-step-map.php         — Model/prompt key allowlists.
+ * @see admin/class-pipeline-settings-option-fields.php    — Step option allowlist + sanitizer.
+ * @see admin/fields/class-open-router-model-field.php     — Emits name="$option_name".
+ * @see core/class-prompt-registry-writer.php              — Immutable version writes.
+ * @see core/class-prompt-registry.php                     — Read side + default_body.
  */
 class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 
@@ -39,15 +36,11 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 	 * Inspect the current request and process the save when it is a valid
 	 * Pipeline Settings form submission.
 	 *
-	 * Side effects: may call update_option() or
-	 *               PRAutoBlogger_Prompt_Registry_Writer::create_version();
-	 *               returns error on nonce/cap failure.
-	 *
 	 * @return array{status: string, message: string} 'idle'|'saved'|'error'.
 	 */
 	public static function maybe_process_save(): array {
 		$idle = array(
-			'status' => 'idle',
+			'status'  => 'idle',
 			'message' => '',
 		);
 
@@ -59,19 +52,17 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 			return $idle;
 		}
 
-		// Capability check.
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return array(
-				'status' => 'error',
+				'status'  => 'error',
 				'message' => __( 'You do not have permission to save settings.', 'prautoblogger' ),
 			);
 		}
 
-		// Nonce verification.
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		if ( ! wp_verify_nonce( wp_unslash( $_POST[ PRAutoBlogger_Pipeline_Settings_Page::NONCE_FIELD ] ), PRAutoBlogger_Pipeline_Settings_Page::NONCE_ACTION ) ) {
 			return array(
-				'status' => 'error',
+				'status'  => 'error',
 				'message' => __( 'Security check failed. Please reload and try again.', 'prautoblogger' ),
 			);
 		}
@@ -81,6 +72,9 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 		if ( 'save_model' === $action ) {
 			return self::handle_model_save();
 		}
+		if ( 'save_step_settings' === $action ) {
+			return self::handle_step_settings_save();
+		}
 		if ( 'save_prompt' === $action || 'reset_prompt' === $action ) {
 			return self::handle_prompt_save( $action );
 		}
@@ -89,13 +83,52 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 	}
 
 	/**
+	 * Persist option fields for a step context.
+	 *
+	 * Reads step_context from POST, validates it, then for each field in that
+	 * context reads the corresponding POST value, sanitizes via
+	 * PRAutoBlogger_Pipeline_Settings_Option_Fields::sanitize_option(), and
+	 * calls update_option(). Only allowlisted option names are written.
+	 *
+	 * @return array{status: string, message: string}
+	 */
+	private static function handle_step_settings_save(): array {
+		$context = isset( $_POST['step_context'] ) ? sanitize_key( $_POST['step_context'] ) : '';
+
+		if ( ! in_array( $context, PRAutoBlogger_Pipeline_Settings_Option_Fields::contexts(), true ) ) {
+			return array(
+				'status'  => 'error',
+				'message' => __( 'Unknown step context.', 'prautoblogger' ),
+			);
+		}
+
+		$fields = PRAutoBlogger_Pipeline_Settings_Option_Fields::get_fields_for_context( $context );
+
+		foreach ( $fields as $field ) {
+			$id  = (string) $field['id'];
+			$raw = isset( $_POST[ $id ] ) ? wp_unslash( $_POST[ $id ] ) : ( $field['default'] ?? '' );
+			// For checkboxes the POST value is an array (or absent = empty array).
+			if ( 'checkboxes' === ( $field['type'] ?? '' ) ) {
+				// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+				$raw = isset( $_POST[ $id ] ) && is_array( $_POST[ $id ] ) ? $_POST[ $id ] : array();
+			}
+			$sanitized = PRAutoBlogger_Pipeline_Settings_Option_Fields::sanitize_option( $raw, $field );
+			update_option( $id, $sanitized );
+		}
+
+		return array(
+			'status'  => 'saved',
+			'message' => __( 'Settings saved.', 'prautoblogger' ),
+		);
+	}
+
+	/**
 	 * Persist a model selection for one step.
 	 *
 	 * The model value is read from $_POST[$option_name] — the same key that
 	 * PRAutoBlogger_OpenRouter_Model_Field::render($option_name, ...) emits as
 	 * <input type="hidden" name="$option_name" ...>. model-picker.js writes to
-	 * that hidden input directly via DOM id, so the value is present under the
-	 * option-name key in the submitted POST body.
+	 * that hidden input directly via DOM id.
 	 *
 	 * Only allowlisted model option names from Step_Map may be updated.
 	 *
@@ -106,22 +139,15 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 
 		if ( ! in_array( $option_name, PRAutoBlogger_Pipeline_Settings_Step_Map::allowed_model_options(), true ) ) {
 			return array(
-				'status' => 'error',
+				'status'  => 'error',
 				'message' => __( 'Unknown model option.', 'prautoblogger' ),
 			);
 		}
 
-		// Read the value from the named hidden input that render() produced.
-		// PRAutoBlogger_OpenRouter_Model_Field::render($id, ...) emits:
-		//   <input type="hidden" id="$id" name="$id" value="..." />
-		// model-picker.js writes the chosen model to that input by DOM id,
-		// so the form posts under the option name, not a separate 'model_id' key.
 		$model_id = isset( $_POST[ $option_name ] )
 			? sanitize_text_field( wp_unslash( $_POST[ $option_name ] ) )
 			: '';
 
-		// For the image model, delegate to the same sanitizer logic as
-		// PRAutoBlogger_Settings_Sanitizer to derive + store provider consistently.
 		if ( 'prautoblogger_image_model' === $option_name ) {
 			$candidate = sanitize_text_field( $model_id );
 			$provider  = PRAutoBlogger_Image_Model_Registry::provider_for( $candidate );
@@ -129,19 +155,19 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 				update_option( 'prautoblogger_image_provider', $provider );
 				update_option( $option_name, $candidate );
 				return array(
-					'status' => 'saved',
+					'status'  => 'saved',
 					'message' => __( 'Model saved.', 'prautoblogger' ),
 				);
 			}
 			return array(
-				'status' => 'error',
+				'status'  => 'error',
 				'message' => __( 'Image model not recognised. Selection unchanged.', 'prautoblogger' ),
 			);
 		}
 
 		update_option( $option_name, sanitize_text_field( $model_id ) );
 		return array(
-			'status' => 'saved',
+			'status'  => 'saved',
 			'message' => __( 'Model saved.', 'prautoblogger' ),
 		);
 	}
@@ -151,25 +177,17 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 	 *
 	 * The prompt key is received as a slug (dots replaced with hyphens in the
 	 * form value). We match the slug against the allowlist by resolving each
-	 * allowed key to its slug form — this avoids any reverse-parsing ambiguity
-	 * for keys that contain underscores (e.g. content.single_pass).
-	 *
-	 * Prompt bodies are treated as privileged — only sanitize_textarea_field()
-	 * is applied to strip any script injection, but content is not further
-	 * mangled — the operator is intentionally writing LLM instructions.
+	 * allowed key to its slug form — avoiding reverse-parsing ambiguity.
 	 *
 	 * @param string $action 'save_prompt' or 'reset_prompt'.
 	 * @return array{status: string, message: string}
 	 */
 	private static function handle_prompt_save( string $action ): array {
-		// The form sends the key with dots replaced by hyphens (HTML-safe slug).
-		$slug = isset( $_POST['prompt_key'] ) ? sanitize_key( wp_unslash( $_POST['prompt_key'] ) ) : '';
-
-		// Resolve slug back to the real registry key via allowlist lookup.
+		$slug       = isset( $_POST['prompt_key'] ) ? sanitize_key( wp_unslash( $_POST['prompt_key'] ) ) : '';
 		$prompt_key = self::resolve_key_from_slug( $slug );
 		if ( null === $prompt_key ) {
 			return array(
-				'status' => 'error',
+				'status'  => 'error',
 				'message' => __( 'Unknown prompt key.', 'prautoblogger' ),
 			);
 		}
@@ -178,7 +196,7 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 			$body = PRAutoBlogger_Prompt_Registry::default_body( $prompt_key );
 			if ( null === $body ) {
 				return array(
-					'status' => 'error',
+					'status'  => 'error',
 					'message' => __( 'No default found for this prompt key.', 'prautoblogger' ),
 				);
 			}
@@ -200,7 +218,7 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 
 		if ( 0 === $version ) {
 			return array(
-				'status' => 'error',
+				'status'  => 'error',
 				'message' => __( 'Failed to save prompt. Is the prompts table available?', 'prautoblogger' ),
 			);
 		}
@@ -214,10 +232,6 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 
 	/**
 	 * Resolve a URL/form slug back to the canonical registry key.
-	 *
-	 * Each allowed key is converted to a slug (dots → hyphens, everything
-	 * lowercased by sanitize_key) and compared against the submitted value.
-	 * No string-reverse parsing — only allowlist membership determines a match.
 	 *
 	 * @param string $slug Slug as received from the form (after sanitize_key).
 	 * @return string|null Canonical key, or null when not in the allowlist.

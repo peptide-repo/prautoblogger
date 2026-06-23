@@ -8,20 +8,30 @@ declare(strict_types=1);
  *
  * Centralizes all field and section definitions in one place, making it trivial
  * to add new settings (just add one array entry). Decoupled from page rendering logic.
- * Core fields (API, Models, Content, Sources) live here; operational fields
- * (Schedule, Publishing, Analytics, Images) are in Settings_Fields_Extended.
+ * Core fields (API Keys) live here; operational fields (Schedule, Publishing, Analytics,
+ * Display, Images) are in Settings_Fields_Extended.
+ *
+ * M2 change: AI Models, Content, and Sources sections were retired. Those fields
+ * are now edited exclusively in Pipeline Settings per-step panels. The underlying
+ * wp_options are unchanged — only the UI surface has moved. See CONVENTIONS.md
+ * §Retired Settings Tabs for the retirement pattern.
  *
  * Triggered by: PRAutoBlogger_Admin_Page::on_register_settings() calls static methods here.
  * Dependencies: PRAutoBlogger_Settings_Fields_Extended for operational field definitions.
  *
- * @see admin/class-settings-fields-extended.php — Schedule, publishing, analytics, images fields.
- * @see admin/class-admin-page.php               — Calls get_sections() and get_fields() to register settings.
- * @see CONVENTIONS.md                           — "How To: Add a New Admin Setting".
+ * @see admin/class-settings-fields-extended.php          — Schedule, publishing, analytics, images.
+ * @see admin/class-admin-page.php                        — Calls get_sections() + get_fields().
+ * @see admin/class-pipeline-settings-option-fields.php   — Now owns AI Models/Content/Sources fields.
+ * @see CONVENTIONS.md §Retired Settings Tabs             — Retirement pattern.
+ * @see CONVENTIONS.md §How To: Add a New Admin Setting   — Extension guide.
  */
 class PRAutoBlogger_Settings_Fields {
 
 	/**
 	 * Get all settings sections. Each section maps to a tab in the admin UI.
+	 *
+	 * AI Models, Content, and Sources sections were retired in M2 — those fields
+	 * moved to Pipeline Settings per-step panels.
 	 *
 	 * @return array<string, array{title: string, icon: string, description: string}>
 	 */
@@ -31,21 +41,6 @@ class PRAutoBlogger_Settings_Fields {
 				'title'       => __( 'API Keys', 'prautoblogger' ),
 				'icon'        => 'dashicons-admin-network',
 				'description' => __( 'Connect your external services. Keys are encrypted at rest.', 'prautoblogger' ),
-			),
-			'prautoblogger_models'     => array(
-				'title'       => __( 'AI Models', 'prautoblogger' ),
-				'icon'        => 'dashicons-superhero-alt',
-				'description' => __( 'Choose which models power each stage of the pipeline.', 'prautoblogger' ),
-			),
-			'prautoblogger_content'    => array(
-				'title'       => __( 'Content', 'prautoblogger' ),
-				'icon'        => 'dashicons-edit-large',
-				'description' => __( 'Control tone, length, pipeline mode, and topic guardrails.', 'prautoblogger' ),
-			),
-			'prautoblogger_sources'    => array(
-				'title'       => __( 'Sources', 'prautoblogger' ),
-				'icon'        => 'dashicons-rss',
-				'description' => __( 'Configure where PRAutoBlogger finds trending topics.', 'prautoblogger' ),
 			),
 			'prautoblogger_schedule'   => array(
 				'title'       => __( 'Schedule & Budget', 'prautoblogger' ),
@@ -85,7 +80,10 @@ class PRAutoBlogger_Settings_Fields {
 	}
 
 	/**
-	 * Core fields: API Keys, AI Models, Content, and Sources.
+	 * Core fields: API Keys section only.
+	 *
+	 * AI Models, Content, and Sources fields have moved to Pipeline Settings
+	 * per-step panels (M2). Do not re-add them here.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
@@ -126,173 +124,6 @@ class PRAutoBlogger_Settings_Fields {
 				'min'         => 0,
 				'max'         => 2592000,
 				'description' => __( 'How long Cloudflare may serve cached responses for identical LLM calls. 0 disables caching. Only used when a gateway URL is set above. Safe values: 0 for article generation (always fresh), 3600+ for repeated classification/scoring calls.', 'prautoblogger' ),
-			),
-
-			// ── AI Models ───────────────────────────────────────────────
-			array(
-				'id'          => 'prautoblogger_analysis_model',
-				'label'       => __( 'Analysis Model', 'prautoblogger' ),
-				'type'        => 'model_select',
-				'section'     => 'prautoblogger_models',
-				'default'     => PRAUTOBLOGGER_DEFAULT_ANALYSIS_MODEL,
-				'capability'  => 'text→text',
-				'description' => __( 'Used for source analysis. Pick a cheap, fast model.', 'prautoblogger' ),
-				'badge'       => __( 'Low cost', 'prautoblogger' ),
-			),
-			array(
-				'id'          => 'prautoblogger_writing_model',
-				'label'       => __( 'Writing Model', 'prautoblogger' ),
-				'type'        => 'model_select',
-				'section'     => 'prautoblogger_models',
-				'default'     => PRAUTOBLOGGER_DEFAULT_WRITING_MODEL,
-				'capability'  => 'text→text',
-				'description' => __( 'Used for article generation. Quality matters here.', 'prautoblogger' ),
-				'badge'       => __( 'Quality', 'prautoblogger' ),
-			),
-			array(
-				'id'          => 'prautoblogger_editor_model',
-				'label'       => __( 'Editor Model', 'prautoblogger' ),
-				'type'        => 'model_select',
-				'section'     => 'prautoblogger_models',
-				'default'     => PRAUTOBLOGGER_DEFAULT_EDITOR_MODEL,
-				'capability'  => 'text→text',
-				'description' => __( 'Used for the chief editor review pass.', 'prautoblogger' ),
-				'badge'       => __( 'Quality', 'prautoblogger' ),
-			),
-
-			// ── Content ─────────────────────────────────────────────────
-			array(
-				'id'          => 'prautoblogger_niche_description',
-				'label'       => __( 'Niche Description', 'prautoblogger' ),
-				'type'        => 'textarea',
-				'section'     => 'prautoblogger_content',
-				'description' => __( 'Describe your site\'s niche. Guides content analysis and generation.', 'prautoblogger' ),
-			),
-			array(
-				'id'          => 'prautoblogger_analysis_instructions',
-				'label'       => __( 'Analysis Instructions', 'prautoblogger' ),
-				'type'        => 'textarea',
-				'section'     => 'prautoblogger_content',
-				'default'     => '',
-				'description' => __( 'Custom instructions for the topic analysis LLM. Steers how source data is evaluated and which ideas get surfaced — e.g. "Prioritize questions over news. Ignore price-related discussions."', 'prautoblogger' ),
-			),
-			array(
-				'id'      => 'prautoblogger_tone',
-				'label'   => __( 'Content Tone', 'prautoblogger' ),
-				'type'    => 'select',
-				'section' => 'prautoblogger_content',
-				'default' => 'informational',
-				'options' => array(
-					'informational'  => __( 'Informational', 'prautoblogger' ),
-					'conversational' => __( 'Conversational', 'prautoblogger' ),
-					'professional'   => __( 'Professional', 'prautoblogger' ),
-					'casual'         => __( 'Casual', 'prautoblogger' ),
-					'authoritative'  => __( 'Authoritative', 'prautoblogger' ),
-				),
-			),
-			array(
-				'id'      => 'prautoblogger_writing_pipeline',
-				'label'   => __( 'Writing Pipeline', 'prautoblogger' ),
-				'type'    => 'select',
-				'section' => 'prautoblogger_content',
-				'default' => 'multi_step',
-				'options' => array(
-					'multi_step'  => __( 'Multi-step (outline → draft → polish)', 'prautoblogger' ),
-					'single_pass' => __( 'Single-pass (one LLM call)', 'prautoblogger' ),
-				),
-			),
-			array(
-				'id'      => 'prautoblogger_min_word_count',
-				'label'   => __( 'Min Word Count', 'prautoblogger' ),
-				'type'    => 'number',
-				'section' => 'prautoblogger_content',
-				'default' => 800,
-				'min'     => 200,
-			),
-			array(
-				'id'      => 'prautoblogger_max_word_count',
-				'label'   => __( 'Max Word Count', 'prautoblogger' ),
-				'type'    => 'number',
-				'section' => 'prautoblogger_content',
-				'default' => 2000,
-				'min'     => 500,
-			),
-			array(
-				'id'          => 'prautoblogger_writing_instructions',
-				'label'       => __( 'Writing Instructions', 'prautoblogger' ),
-				'type'        => 'textarea',
-				'section'     => 'prautoblogger_content',
-				'default'     => '',
-				'description' => __( 'Custom instructions appended to the LLM\'s system prompt when writing articles. Use this to steer style, structure, voice, and formatting — e.g. "Always open with a hook question. Use short paragraphs. Cite at least two studies."', 'prautoblogger' ),
-			),
-			array(
-				'id'          => 'prautoblogger_editor_instructions',
-				'label'       => __( 'Editor Instructions', 'prautoblogger' ),
-				'type'        => 'textarea',
-				'section'     => 'prautoblogger_content',
-				'default'     => '',
-				'description' => __( 'Custom instructions for the chief editor LLM review pass. Steers what the editor looks for and how it revises — e.g. "Be strict about medical disclaimers. Reject any article under 800 words."', 'prautoblogger' ),
-			),
-			array(
-				'id'          => 'prautoblogger_topic_exclusions',
-				'label'       => __( 'Topic Exclusions', 'prautoblogger' ),
-				'type'        => 'textarea',
-				'section'     => 'prautoblogger_content',
-				'description' => __( 'Comma-separated topics to never write about.', 'prautoblogger' ),
-			),
-
-			// ── Sources ─────────────────────────────────────────────────
-			array(
-				'id'          => 'prautoblogger_target_subreddits',
-				'label'       => __( 'Target Subreddits', 'prautoblogger' ),
-				'type'        => 'textarea',
-				'section'     => 'prautoblogger_sources',
-				'description' => __( 'Comma-separated, without r/. E.g.: peptides, Nootropics, biohackers', 'prautoblogger' ),
-			),
-			array(
-				'id'          => 'prautoblogger_enabled_sources',
-				'label'       => __( 'Enabled Sources', 'prautoblogger' ),
-				'type'        => 'checkboxes',
-				'section'     => 'prautoblogger_sources',
-				'options'     => array(
-					'reddit'       => __( 'Reddit (RSS + .json)', 'prautoblogger' ),
-					'llm_research' => __( 'LLM Deep Research (reasoning model)', 'prautoblogger' ),
-				),
-				'default'     => '["reddit"]',
-				'description' => __( 'Select which platforms to monitor for topics.', 'prautoblogger' ),
-			),
-			array(
-				'id'          => 'prautoblogger_pullpush_cache_ttl',
-				'label'       => __( 'Research Cache (hours)', 'prautoblogger' ),
-				'type'        => 'number',
-				'section'     => 'prautoblogger_sources',
-				'default'     => 6,
-				'min'         => 1,
-				'max'         => 72,
-				'description' => __( 'How long to cache Reddit research results before re-fetching. Saves bandwidth on low-traffic sites.', 'prautoblogger' ),
-			),
-			array(
-				'id'          => 'prautoblogger_reddit_time_filter',
-				'label'       => __( 'Reddit Time Window', 'prautoblogger' ),
-				'type'        => 'select',
-				'section'     => 'prautoblogger_sources',
-				'default'     => 'day',
-				'options'     => array(
-					'day'   => __( 'Past 24 hours', 'prautoblogger' ),
-					'week'  => __( 'Past week', 'prautoblogger' ),
-					'month' => __( 'Past month', 'prautoblogger' ),
-				),
-				'description' => __( 'How far back to search for trending posts and comments.', 'prautoblogger' ),
-			),
-			array(
-				'id'          => 'prautoblogger_reddit_posts_per_subreddit',
-				'label'       => __( 'Posts per Subreddit', 'prautoblogger' ),
-				'type'        => 'number',
-				'section'     => 'prautoblogger_sources',
-				'default'     => 25,
-				'min'         => 5,
-				'max'         => 100,
-				'description' => __( 'Maximum posts to fetch per subreddit per collection run.', 'prautoblogger' ),
 			),
 		);
 	}

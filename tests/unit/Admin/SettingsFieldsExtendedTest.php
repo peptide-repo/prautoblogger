@@ -28,19 +28,21 @@ class SettingsFieldsExtendedTest extends BaseTestCase {
 	}
 
 	/**
-	 * get_fields() must return exactly 29 fields (18 local + 11 image).
+	 * get_fields() must return exactly 25 fields (14 local + 11 image).
 	 *
-	 * This pins the array_merge fix: if a + operator re-appears the image
-	 * fields are silently dropped to 18 and this test fails CI.
-	 * Count breakdown: 18 schedule/publishing/analytics/display/sources fields
+	 * M2: 4 fields removed (reasoning_enabled, reasoning_effort from AI Models;
+	 * research_model, research_prompt from Sources) — now owned by Pipeline Settings.
+	 * This pins the array_merge fix: if a + operator re-appears the image fields
+	 * are silently dropped to 14 and this test fails CI.
+	 * Count breakdown: 14 schedule/publishing/analytics/display fields
 	 * from the local array + 11 image fields from Settings_Fields_Images.
 	 */
-	public function test_get_fields_returns_29_fields(): void {
+	public function test_get_fields_returns_25_fields(): void {
 		$fields = \PRAutoBlogger_Settings_Fields_Extended::get_fields();
 		$this->assertCount(
-			29,
+			25,
 			$fields,
-			'Expected 29 fields (18 local + 11 image). A + union instead of array_merge would return only 18.'
+			'Expected 25 fields (14 local + 11 image). M2 retired AI Models + Sources from Extended.'
 		);
 	}
 

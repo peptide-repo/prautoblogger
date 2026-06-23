@@ -5,6 +5,46 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.24.0] - 2026-06-23
+
+### Added
+- **Pipeline Settings M2 — step option fields:** All per-step content settings are now
+  editable directly in the Pipeline Settings page.
+  - **Global Content Context** block at top of Pipeline page: editable `prautoblogger_niche_description` form (replaces the read-only preview from M1).
+  - **Research step:** `enabled_sources`, `target_subreddits`, `reddit_time_filter`, `reddit_posts_per_subreddit`, `pullpush_cache_ttl`, `research_prompt` moved here from Sources tab.
+  - **Analysis step:** `analysis_instructions`, `topic_exclusions` moved here from Content tab.
+  - **Writer step:** `writing_pipeline`, `tone`, `min_word_count`, `max_word_count`, `writing_instructions`, `reasoning_enabled`, `reasoning_effort` moved here from Content/AI Models tabs.
+  - **Editorial step:** `editor_instructions` moved here from Content tab.
+  - New `pipeline_action = save_step_settings` POST handler with `step_context` routing; validates context, iterates field definitions, sanitizes per field type, and persists via `update_option()`.
+  - New `PRAutoBlogger_Pipeline_Settings_Option_Fields` (public API: `contexts()`, `allowed_options()`, `get_fields_for_context()`, `sanitize_option()`) and companion data class `PRAutoBlogger_Pipeline_Settings_Option_Fields_Data`.
+  - New `pipeline-settings-step-options.php` partial template renders type-aware field controls (textarea, select, number, toggle, checkboxes).
+
+### Changed / Retired
+- **Settings tabs `prautoblogger_models`, `prautoblogger_content`, `prautoblogger_sources` retired.**
+  Removed from `PRAutoBlogger_Settings_Fields::get_sections()` and all field definitions removed from `get_core_fields()` / `PRAutoBlogger_Settings_Fields_Extended::get_fields()`. The wp_option keys are unchanged; sanitization now happens in the Pipeline page save handler. `uninstall.php` wildcard purge is unaffected.
+- `PRAutoBlogger_Pipeline_Settings_Renderer::render()` now passes `global_fields`, `step_context`, and `step_fields` to the template.
+
+### New Files
+- `includes/admin/class-pipeline-settings-option-fields.php`
+- `includes/admin/class-pipeline-settings-option-fields-data.php`
+- `templates/admin/pipeline-settings-step-options.php`
+
+
+### Tests
+- **PHPUnit (P1-1 QA fix):** Added `test_research_context_saves_source_settings()` and
+  `test_research_context_checkboxes_filters_unknown_sources()` to
+  `tests/unit/Admin/PipelineSettingsStepSaveTest.php`. Covers the research context
+  integration path end-to-end: `step_context=research` → fields fetched → POST read
+  → `sanitize_option()` (checkboxes type) → `update_option()` persisted. First test
+  asserts `status=saved` and that `prautoblogger_enabled_sources` decodes to `["reddit"]`;
+  also asserts `prautoblogger_reddit_time_filter` and that the posts-per-subreddit
+  value is an integer. Second test asserts that unknown source keys are stripped
+  by the choices allowlist while valid keys (`reddit`, `llm_research`) survive.
+- **Parse-error fix (P1-2 QA fix):** Moved the two research test methods inside
+  the `PipelineSettingsStepSaveTest` class body; a premature class-closing brace
+  after `test_missing_nonce_field_returns_idle()` caused a PHP parse error
+  (CI red on all 3 PHP versions). Brace count corrected: 21 `{` = 21 `}`.
+
 ## [0.23.0] - 2026-06-22
 
 ### Added
