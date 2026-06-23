@@ -5,6 +5,18 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.27.1] - 2026-06-23
+
+### Fixed (M4 P2 cleanup)
+- **P2-1 (safety cap):** Added `LIMIT 100` to the `generation_log` query inside
+  `Gen_History_Query::get_run_io()` (`includes/admin/class-gen-history-query.php`).
+  A run has ~6–10 stage rows in practice; 100 is a generous safety cap that prevents
+  a pathological run with many log rows from blowing up the AJAX payload.
+- **P2-2 (test):** Implemented the declared-but-missing
+  `test_get_page_returns_empty_when_wpdb_null()` test in
+  `tests/unit/Admin/GenHistoryQueryTest.php`. Confirms the `get_page()` null-wpdb
+  guard returns `array( 'rows' => array(), 'total' => 0 )`.
+
 ## [0.27.0] - 2026-06-23
 
 ### Fixed (QA P1/P2 sweep — post-3cd2843)

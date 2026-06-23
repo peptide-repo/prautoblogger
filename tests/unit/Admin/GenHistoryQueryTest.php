@@ -194,4 +194,29 @@ class GenHistoryQueryTest extends BaseTestCase {
 		$this->assertSame( 20, \PRAutoBlogger_Gen_History_Query::PAGE_SIZE );
 		$this->assertSame( 100, \PRAutoBlogger_Gen_History_Query::PAGE_SIZE_MAX );
 	}
+
+	// -----------------------------------------------------------------------
+	// get_page() early return
+	// -----------------------------------------------------------------------
+
+	/**
+	 * When $wpdb is null, get_page() returns the empty guard shape immediately.
+	 *
+	 * @return void
+	 */
+	public function test_get_page_returns_empty_when_wpdb_null(): void {
+		// Force the global to null to exercise the guard at the top of get_page().
+		$prev_wpdb          = $GLOBALS['wpdb'] ?? null;
+		$GLOBALS['wpdb']    = null;
+
+		try {
+			$query  = new \PRAutoBlogger_Gen_History_Query();
+			$result = $query->get_page();
+		} finally {
+			// Always restore so later tests are unaffected.
+			$GLOBALS['wpdb'] = $prev_wpdb;
+		}
+
+		$this->assertSame( array( 'rows' => array(), 'total' => 0 ), $result );
+	}
 }
