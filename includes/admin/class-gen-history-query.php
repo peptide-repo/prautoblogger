@@ -160,7 +160,8 @@ class PRAutoBlogger_Gen_History_Query {
 					request_json, response_status, error_message, created_at
 				 FROM {$log_table}
 				 WHERE run_id = %s
-				 ORDER BY id ASC",
+				 ORDER BY id ASC
+				 LIMIT 100", // Safety cap: a run has ~6-10 stage rows; 100 is generous.
 				$run_id
 			),
 			ARRAY_A
