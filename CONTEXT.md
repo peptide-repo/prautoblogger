@@ -119,3 +119,30 @@ Full table names are defined in `class-activator.php`.
 | **`step_context`** | The POST key that routes `save_step_settings` to the correct field set. Expected values: `global`, `research`, `analysis`, `writer`, `editorial`. Validated with `sanitize_key()` before use. |
 | **`pipeline_action=save_step_settings`** | POST contract key introduced in M2. Triggers `PRAutoBlogger_Pipeline_Settings_Save_Handler::handle_step_settings_save()`. Parallel to the existing `save_model`, `save_prompt`, and `reset_prompt` action values. |
 | **relocated-tabs concept** | The Settings tabs `prautoblogger_models`, `prautoblogger_content`, and `prautoblogger_sources` were retired in M2; their 17 option fields moved to per-step panels in the Pipeline page. The `wp_option` keys are unchanged — only the admin UI surface that edits them moved. See `CONVENTIONS.md §Retired Settings Tabs`. |
+
+---
+
+## Pipeline Settings M3 (v0.25.0)
+
+| Term | Definition |
+|------|-----------|
+| **assembled instructions** | The fully-rendered text the LLM actually received for a given prompt key — all `{{ token }}` placeholders substituted with live data. Surfaced in the Template/Preview toggle on the Pipeline Settings page. Preferred source: last successful `generation_log.request_json` row for the stage; fallback: sample render with `[token_name]` placeholders. |
+| **Template mode** | The default view of a prompt panel: shows the editable textarea with raw template text (including `{{ token }}` placeholders). Editing here writes a new version to the prompt registry. |
+| **Preview mode** | Read-only view of a prompt panel: shows the assembled instructions the LLM received in the last run (or a sample render if no run exists). No save path in PHP or JS. |
+| **Template-vs-Preview guardrail** | The Template and Preview panes are mutually exclusive. Preview has no save path server-side (no write handler) or client-side (JS sends no save POST when in preview mode). Prevents accidental edits to the rendered output. |
+| **version diff** | An LCS-based line-level diff between two prompt versions (or a version and the factory default). Rendered server-side as `{type, text}` lines (added/removed/context/omitted); the JS applies colours without parsing unified-diff format. Context window: 3 lines before/after each changed block. |
+
+---
+
+## Pipeline Settings M4 (v0.26.0)
+
+| Term | Definition |
+|------|-----------|
+| **Generation History** | The `prautoblogger-gen-history` admin page: paginated list of all pipeline runs, newest first. Entry point to the per-step I/O drill-down. |
+| **run row** | A single entry in the Generation History list. Corresponds to one `prautoblogger_runs` ledger row. Shows title (from linked post), date, status chip, models used, cost, duration. |
+| **Stage I/O** | The inline drill-down panel for a run: shows every generation_log stage's full INPUT (system + user message content from `request_json`) and OUTPUT (model response from `run_stages.meta_json.output`). Loaded via AJAX on first toggle; cached client-side for subsequent toggles. |
+| **input_system** | The `system`-role message content extracted from `generation_log.request_json`. The prompt template the LLM received. May be null for image/non-chat stages. |
+| **input_user** | The last `user`-role message content from `request_json`. The rendered, token-filled instruction the LLM received. |
+| **output** | The LLM's raw response text from `run_stages.meta_json.output`. Null when the stage is log-only (image_a, image_b, llm_research, image_prompt_rewrite — no run_stages row). |
+| **output_pruned** | True when `run_stages.meta_json` exists but has no `output` key — indicating the output was pruned by the `prautoblogger_request_json_retention_days` setting. The UI shows an explicit message instead of a blank field. |
+| **log-only stage** | A generation_log stage with no corresponding run_stages row. Image stages (image_a, image_b, image_prompt_rewrite) and llm_research fall here. Their output is null (not pruned) in the drill-down. |

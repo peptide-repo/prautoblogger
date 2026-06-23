@@ -66,10 +66,8 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 			'global_fields'   => $this->build_option_field_values( 'global' ),
 			'step_context'    => $step_context,
 			'step_fields'     => $step_context ? $this->build_option_field_values( $step_context ) : array(),
-			// M3: AJAX nonces localized into the view for JS use.
-			'preview_nonce'   => wp_create_nonce( PRAutoBlogger_Pipeline_Preview_Handler::ACTION ),
-			'history_nonce'   => wp_create_nonce( PRAutoBlogger_Pipeline_History_Handler::ACTION_HISTORY ),
-			'diff_nonce'      => wp_create_nonce( PRAutoBlogger_Pipeline_History_Handler::ACTION_DIFF ),
+			// M3: AJAX action names passed to the template for data-* attrs.
+			// Nonces are localised via wp_localize_script in Pipeline_Settings_Page::on_enqueue_assets().
 			'preview_action'  => PRAutoBlogger_Pipeline_Preview_Handler::ACTION,
 			'history_action'  => PRAutoBlogger_Pipeline_History_Handler::ACTION_HISTORY,
 			'diff_action'     => PRAutoBlogger_Pipeline_History_Handler::ACTION_DIFF,

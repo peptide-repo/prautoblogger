@@ -1,0 +1,183 @@
+/**
+ * Generation History page — PRAutoBlogger M4.
+ *
+ * Minimal styles for the run list table and the Stage I/O drill-down panel.
+ * Colour tokens: uses WordPress admin colour-scheme variables where available
+ * and falls back to neutral greys.
+ */
+
+.prab-gen-history {
+	max-width: 1200px;
+}
+
+.prab-gen-history__subtitle {
+	color: #646970;
+	margin-bottom: 1.25em;
+}
+
+/* Run list table */
+.prab-gen-history__table {
+	border-collapse: collapse;
+}
+
+.prab-gen-history__table th,
+.prab-gen-history__table td {
+	vertical-align: top;
+	padding: 8px 10px;
+}
+
+.prab-gen-history__no-title {
+	color: #888;
+	font-style: italic;
+}
+
+.prab-gen-history__models {
+	max-width: 200px;
+}
+
+.prab-gen-history__models span {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 190px;
+}
+
+/* Actions column */
+.prab-gen-history__actions {
+	white-space: nowrap;
+}
+
+.prab-gen-history__actions .button {
+	margin-right: 4px;
+}
+
+/* Stage I/O row — hidden by default, shown on toggle */
+.prab-gen-history__io-row td {
+	padding: 0;
+	border-top: none;
+}
+
+.prab-gen-history__io-panel {
+	padding: 16px;
+	background: #f8f9fa;
+	border-top: 1px solid #dcdcde;
+}
+
+.prab-gen-history__io-loading {
+	color: #646970;
+	font-style: italic;
+}
+
+/* Stage chip within the I/O panel */
+.prab-io-stage {
+	margin-bottom: 20px;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	background: #fff;
+	overflow: hidden;
+}
+
+.prab-io-stage__header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 14px;
+	background: #f0f0f1;
+	border-bottom: 1px solid #dcdcde;
+	flex-wrap: wrap;
+}
+
+.prab-io-stage__label {
+	font-weight: 600;
+	flex: 1 1 auto;
+}
+
+.prab-io-stage__meta {
+	font-size: 12px;
+	color: #646970;
+}
+
+.prab-io-stage__body {
+	padding: 14px;
+}
+
+.prab-io-section {
+	margin-bottom: 14px;
+}
+
+.prab-io-section__title {
+	font-weight: 600;
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: #646970;
+	margin-bottom: 6px;
+}
+
+.prab-io-section__text {
+	font-family: monospace;
+	font-size: 12px;
+	white-space: pre-wrap;
+	word-break: break-word;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 3px;
+	padding: 10px;
+	margin: 0;
+	max-height: 300px;
+	overflow-y: auto;
+	line-height: 1.5;
+}
+
+.prab-io-section__text--missing {
+	color: #888;
+	font-style: italic;
+	font-family: inherit;
+	white-space: normal;
+	background: transparent;
+	border: none;
+	padding: 0;
+}
+
+/* Status chip reuse from dossier */
+.prab-chip {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: capitalize;
+}
+
+.prab-chip--done     { background: #d1fae5; color: #065f46; }
+.prab-chip--failed   { background: #fee2e2; color: #991b1b; }
+.prab-chip--running  { background: #dbeafe; color: #1e40af; }
+.prab-chip--pending  { background: #f3f4f6; color: #6b7280; }
+.prab-chip--halted   { background: #fef9c3; color: #92400e; }
+.prab-chip--success  { background: #d1fae5; color: #065f46; }
+.prab-chip--error    { background: #fee2e2; color: #991b1b; }
+
+/* Pagination */
+.prab-gen-history__pagination {
+	margin-top: 16px;
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.prab-gen-history__pagination a,
+.prab-gen-history__page-current {
+	display: inline-block;
+	padding: 4px 10px;
+	border-radius: 3px;
+	border: 1px solid #dcdcde;
+	text-decoration: none;
+}
+
+.prab-gen-history__page-current {
+	background: #2271b1;
+	color: #fff;
+	border-color: #2271b1;
+	font-weight: 600;
+}

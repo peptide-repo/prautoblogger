@@ -82,6 +82,11 @@ class PRAutoBlogger {
 		add_action( 'admin_menu', array( $dossier_page, 'on_register_menu' ), 12 );
 		add_action( 'admin_enqueue_scripts', array( $dossier_page, 'on_enqueue_assets' ) );
 
+		// Generation History: link-accessed hidden page, priority 14 (after dossier).
+		$gen_history_page = new PRAutoBlogger_Gen_History_Page();
+		add_action( 'admin_menu', array( $gen_history_page, 'on_register_menu' ), 14 );
+		add_action( 'admin_enqueue_scripts', array( $gen_history_page, 'on_enqueue_assets' ) );
+
 		add_action( 'admin_notices', array( new PRAutoBlogger_Admin_Notices(), 'on_display_notices' ) );
 		add_action( 'add_meta_boxes', array( new PRAutoBlogger_Post_Metabox(), 'on_register_metabox' ) );
 		add_action( 'admin_menu', array( new PRAutoBlogger_Metrics_Page(), 'on_register_menu' ) );
@@ -202,6 +207,9 @@ class PRAutoBlogger {
 		// v0.25.0 (M3): pipeline prompt preview + history/diff endpoints.
 		PRAutoBlogger_Pipeline_Preview_Handler::register_hooks();
 		PRAutoBlogger_Pipeline_History_Handler::register_hooks();
+
+		// v0.26.0 (M4): generation run I/O drill-down.
+		PRAutoBlogger_Gen_Run_IO_Handler::register_hooks();
 	}
 
 	/**

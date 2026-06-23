@@ -5,6 +5,66 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.26.0] - 2026-06-23
+
+### Added
+- **Pipeline Settings M4 — Generation History: run list + per-step I/O drill-down (CEO ask #5 complete):**
+
+  - **Generations list (`prautoblogger-gen-history`):** A browsable, paginated admin page (20 runs
+    per page, newest first). Each row shows the linked article title (when the run produced a post),
+    start date/time, final run status chip, distinct model(s) used, settled cost, and duration.
+    Linked runs surface a "Dossier" button deep-linking to the existing Article Dossier; all runs
+    (including failed/orphan ones) have a "Stage I/O" toggle for the inline drill-down. Queries
+    are bounded (LIMIT/OFFSET) — no unbounded SELECT *.
+
+  - **Per-step input AND output drill-down:** "Stage I/O" opens an inline panel (loaded via AJAX
+    on first click, then toggled). For each generation_log row the panel shows:
+    - **Input — System Prompt:** the `system`-role message content extracted from
+      `generation_log.request_json` (the prompt template the LLM received after rendering).
+    - **Input — Assembled Instruction:** the `user`-role message content (the fully token-filled
+      instruction the LLM received).
+    - **Output — Model Response:** extracted from `run_stages.meta_json.output` (the LLM's raw
+      text response). When pruned by the retention policy or absent for log-only stages (image_a/
+      image_b, llm_research, etc.), the panel says so explicitly rather than leaving a blank.
+    - Per-stage model, token counts, estimated cost, and response status.
+
+  - **Stage-list-driven:** Stage labels come from `Stage_Display_Map::label()` so Phase 2b
+    `curate`/`seo` stages appear automatically without rework.
+
+  - **Dossier as primary per-step I/O surface:** For runs that produced a post the "Dossier"
+    button is the recommended entry point — the dossier already renders every stage's input and
+    output (request payload + stage snapshot) with the full editorial context. The inline Stage I/O
+    panel is complementary; it works for orphan/failed runs and shows the same data in a lighter UI.
+
+  - **gen-log INPUT/OUTPUT coverage confirmed:**
+    - INPUT: `generation_log.request_json` stores the full JSON chat body (messages[], model,
+      temperature, …) assembled by `build_body()` before the `Authorization` header is added.
+      The `Request_Recorder` captures only the body — auth headers are never stored. System and
+      user message content are extracted and surfaced.
+    - OUTPUT: `run_stages.meta_json` holds `{output: "..."}` — the LLM's raw response text
+      written by `Run_Stage_State::done()`. Image/log-only stages (image_a, image_b,
+      llm_research, image_prompt_rewrite) have no `run_stages` row; their output is null (not
+      pruned). When `meta_json` is present but lacks the `output` key (pruned by the
+      `prautoblogger_request_json_retention_days` setting), `output_pruned = true` is returned
+      and the UI explains the gap honestly.
+
+  - **New files:** `includes/admin/class-gen-history-query.php`,
+    `includes/admin/class-gen-history-page.php`,
+    `includes/ajax/class-gen-run-io-handler.php`,
+    `templates/admin/gen-history-page.php`,
+    `assets/css/gen-history.css`,
+    `assets/js/gen-history.js`.
+
+### Fixed (M3 P2 sweep)
+- **Removed dead `data-preview-nonce` and `data-diff-nonce` HTML attributes** from
+  `templates/admin/pipeline-settings-prompt-panel.php`. The JS has always read nonces from
+  `prabPipeline.previewNonce` / `prabPipeline.diffNonce` (via `wp_localize_script` in
+  `Pipeline_Settings_Page::on_enqueue_assets`), not from `data-*` attrs — confirmed by grep.
+  Removing them eliminates redundant server-side `wp_create_nonce()` calls in the renderer.
+- **Removed 3 redundant `wp_create_nonce()` calls** from
+  `includes/admin/class-pipeline-settings-renderer.php` (`preview_nonce`, `history_nonce`,
+  `diff_nonce` keys) — they were only feeding the now-removed dead `data-*` attrs.
+
 ## [0.25.0] - 2026-06-23
 
 ### Added

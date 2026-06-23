@@ -96,8 +96,7 @@ $toggle_hint_id = 'pab-toggle-hint-' . $css_key;
 			 data-template-id="<?php echo esc_attr( $template_id ); ?>"
 			 data-toggle-hint-id="<?php echo esc_attr( $toggle_hint_id ); ?>"
 			 data-ajax-url="<?php echo esc_attr( admin_url( 'admin-ajax.php' ) ); ?>"
-			 data-preview-action="<?php echo esc_attr( $view['preview_action'] ); ?>"
-			 data-preview-nonce="<?php echo esc_attr( $view['preview_nonce'] ); ?>">
+			 data-preview-action="<?php echo esc_attr( $view['preview_action'] ); ?>">
 			<button type="button"
 					class="pab-tp-btn pab-tp-btn--active"
 					data-mode="template"
@@ -218,8 +217,7 @@ $toggle_hint_id = 'pab-toggle-hint-' . $css_key;
 								data-version-b="<?php echo esc_attr( (string) $ver_num ); ?>"
 								data-diff-target="<?php echo esc_attr( $diff_id ); ?>"
 								data-ajax-url="<?php echo esc_attr( admin_url( 'admin-ajax.php' ) ); ?>"
-								data-diff-action="<?php echo esc_attr( $view['diff_action'] ); ?>"
-								data-diff-nonce="<?php echo esc_attr( $view['diff_nonce'] ); ?>">
+								data-diff-action="<?php echo esc_attr( $view['diff_action'] ); ?>">
 							<?php esc_html_e( 'Diff', 'prautoblogger' ); ?>
 						</button>
 					<?php endif; ?>
