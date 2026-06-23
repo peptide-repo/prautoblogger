@@ -233,5 +233,4 @@ class PRAutoBlogger_Board_Data_Provider {
 		}
 		return $cards;
 	}
-
 }
