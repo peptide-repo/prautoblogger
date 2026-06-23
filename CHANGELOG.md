@@ -9,20 +9,24 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 - **P2b.1 — Research_Fanout + Research_Judge (the `curate` stage)** — additive only; not wired into the live Economy (single-pass) path until P2b.4 (tier routing).
-  - `PRAutoBlogger_Research_Fanout` — dispatches N specialist LLM research agents in parallel via `curl_multi` (default 3 agents, configurable 2–5 via `prautoblogger_research_agent_count`; MIN_AGENTS=2 because quorum=⌈N/2⌉+1=2 makes N=1 unsatisfiable). Reserves the SUMMED worst-case cost of the entire batch from the per-run cost governor before dispatch (atomic conditional write). Quorum check: ⌈N/2⌉+1 agents must return usable results, else returns empty array (caller holds the run). `settle()` wrapped in `try/finally` — always settles the reservation even if `batch->execute()` throws. Invalid/schema-mismatched agent results excluded and never silently passed.
+  - `PRAutoBlogger_Research_Fanout` — dispatches N specialist LLM research agents in parallel via `curl_multi` (default 3 agents, configurable 2–5 via `prautoblogger_research_agent_count`; MIN_AGENTS=2 because quorum=⌈N/2⌉+1=2 makes N=1 unsatisfiable). Reserves the SUMMED worst-case cost of the entire batch from the per-run cost governor before dispatch (atomic conditional write — concurrent writers cannot slip past the per-run ceiling). Quorum check: ⌈N/2⌉+1 agents must return usable results, else returns empty array (caller holds the run). Invalid/schema-mismatched agent results are excluded and never silently passed. Per-agent `run_stages` rows written with `researcher:<role>` agent_role. `settle()` wrapped in `try/finally` — always settles the reservation even if `batch->execute()` throws, preventing phantom reserved_usd in the run ledger.
   - `PRAutoBlogger_Research_Batch` — extracted curl_multi execution layer (mirrors `class-open-router-image-batch.php` pattern); keeps Research_Fanout under 300 lines and independently testable.
   - `PRAutoBlogger_Research_Judge` — the `curate` stage; deduplicates sources by URL-canonical match then semantic similarity (OpenRouter embeddings / cosine similarity, matching Semantic_Dedup), with keyword-overlap fallback. Assigns `quality_score` = relevance × source-type authority weight. Writes `run_sources` rows (kept=1 / kept=0 with reason + quality_score) via `Audit_Writer`. Returns top-12 scored sources for the draft stage.
   - `PRAutoBlogger_Research_Source_Scorer` — authority weighting helper (peer-reviewed→1.0, institutional→0.85, preprint→0.70, HTTPS→0.60, HTTP→0.40); extracted from judge to keep line count under 300.
-  - `PRAutoBlogger_Research_Dedup` — URL-exact + semantic/keyword deduplication helper; extracted from Research_Judge (300-line rule fix, same PR): `deduplicate()`, `canonical_url()`, `extract_keywords()` — pure computation, no side effects. Injected into judge via constructor (optional, nullable).
   - Both subsystems behind interfaces (`PRAutoBlogger_Research_Fanout_Interface`, `PRAutoBlogger_Research_Judge_Interface`) for provider-swappability. Stage_Display_Map already contains `research` + `curate` from v0.18.0; no new stage vocabulary added.
 - PHPUnit: `ResearchFanoutTest` (quorum logic, cost-reserve wiring, ceiling-breach abort, partial-failure) + `ResearchJudgeTest` (dedup, quality_score, run_sources writes, graceful absent-table degradation).
-- `CONTEXT.md` Phase 2b P2b.1 section: glossary for fan-out, Research_Fanout, curate stage, Research_Judge, quorum, specialist role, quality_score, authority weight, MIN_AGENTS floor.
+- `CONTEXT.md` Phase 2b P2b.1 section — glossary entries for fan-out, Research_Fanout, curate stage, Research_Judge, quorum, specialist role, quality_score, authority weight, MIN_AGENTS floor.
 
-### Fixed (QA REQUEST-CHANGES sweep — post-721bf8a)
-- **P1-1:** Added Phase 2b P2b.1 glossary section to `CONTEXT.md` (DoD v1.2.0 §7 — new domain terms must be defined in the same PR).
-- **P2-2:** Wrapped `batch->execute()` + results loop + `settle()` in `try/finally` — the cost-governor reservation is ALWAYS settled/released even if an unexpected exception is thrown, preventing phantom `reserved_usd` in the run ledger.
-- **P2-1:** Added `test_ceiling_breach_exception_aborts_before_dispatch()` to `ResearchFanoutTest` — asserts that `batch->execute()` call-count == 0 when `open_amount_reservation()` throws `PRAutoBlogger_Cost_Ceiling_Exception`.
-- **P2-3:** Raised `MIN_AGENTS` from 1 to 2 — with quorum=⌈N/2⌉+1, N=1 makes quorum=2 which can never be satisfied; floor of 2 ensures the minimum fan-out can succeed.
+### Fixed (CI green — post-17cef8a testfix)
+- **ResearchFanoutTest void log_api_call mock:** Removed willReturn(null) from make_cost_tracker(); log_api_call is declared void so PHPUnit raises IncompatibleReturnValueException. Fix: drop willReturn, keep bare method() call only.
+- **ResearchFanoutTest Run_Context::set() undefined:** Changed PRAutoBlogger_Run_Context::set() to ::set_run_id() in test_ceiling_breach_exception_aborts_before_dispatch; the class API is set_run_id/current_run_id/clear only.
+- **ResearchJudgeTest keyword-dedup collapses distinct sources to 1 (code regression):** deduplicate() keyword-overlap fallback lacked a minimum keyword count guard. Generic source titles (Source 0 / Excerpt 0) produce only 2 shared keywords, collapsing all sources to 1 unique. Fix: require count(kw) >= 3 before the overlap loop (mirrors Semantic_Dedup pattern); URL-exact dedup already handles same-URL duplicates; sparse keyword sets pass through unconditionally.
+
+### Fixed (QA P1/P2 sweep — post-721bf8a)
+- **P1-1:** Added Phase 2b P2b.1 glossary section to `CONTEXT.md` (DoD v1.2.0 §7 — new domain terms must be defined same PR).
+- **P2-2:** Wrapped `batch->execute()` + results loop + `settle()` in `try/finally` so the cost-governor reservation is ALWAYS settled/released even if an unexpected exception is thrown, preventing phantom `reserved_usd` in the run ledger.
+- **P2-1:** Added `test_ceiling_breach_exception_aborts_before_dispatch()` to `ResearchFanoutTest` — asserts that when `open_amount_reservation()` throws `PRAutoBlogger_Cost_Ceiling_Exception`, `batch->execute()` is never called (enforces cost-governance contract).
+- **P2-3:** Raised `MIN_AGENTS` from 1 to 2 in `Research_Fanout` — with quorum=⌈N/2⌉+1, N=1 makes quorum=2 which can never be satisfied; floor of 2 ensures the minimum fan-out can actually succeed.
 
 ## [0.27.1] - 2026-06-23
 
@@ -1681,22 +1685,4 @@ swap with no user-visible change in article quality.
 ### Added
 - Initial plugin scaffold with WordPress-native architecture.
 - OpenRouter LLM provider with configurable model selection and retry logic.
-- Reddit API source provider (OAuth2 script app) for collecting posts and comments.
-- Content analysis engine: detects recurring questions, complaints, and comparisons.
-- Idea scorer with deduplication against existing posts.
-- Configurable writer agent pipeline (single-pass or multi-step: outline → draft → polish).
-- Chief editor agent for LLM-powered editorial review before publishing.
-- Publisher with full generation metadata stored as post_meta.
-- Cost tracker with per-call logging, monthly budget enforcement, and hard-stop.
-- Metrics collector: WordPress native + GA4 integration + composite content scoring.
-- Admin settings page with sections for API keys, models, content, sources, schedule, and analytics.
-- Metrics dashboard showing monthly spend, budget utilization, cost by stage, and daily spend.
-- Post metabox showing generation metadata on PRAutoBlogger-generated posts.
-- Admin notices for missing API keys, budget warnings, and configuration hints.
-- Stub providers for TikTok, Instagram, and YouTube (future implementation).
-- Encrypted storage for API keys using AES-256-CBC with wp_salt().
-- AJAX-powered "Generate Now" and "Test Connections" buttons.
-- Custom database tables for source data, analysis results, generation logs, and content scores.
-- Clean uninstall handler removing all plugin data.
-- ARCHITECTURE.md and CONVENTIONS.md for AI-readable codebase documentation.
-
+- Reddit API source provider (OAuth2 script app) for collecting posts and comments

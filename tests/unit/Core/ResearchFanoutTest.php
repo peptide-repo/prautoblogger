@@ -167,7 +167,7 @@ class ResearchFanoutTest extends BaseTestCase {
 		) );
 		$this->wpdb->method( 'query' )->willReturn( 0 );
 
-		\PRAutoBlogger_Run_Context::set( 'run-ceiling' );
+		\PRAutoBlogger_Run_Context::set_run_id( 'run-ceiling' );
 
 		$fanout = $this->make_fanout( $batch );
 
@@ -262,7 +262,7 @@ class ResearchFanoutTest extends BaseTestCase {
 			->disableOriginalConstructor()
 			->onlyMethods( array( 'log_api_call', 'is_budget_exceeded' ) )
 			->getMock();
-		$ct->method( 'log_api_call' )->willReturn( null );
+		$ct->method( 'log_api_call' ); // void: no return value
 		$ct->method( 'is_budget_exceeded' )->willReturn( false );
 		return $ct;
 	}
