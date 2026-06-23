@@ -165,7 +165,15 @@ prautoblogger/
 │   │   ├── class-metrics-page.php     # Admin page for cost dashboard and content scores
 │   │   ├── class-ideas-browser.php    # Browse all analysis results (article ideas)
 │   │   ├── class-review-queue.php     # Approve/edit/reject queue for generated drafts
-│   │   └── class-log-viewer.php       # Activity log viewer with level filtering
+│   │   ├── class-log-viewer.php       # Activity log viewer with level filtering
+│   │   ├── class-gen-history-page.php # M4: Generation History hidden page (options.php parent, priority 14)
+│   │   └── class-gen-history-query.php # M4: Paginated run list + per-run I/O extraction queries
+│   │
+│   ├── ajax/
+│   │   ├── class-model-registry-refresh.php # AJAX: refresh OpenRouter model registry (manual trigger)
+│   │   ├── class-pipeline-preview-handler.php # M3: assembled-instructions preview from last-run gen_log (v0.25.0)
+│   │   ├── class-pipeline-history-handler.php # M3: prompt version list + LCS diff (history + diff actions) (v0.25.0)
+│   │   └── class-gen-run-io-handler.php # M4: per-run stage I/O drill-down (prautoblogger_gen_run_io) (v0.26.0)
 │   │
 │   ├── core/
 │   │   ├── class-scheduler.php        # WP-Cron / Action Scheduler job management
@@ -923,6 +931,30 @@ an LCS-based inline diff (added/removed/context/omitted lines, 3-line context wi
 **Security (M3):** All three new AJAX actions require `manage_options` + nonce. Prompt
 keys validated against `Step_Map::allowed_prompt_keys()`. Preview returned as `esc_html`
 server-side; diff text inserted via `textContent` (not innerHTML) in JS.
+
+**M4 (v0.26.0 — Generation History: run list + per-step I/O drill-down):**
+A new hidden admin page (`prautoblogger-gen-history`) lists all pipeline runs newest-first
+(20 per page). Each row links to the Article Dossier (for runs with a linked post) and
+exposes a "Stage I/O" toggle. The toggle opens an inline AJAX-loaded panel showing every
+generation_log stage's full INPUT (system + user message content from `request_json`) and
+OUTPUT (model response from `run_stages.meta_json.output`). Log-only stages (image_a, image_b,
+llm_research, image_prompt_rewrite) have no run_stages row; their output is reported as null
+(not pruned). Pruned outputs (meta_json present, output key absent) are flagged explicitly.
+Stage labels come from `Stage_Display_Map::label()` — Phase 2b stages appear automatically.
+
+**M4 new files:** `admin/class-gen-history-query.php`, `admin/class-gen-history-page.php`,
+`ajax/class-gen-run-io-handler.php`, `templates/admin/gen-history-page.php`,
+`assets/css/gen-history.css`, `assets/js/gen-history.js`.
+
+**Security (M4):** `prautoblogger-gen-history` page requires `manage_options`. The
+`prautoblogger_gen_run_io` AJAX action requires `manage_options` + nonce
+(`prautoblogger_gen_run_io`). All output escaped via `esc_html()`/`esc_url()` server-side;
+JS renders prompt/response text via `textContent` (never `innerHTML`). Read-only — no writes.
+
+**M3 P2 sweep (v0.26.0):** Removed dead `data-preview-nonce` and `data-diff-nonce` HTML
+attributes from `pipeline-settings-prompt-panel.php`. The JS reads nonces from
+`prabPipeline.*Nonce` (via `wp_localize_script`), not from `data-*` attrs. Removed 3
+redundant `wp_create_nonce()` calls from the renderer.
 
 
 ---

@@ -15,9 +15,6 @@
  *   array   $view['global_fields']   -- field defs + current values for global context.
  *   string  $view['step_context']    -- context id matching the active step, or null.
  *   array   $view['step_fields']     -- field defs + current values for active step context.
- *   string  $view['preview_nonce']   -- (M3) nonce for preview AJAX.
- *   string  $view['history_nonce']   -- (M3) nonce for history AJAX.
- *   string  $view['diff_nonce']      -- (M3) nonce for diff AJAX.
  *   string  $view['preview_action']  -- (M3) AJAX action name for preview.
  *   string  $view['history_action']  -- (M3) AJAX action name for history.
  *   string  $view['diff_action']     -- (M3) AJAX action name for diff.

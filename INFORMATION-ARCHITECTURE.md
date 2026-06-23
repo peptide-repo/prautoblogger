@@ -12,8 +12,8 @@ Maintained per DoD v1.1.0 (same-PR update rule).
 | `prautoblogger-settings` | `PRAutoBlogger_Admin_Page` | `admin-page.php` | Main settings: API Keys, Schedule & Budget, Publishing, Analytics, Display, Images. AI Models / Content / Sources retired to Pipeline Settings in M2 (v0.24.0). |
 | `prautoblogger-board` | `PRAutoBlogger_Board_Page` | `board-page.php` | Kanban board: Generating / Failed / In Review / Published columns. New Article button (v0.21.0). |
 | `prautoblogger-pipeline` | `PRAutoBlogger_Pipeline_Settings_Page` | `pipeline-settings-page.php` | Per-step pipeline config: Global Content Context (niche), step option fields, model picker, system instructions, agent prompts, params (M1 v0.23.0; M2 v0.24.0 adds editable step options, retires AI Models/Content/Sources Settings tabs). M3 v0.25.0 adds Template/Preview toggle (assembled-instructions preview from last-run gen_log), version history accordion, and inline diff panel. Three new AJAX endpoints: `prautoblogger_pipeline_preview`, `prautoblogger_pipeline_history`, `prautoblogger_pipeline_diff` (all `manage_options` + nonce gated). |
-| `prautoblogger-articles` | `PRAutoBlogger_Articles_Page` | `articles-page.php` | Paginated list of all articles/runs |
-| `prautoblogger-dossier` | `PRAutoBlogger_Dossier_Page` | `dossier-page.php` | Per-article generation log + stage edit/re-run (M3) |
+| `prautoblogger-gen-history` | `PRAutoBlogger_Gen_History_Page` | `gen-history-page.php` | M4: Paginated list of all generation runs — title, date, status, models, cost, duration; Stage I/O toggle for inline per-step input/output drill-down (AJAX). Hidden options.php-parent page. `manage_options` + `prautoblogger_gen_run_io` nonce. |
+| `prautoblogger-dossier` | `PRAutoBlogger_Dossier_Page` | `dossier-page.php` | Per-article generation log + stage edit/re-run (M3). Preferred per-step I/O surface for runs with a linked post. |
 | `prautoblogger-ideas` | `PRAutoBlogger_Ideas_Browser` | `ideas-browser.php` | Analysis results browser with per-idea generation |
 | `prautoblogger-activity` | `PRAutoBlogger_Activity_Page` | `activity-page.php` | Cost + generation activity log |
 
