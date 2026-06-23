@@ -296,4 +296,3 @@ class PRAutoBlogger_Research_Fanout implements PRAutoBlogger_Research_Fanout_Int
 		return count( $out ) > 0 ? $out : null;
 	}
 }
-
