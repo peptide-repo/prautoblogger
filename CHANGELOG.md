@@ -5,6 +5,21 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.30.0] - 2026-06-24
+
+### Added
+- **P2b.3 — SEO stage: _prab_* meta writer + citation_score** — additive Authority-tier only; not wired into the live Economy (single-pass) path until P2b.4 (tier routing).
+  - `PRAutoBlogger_Seo_Stage` (`core/class-seo-stage.php`, 173 lines) — deterministic (no LLM calls) meta-writer. Writes all keys from the ratified JSON-LD contract v1 (`convo/prcore/decisions/2026-06-11-jsonld-contract-v1.md`) to the published post so prcore can emit Drug/MedicalWebPage schema. Computes `citation_score` = average `quality_score` of kept sources (0.0–1.0). Records `run_stages` start→done (`agent_role=seo`) and a `run_decisions` row (`stage=seo, verdict=scored`). Reads `prautoblogger_citation_score_threshold` option (default `0.0`) and logs it — the publish gate acting on this score is P2b.4. Economy single-pass path untouched.
+  - `PRAutoBlogger_Seo_Stage_Interface` (`providers/interface-seo-stage.php`) — contract for `run()`.
+  - New option `prautoblogger_citation_score_threshold` (float, default 0.0, intentionally uncalibrated). Uninstall purges it with the existing `LIKE 'prautoblogger\_%'` wildcard.
+  - _prab_* meta keys written: `_prab_schema_version` (int 1), `_prab_citations` (JSON kept sources), `_prab_about_peptides` (JSON peptide IDs), `_prab_review_mode` ('editorial-system'), `_prab_reviewed_at` (ISO 8601 datetime), `_prab_citation_score` (float as string). `_prab_reviewed_by` is NOT written by this stage (human approval only, P2b.4).
+- PHPUnit: `SeoStageTest` — 8 tests covering schema_version=1, citations from kept sources, review_mode=editorial-system, citation_score computation (avg quality_score), score stored as post-meta, empty-sources score=0.0, threshold option read, run_stages start+done called. All 531 tests GREEN on VPS PHP 8.3.
+
+### Updated
+- `ARCHITECTURE.md` — SEO stage added to Phase 2b file tree, options table (`prautoblogger_citation_score_threshold`), and post-meta table (`_prab_*` keys).
+- `CONVENTIONS.md` — Authority Pipeline SEO Stage section: design rules, key patterns, `_prab_*` key reference table.
+- `CONTEXT.md` — New P2b.3 glossary section: SEO stage, JSON-LD contract v1, citation_score, citation_score_threshold, _prab_* key definitions.
+
 ## [0.29.0] - 2026-06-24
 
 ### Added
