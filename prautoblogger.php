@@ -36,7 +36,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 | and limits without magic strings.
 */
 define( 'PRAUTOBLOGGER_VERSION', '0.29.0' );
-define( 'PRAUTOBLOGGER_DB_VERSION', '1.4.0' );  // No schema change in v0.28.0 (Research_Fanout/Judge are additive code only).
+define( 'PRAUTOBLOGGER_DB_VERSION', '1.4.0' );  // No schema change in v0.29.0 (Editorial_Loop is additive code only).
 define( 'PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD', 0.50 );
 define( 'PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS', 14 );
 // Default max cards shown per board column and per ideas-browser page.

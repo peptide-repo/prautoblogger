@@ -223,8 +223,9 @@ prautoblogger/
 │   │   ├── class-run-reaper.php       # Stuck-run sweep + audit-payload retention (rides the #19 cron)
 │   │   ├── class-research-fanout.php   # P2b.1: parallel specialist research agents (N×curl_multi, quorum, cost-reserve) — Authority only (v0.28.0)
 │   │   ├── class-research-batch.php    # P2b.1: curl_multi execution layer for research agents (extracted from fanout, v0.28.0)
-│   │   ├── class-research-judge.php    # P2b.1: curate stage — dedup+score fan-out results, write run_sources keep/discard (v0.28.0)
+│   │   ├── class-research-judge.php    # P2b.1: curate stage — dedup+score fan-out results, write run_sources keep/discard (v0.28.0; dedup inlined back into judge in P2b.2)
 │   │   ├── class-research-source-scorer.php # P2b.1: source authority weighting for the judge (v0.28.0)
+│   │   ├── class-research-source-writer.php  # P2b.1: run_sources DB writer for the curate stage; extracted from judge to satisfy 300-line rule (v0.28.0)
 │   │   ├── class-editorial-loop.php    # P2b.2: bounded editorial loop — editor↔writer ≤editorial_max_rounds — Authority only (v0.29.0)
 │   │   ├── class-editorial-revision-caller.php # P2b.2: writer revision LLM step (extracted from editorial-loop for 300-line rule) (v0.29.0)
 │   │   ├── class-audit-writer.php     # run_sources / run_decisions insert layer
@@ -1239,4 +1240,17 @@ which acquires the lock and runs orchestration within its own process. The
 
 ### Key State
 
-| Store | Key | 
+| Store | Key | Contents |
+|-------|-----|---------|
+| DB option | `prautoblogger_article_queue` | `{run_id, ideas[], results{}}` — persisted across ticks |
+| DB option | `prautoblogger_checkpoint_run_id` | Current run UUID (for finalize/cleanup paths) |
+| Transient | `prautoblogger_generation_status` | Status broadcast (polling by board/dossier JS) |
+| DB | `prautoblogger_runs` | Per-run ledger with status, cost ceiling |
+| DB option | `prautoblogger_editorial_max_rounds` | Max editorial loop rounds (int, default 3, range 1–10). P2b.2 (v0.29.0). |
+
+### Budget / Halt Contract
+
+`Cost_Tracker::is_budget_exceeded()` is checked at the START of Tick 1 and each
+generate tick. A halted run (`Run_State::get_status() = 'halted'`) causes the
+generate tick to abort without calling `Article_Worker`, clean up the queue, and
+release the lock — same guarantee as `Pipeline_Runner`'s queued-article path.

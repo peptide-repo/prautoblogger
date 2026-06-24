@@ -172,10 +172,7 @@ class PRAutoBlogger_Editorial_Loop implements PRAutoBlogger_Editorial_Loop_Inter
 	}
 
 	/**
-	 * Produce the revised content for a non-approved round.
-	 *
-	 * Prefers the editor's own inline revised_content; falls back to a
-	 * full writer revision call via Editorial_Revision_Caller.
+	 * Produce revised content: prefers inline revised_content; falls back to Editorial_Revision_Caller.
 	 *
 	 * @param int                            $round        Round number.
 	 * @param string                         $run_id       Run UUID.
