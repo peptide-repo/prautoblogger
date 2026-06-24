@@ -5,6 +5,13 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.32.1] - 2026-06-24
+
+### Fixed
+- P2-A (IA):   entry now reflects the 3 P2b.5 steps (curate, seo, authority). Key Options table updated with 7 new Authority option keys: , , , , , , .
+- P2-B (virtual field):  in  now skips any field whose option key ends in  before calling . This prevents  (the virtual textarea) from being persisted as a raw string; only the parsed  array (written by ) is stored.
+- P2-C (stub test):  upgraded from a tautological string-is-string assertion to real assertions against : all 6 v2 Authority stages (, , , , , ) must be , return non-empty labels, and have distinct labels.
+
 ## [0.32.0] - 2026-06-24
 ### Added
 - P2b.5: Authority pipeline admin controls in Pipeline Settings — master toggle (`prautoblogger_authority_pipeline_enabled`), citation score gate (`prautoblogger_citation_score_threshold`), per-category tier map editor (`prautoblogger_category_tiers_input`/`prautoblogger_category_tiers`)
