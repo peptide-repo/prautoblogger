@@ -159,9 +159,13 @@ class PRAutoBlogger_Authority_Pipeline implements PRAutoBlogger_Authority_Pipeli
 		$fan_results = PRAutoBlogger_Authority_Pipeline_Stages::run_research( $run_id, $item_key, $idea, $cost_tracker, $fanout );
 		if ( empty( $fan_results ) ) {
 			PRAutoBlogger_Authority_Pipeline_Stages::hold_as_draft(
-				$run_id, $item_key, '', $idea,
+				$run_id,
+				$item_key,
+				'',
+				$idea,
 				'Research quorum not met — holding for re-run.',
-				'quorum-miss', $run_id
+				'quorum-miss',
+				$run_id
 			);
 			$result['status'] = 'held-quorum';
 			return $result;
@@ -181,16 +185,25 @@ class PRAutoBlogger_Authority_Pipeline implements PRAutoBlogger_Authority_Pipeli
 		$rev_caller    = new PRAutoBlogger_Editorial_Revision_Caller( $llm, $cost_tracker );
 		$editorial     = $this->editorial ?? new PRAutoBlogger_Editorial_Loop( $chief_editor, $rev_caller );
 		$editorial_out = PRAutoBlogger_Authority_Pipeline_Stages::run_editorial(
-			$run_id, $item_key, $draft_content, $idea, $cost_tracker, $editorial
+			$run_id,
+			$item_key,
+			$draft_content,
+			$idea,
+			$cost_tracker,
+			$editorial
 		);
 		$final_content = $editorial_out['content'];
 		$escalated     = $editorial_out['escalated'];
 
 		if ( $escalated ) {
 			PRAutoBlogger_Authority_Pipeline_Stages::hold_as_draft(
-				$run_id, $item_key, $final_content, $idea,
+				$run_id,
+				$item_key,
+				$final_content,
+				$idea,
 				'Editorial loop exhausted max rounds — held for human review.',
-				'escalated', $run_id
+				'escalated',
+				$run_id
 			);
 			$result['status'] = 'held-escalated';
 			return $result;
@@ -198,14 +211,16 @@ class PRAutoBlogger_Authority_Pipeline implements PRAutoBlogger_Authority_Pipeli
 
 		// Stage 3b: Save draft (needed for SEO stage and citation gate).
 		$publisher = new PRAutoBlogger_Publisher();
-		$stub_review = new PRAutoBlogger_Editorial_Review( array(
-			'verdict'         => 'approved',
-			'notes'           => 'Authority pipeline editorial approved.',
-			'revised_content' => null,
-			'quality_score'   => 0.85,
-			'seo_score'       => 0.80,
-			'issues'          => array(),
-		) );
+		$stub_review = new PRAutoBlogger_Editorial_Review(
+			array(
+				'verdict'         => 'approved',
+				'notes'           => 'Authority pipeline editorial approved.',
+				'revised_content' => null,
+				'quality_score'   => 0.85,
+				'seo_score'       => 0.80,
+				'issues'          => array(),
+			)
+		);
 		$auto_publish = in_array( get_option( 'prautoblogger_auto_publish', '0' ), array( '1', 'yes' ), true );
 		$post_id = $publisher->save_as_draft( $final_content, $idea, $stub_review, $run_id, null );
 		PRAutoBlogger_Run_Stage_State::start( $run_id, 'publish', (string) PRAutoBlogger_Stage_Display_Map::default_agent_role( 'publish' ), $item_key );
@@ -219,14 +234,22 @@ class PRAutoBlogger_Authority_Pipeline implements PRAutoBlogger_Authority_Pipeli
 			if ( $auto_publish ) {
 				wp_publish_post( $post_id );
 				// Image pipeline for published articles.
-				PRAutoBlogger_Post_Assembler::attach_generated_images( $post_id, $idea, array(
-					'post_title'   => $idea->get_suggested_title(),
-					'post_content' => $final_content,
-				), $cost_tracker );
+				PRAutoBlogger_Post_Assembler::attach_generated_images(
+					$post_id,
+					$idea,
+					array(
+						'post_title'   => $idea->get_suggested_title(),
+						'post_content' => $final_content,
+					),
+					$cost_tracker
+				);
 				$result['published'] = 1;
 			}
 			PRAutoBlogger_Run_Stage_State::done( $run_id, 'publish', '', $item_key );
-			PRAutoBlogger_Audit_Writer::record_decision( $run_id, 'publish-gate', 'approved',
+			PRAutoBlogger_Audit_Writer::record_decision(
+				$run_id,
+				'publish-gate',
+				'approved',
 				sprintf( 'citation_score=%.4f >= threshold=%.4f', $citation_score, $threshold ),
 				$citation_score
 			);
@@ -235,7 +258,10 @@ class PRAutoBlogger_Authority_Pipeline implements PRAutoBlogger_Authority_Pipeli
 			// Citation gate: hold (imagery suppressed).
 			update_post_meta( $post_id, '_prautoblogger_imagery_suppressed', '1' );
 			PRAutoBlogger_Run_Stage_State::done( $run_id, 'publish', '', $item_key );
-			PRAutoBlogger_Audit_Writer::record_decision( $run_id, 'publish-gate', 'held',
+			PRAutoBlogger_Audit_Writer::record_decision(
+				$run_id,
+				'publish-gate',
+				'held',
 				sprintf( 'citation_score=%.4f < threshold=%.4f — held as draft.', $citation_score, $threshold ),
 				$citation_score
 			);

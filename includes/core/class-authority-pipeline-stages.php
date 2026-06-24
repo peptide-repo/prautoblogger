@@ -174,14 +174,16 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 
 		// Save as draft with a neutral editorial review stub.
 		$publisher = new PRAutoBlogger_Publisher();
-		$review    = new PRAutoBlogger_Editorial_Review( array(
-			'verdict'         => 'rejected',
-			'notes'           => $hold_reason,
-			'revised_content' => null,
-			'quality_score'   => 0.0,
-			'seo_score'       => 0.0,
-			'issues'          => array(),
-		) );
+		$review    = new PRAutoBlogger_Editorial_Review(
+			array(
+				'verdict'         => 'rejected',
+				'notes'           => $hold_reason,
+				'revised_content' => null,
+				'quality_score'   => 0.0,
+				'seo_score'       => 0.0,
+				'issues'          => array(),
+			)
+		);
 		$post_id = $publisher->save_as_draft( $content, $idea, $review, $run_id_for_publisher, null );
 
 		// Imagery gate: suppress image generation on held articles.
