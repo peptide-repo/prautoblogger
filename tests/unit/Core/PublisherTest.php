@@ -194,4 +194,13 @@ class PublisherTest extends BaseTestCase {
      * once tags and whitespace are stripped (an empty HTML shell).
      */
     public function test_publish_refuses_whitespace_only_html_content(): void {
-        Fu
+        Functions\expect( 'wp_insert_post' )->never();
+
+        $publisher = new \PRAutoBlogger_Publisher();
+
+        $this->expectException( \RuntimeException::class );
+        $this->expectExceptionMessage( 'generated content is empty' );
+
+        $publisher->publish( "<p> \n\t </p>", $this->idea, $this->review );
+    }
+}
