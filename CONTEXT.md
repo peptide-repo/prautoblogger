@@ -190,3 +190,23 @@ into the live Economy path until P2b.4).
 | **Review Queue escalation** | When `editorial_max_rounds` are exhausted without the editor approving, the article is saved as a WordPress draft (Review Queue) rather than published. `Editorial_Loop::run()` returns `''` and `was_escalated()` returns `true`. One `run_decisions` row is written with `verdict='escalated'` and a rationale noting the max rounds exhausted. |
 | **inline revision** | When `Chief_Editor::review()` returns a non-null `revised_content` in the `PRAutoBlogger_Editorial_Review` object (verdict='revised'), that content is used directly for the next round without invoking `Editorial_Revision_Caller`. Reduces LLM calls when the editor can self-correct. |
 | **Editorial_Revision_Caller** | `PRAutoBlogger_Editorial_Revision_Caller` — the extracted writer revision step. Builds revision prompts via `Content_Prompts::build_revision_system/user()`, dispatches the writer LLM call (model from `prautoblogger_writing_model`), manages `run_stages` start→done for `role='writer'`, and logs cost. Extracted from `Editorial_Loop` to keep both classes under 300 lines. |
+
+---
+
+## Phase 2b P2b.3 — SEO Stage + citation_score (v0.30.0)
+
+These terms are introduced by the Authority-tier SEO stage (additive; not wired
+into the live Economy path until P2b.4).
+
+| Term | Definition |
+|------|-----------|
+| **SEO stage** | The pipeline stage (`stage = 'seo'`) that writes `_prab_*` post-meta to the published post so that peptide-repo-core can emit JSON-LD schema (Drug/MedicalWebPage). Implemented by `PRAutoBlogger_Seo_Stage`. Deterministic — no LLM calls. |
+| **JSON-LD contract v1** | The ratified set of `_prab_*` meta keys agreed between PRAB (writer) and prcore (reader). Canonical source: `convo/prcore/decisions/2026-06-11-jsonld-contract-v1.md`. The SEO stage writes all keys except `_prab_reviewed_by` (P2b.4 only). |
+| **citation_score** | Average `quality_score` of kept research sources. Formula: `sum(quality_score) / count(sources)`. Returns `0.0` for empty source lists. Stored as `_prab_citation_score` post-meta (string representation of float). Ranges 0.0–1.0. |
+| **citation_score_threshold** | The minimum `citation_score` required to pass the publish gate. Option key: `prautoblogger_citation_score_threshold`. Default `0.0` — intentionally uncalibrated until ~10 Authority runs provide a distribution baseline. The gate itself is in P2b.4; this stage reads and logs the threshold but does not enforce it. |
+| **_prab_schema_version** | Integer `1`. The presence of this key on a post is the opt-in trigger for prcore's JSON-LD emission. Absent = no schema emitted (Economy posts never have it). |
+| **_prab_review_mode** | String: `editorial-system` (automated SEO stage, set here) or `human` (set in P2b.4 when a human approves via the Review Queue). Only one value is written per post. |
+| **_prab_reviewed_at** | ISO 8601 datetime of when the SEO stage executed. Set by `gmdate('Y-m-d\TH:i:s')` at run time. |
+| **_prab_reviewed_by** | WP user ID of the Review Queue approver. **NOT written by P2b.3**. Set exclusively by P2b.4 on human approval. |
+| **_prab_citations** | JSON-encoded array of kept research sources: `[{url, title, doi?, quality_score?}]`. Derived from the `$kept_sources` array passed by the curate stage. |
+| **_prab_about_peptides** | JSON-encoded array of related peptide post IDs. Populated from P2b.4 peptide linkage; defaults to `[]` in P2b.3 (the SEO stage accepts the array as a parameter for future-compatibility). |

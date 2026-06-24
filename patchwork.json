@@ -1,5 +1,6 @@
 {
     "redefinable-internals": [
-        "time"
+        "time",
+        "gmdate"
     ]
 }

@@ -790,3 +790,41 @@ The Authority-tier editorial pipeline uses a bounded editor<->writer loop
 | `PRAutoBlogger_Editorial_Revision_Caller` | Writer LLM call, stage lifecycle for 'writer' role |
 | `PRAutoBlogger_Content_Prompts` | Static `build_revision_system()` + `build_revision_user()` |
 | `PRAutoBlogger_Editorial_Round` | Immutable value object (one round snapshot) |
+
+---
+
+## Authority Pipeline — SEO Stage (P2b.3, v0.30.0)
+
+### Design rules
+
+The SEO stage is **deterministic** — no LLM calls, no external I/O beyond WordPress
+post-meta writes and DB audit rows. It is the contract point between PRAB (writes
+`_prab_*` meta) and prcore (reads meta to emit JSON-LD schema).
+
+### Key patterns
+
+- **No LLM calls**: `PRAutoBlogger_Seo_Stage::run()` is pure computation +
+  meta-write. All data comes from arguments already produced by earlier stages.
+- **citation_score**: `sum(quality_score) / count(kept_sources)`. Returns `0.0`
+  when `$kept_sources` is empty — never divide-by-zero.
+- **_prab_reviewed_by omitted**: the automated path never writes this key. Only
+  P2b.4 (human Review Queue approval) sets it. Absence signals `editorial-system` mode.
+- **Threshold is additive**: `prautoblogger_citation_score_threshold` is read and
+  logged but the publish gate itself is in P2b.4. This stage stores the score only.
+- **Stage lifecycle**: `Run_Stage_State::start('seo', 'seo', $item_key)` before writes;
+  `::done()` after. Decision row via `Audit_Writer::record_decision()` with
+  `stage='seo'`, `verdict='scored'`, `citation_score=$score`.
+- **JSON values**: always use `wp_json_encode()`, never `json_encode()` directly.
+- **Timestamps**: always use `gmdate('Y-m-d\TH:i:s')`, never `date()`.
+
+### _prab_* key reference (ratified contract v1)
+
+| Key | Type | Notes |
+|---|---|---|
+| `_prab_schema_version` | int `1` | Opt-in trigger — prcore emits JSON-LD only when present |
+| `_prab_citations` | JSON string | `[{url, title, doi?, quality_score?}]` — kept sources only |
+| `_prab_about_peptides` | JSON string | `[post_id, ...]` — related peptide IDs |
+| `_prab_review_mode` | string | `editorial-system` (automated) or `human` (P2b.4) |
+| `_prab_reviewed_at` | string | ISO 8601 datetime |
+| `_prab_reviewed_by` | int | WP user ID — written only by P2b.4 on human approval |
+| `_prab_citation_score` | string (float) | Avg quality_score of kept sources; publish gate in P2b.4 |
