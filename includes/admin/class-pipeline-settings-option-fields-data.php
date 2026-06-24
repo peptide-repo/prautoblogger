@@ -10,19 +10,24 @@ declare(strict_types=1);
  *       from Option_Fields to satisfy the 300-line/file rule. Contains no
  *       logic — only data. Option keys are the same wp_option names that were
  *       previously registered in the retired AI Models, Content, and Sources
- *       Settings tabs.
+ *       Settings tabs. P2b.5 adds curate, seo, and authority contexts (data in
+ *       class-pipeline-settings-option-fields-data-authority.php per 300-line rule),
+ *       and inserts new fields into the research and editorial contexts.
  * Who calls it: PRAutoBlogger_Pipeline_Settings_Option_Fields::get_fields_for_context().
- * Dependencies: WP i18n helpers (__) only.
+ * Dependencies: WP i18n helpers (__) only;
+ *               PRAutoBlogger_Pipeline_Settings_Option_Fields_Data_Authority (curate/seo/authority).
  *
- * @see admin/class-pipeline-settings-option-fields.php — Public API wrapper + sanitizer.
- * @see CONVENTIONS.md §Retired Settings Tabs            — retirement pattern.
+ * @see admin/class-pipeline-settings-option-fields.php          — Public API wrapper + sanitizer.
+ * @see admin/class-pipeline-settings-option-fields-data-authority.php — Authority/curate/seo fields.
+ * @see CONVENTIONS.md §Retired Settings Tabs                    — retirement pattern.
+ * @see CONVENTIONS.md §Authority pipeline options               — naming pattern for Authority controls.
  */
 class PRAutoBlogger_Pipeline_Settings_Option_Fields_Data {
 
 	/**
 	 * Route a context string to its field definitions array.
 	 *
-	 * @param string $context One of: global|research|analysis|writer|editorial.
+	 * @param string $context One of: global|research|analysis|writer|editorial|curate|seo|authority.
 	 * @return array<int, array<string, mixed>>
 	 */
 	public static function fields_for( string $context ): array {
@@ -37,6 +42,10 @@ class PRAutoBlogger_Pipeline_Settings_Option_Fields_Data {
 				return self::writer_fields();
 			case 'editorial':
 				return self::editorial_fields();
+			case 'curate':
+			case 'seo':
+			case 'authority':
+				return PRAutoBlogger_Pipeline_Settings_Option_Fields_Data_Authority::fields_for( $context );
 			default:
 				return array();
 		}
@@ -61,11 +70,21 @@ class PRAutoBlogger_Pipeline_Settings_Option_Fields_Data {
 
 	/**
 	 * Research step context fields (moved from Sources Settings tab).
+	 * P2b.5: prepends Research Agent Count for the Authority fan-out.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
 	private static function research_fields(): array {
 		return array(
+			array(
+				'id'          => 'prautoblogger_research_agent_count',
+				'label'       => __( 'Research Agent Count', 'prautoblogger' ),
+				'type'        => 'number',
+				'default'     => 3,
+				'min'         => 1,
+				'max'         => 5,
+				'description' => __( 'Number of specialist research agents in the Authority fan-out (1–5). Default 3. Economy tier ignores this setting.', 'prautoblogger' ),
+			),
 			array(
 				'id'          => 'prautoblogger_enabled_sources',
 				'label'       => __( 'Enabled Sources', 'prautoblogger' ),
@@ -226,11 +245,21 @@ class PRAutoBlogger_Pipeline_Settings_Option_Fields_Data {
 
 	/**
 	 * Editorial step context fields (moved from Content Settings tab).
+	 * P2b.5: prepends Max Editorial Rounds for the Authority bounded loop.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
 	private static function editorial_fields(): array {
 		return array(
+			array(
+				'id'          => 'prautoblogger_editorial_max_rounds',
+				'label'       => __( 'Max Editorial Rounds', 'prautoblogger' ),
+				'type'        => 'number',
+				'default'     => 3,
+				'min'         => 1,
+				'max'         => 5,
+				'description' => __( 'Maximum editor↔writer iterations in the Authority bounded loop. Default 3. Economy tier ignores this setting.', 'prautoblogger' ),
+			),
 			array(
 				'id'          => 'prautoblogger_editor_instructions',
 				'label'       => __( 'Editor Instructions', 'prautoblogger' ),
