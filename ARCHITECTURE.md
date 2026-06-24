@@ -223,10 +223,10 @@ prautoblogger/
 │   │   ├── class-run-reaper.php       # Stuck-run sweep + audit-payload retention (rides the #19 cron)
 │   │   ├── class-research-fanout.php   # P2b.1: parallel specialist research agents (N×curl_multi, quorum, cost-reserve) — Authority only (v0.28.0)
 │   │   ├── class-research-batch.php    # P2b.1: curl_multi execution layer for research agents (extracted from fanout, v0.28.0)
-│   │   ├── class-research-judge.php    # P2b.1: curate stage — dedup+score fan-out results, write run_sources keep/discard (v0.28.0; dedup extracted to class-research-dedup.php)
-│   │   ├── class-research-dedup.php    # P2b.1: URL-exact + semantic/keyword deduplication for the curate stage; extracted from judge to satisfy 300-line rule (v0.28.0)
+│   │   ├── class-research-judge.php    # P2b.1: curate stage — dedup+score fan-out results, write run_sources keep/discard (v0.28.0)
 │   │   ├── class-research-source-scorer.php # P2b.1: source authority weighting for the judge (v0.28.0)
-│   │   ├── class-research-source-writer.php  # P2b.1: run_sources DB writer for the curate stage; extracted from judge to satisfy 300-line rule (v0.28.0)
+│   │   ├── class-editorial-loop.php    # P2b.2: bounded editorial loop — editor↔writer ≤editorial_max_rounds — Authority only (v0.29.0)
+│   │   ├── class-editorial-revision-caller.php # P2b.2: writer revision LLM step (extracted from editorial-loop for 300-line rule) (v0.29.0)
 │   │   ├── class-audit-writer.php     # run_sources / run_decisions insert layer
 │   │   ├── class-pipeline-status.php  # Status-transient + summary helpers (extracted from runner/worker)
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)
@@ -246,6 +246,7 @@ prautoblogger/
 │   │   ├── class-llm-research-provider.php # LLM deep research source (reasoning models)
 │   │   ├── interface-research-fanout.php   # P2b.1: contract for parallel research fan-out (v0.28.0)
 │   │   ├── interface-research-judge.php    # P2b.1: contract for the curate stage judge (v0.28.0)
+│   │   ├── interface-editorial-loop.php    # P2b.2: contract for bounded editorial loop (v0.29.0)
 │   │   ├── class-reddit-provider.php     # Reddit data collection orchestrator (RSS primary)
 │   │   ├── interface-image-provider.php  # Contract for any image generation provider (incl. batch)
 │   │   ├── class-open-router-image-provider.php  # OpenRouter image gen (single + batch dispatch)
@@ -278,6 +279,7 @@ prautoblogger/
 │       ├── class-article-idea.php     # Value object: scored article idea
 │       ├── class-content-request.php  # Value object: generation request with params
 │       ├── class-editorial-review.php # Value object: editor verdict, scores, revised content
+│       ├── class-editorial-round.php  # P2b.2: value object: one editorial loop round (round_number, notes, verdict, revised_content, scores) (v0.29.0)
 │       ├── class-generation-log.php   # Value object: log entry for a generation run
 │       └── class-content-score.php    # Value object: composite performance score
 │
@@ -689,6 +691,7 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_image_compose_capability` | Cached capability probe `{fingerprint, capability}`; fingerprint = PHP version + imagick/gd presence, so it auto-invalidates on host changes |
 | `prautoblogger_board_poll_interval`     | Mission Brief board poll interval in seconds (default 5, min 3). Localized into board.js. |
 | `prautoblogger_board_published_window_days` | Days back to show in the Published column (default 7). |
+| `prautoblogger_editorial_max_rounds`    | Authority-tier editorial loop: max editor↔writer rounds before Review Queue escalation (int, default 3, range 1–10). P2b.2 (v0.29.0). |
 
 ### Post Meta
 
@@ -1236,16 +1239,4 @@ which acquires the lock and runs orchestration within its own process. The
 
 ### Key State
 
-| Store | Key | Contents |
-|-------|-----|---------|
-| DB option | `prautoblogger_article_queue` | `{run_id, ideas[], results{}}` — persisted across ticks |
-| DB option | `prautoblogger_checkpoint_run_id` | Current run UUID (for finalize/cleanup paths) |
-| Transient | `prautoblogger_generation_status` | Status broadcast (polling by board/dossier JS) |
-| DB | `prautoblogger_runs` | Per-run ledger with status, cost ceiling |
-
-### Budget / Halt Contract
-
-`Cost_Tracker::is_budget_exceeded()` is checked at the START of Tick 1 and each
-generate tick. A halted run (`Run_State::get_status() = 'halted'`) causes the
-generate tick to abort without calling `Article_Worker`, clean up the queue, and
-release the lock — same guarantee as `Pipeline_Runner`'s queued-article path.
+| Store | Key | 

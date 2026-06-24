@@ -5,6 +5,23 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.29.0] - 2026-06-24
+
+### Added
+- **P2b.2 — bounded `Editorial_Loop`** — additive Authority-tier only; not wired into the live Economy (single-pass) path until P2b.4 (tier routing).
+  - `PRAutoBlogger_Editorial_Loop` (`core/class-editorial-loop.php`, 300 lines) — iterative editor↔writer loop bounded by `prautoblogger_editorial_max_rounds` (new `get_option` key, default 3, configurable 1–10). Each round: Chief_Editor critiques → if 'approved' return content; if 'revised'/'rejected' get revised content → record round → repeat. After max rounds without approval, escalates to Review Queue (saves as draft, returns ''). Records every round to `run_decisions` (one row per round: verdict + "Round N: <notes>" rationale) and `run_stages` (start→done for role='editor' per round; start→done for role='writer' when writer revision is dispatched). Implements `PRAutoBlogger_Editorial_Loop_Interface`. `was_escalated()` returns true on exhaustion. `get_rounds()` returns the full `PRAutoBlogger_Editorial_Round[]` history.
+  - `PRAutoBlogger_Editorial_Loop_Interface` (`providers/interface-editorial-loop.php`) — contract for `run()` + `was_escalated()`.
+  - `PRAutoBlogger_Editorial_Revision_Caller` (`core/class-editorial-revision-caller.php`, 138 lines) — extracted writer-revision step (split from Editorial_Loop for 300-line compliance). Calls the writer LLM with `Content_Prompts::build_revision_system/user()`, logs cost via `Cost_Tracker`, manages run_stage start→done for role='writer'. Returns prior draft unchanged on empty LLM response (never silent pass).
+  - `PRAutoBlogger_Editorial_Round` (`models/class-editorial-round.php`) — immutable value object capturing one loop iteration (round_number, editor_notes, editor_verdict, revised_content, quality_score, seo_score). `to_array()` for audit JSON snapshot.
+  - `Content_Prompts::build_revision_system()` + `build_revision_user()` — two new static methods for revision LLM prompts; single-pass path untouched.
+  - New option `prautoblogger_editorial_max_rounds` (int, default 3, range 1–10). Uninstall purges it with the existing `LIKE 'prautoblogger\_%'` wildcard.
+- PHPUnit: `EditorialLoopTest` — 8 tests covering approval on round 1, escalation after max rounds, floor (min=1) clamp, cap (max=10) clamp, round recording to `run_decisions`, escalation recorded as single 'escalated' row, inline revision path (editor-provided `revised_content` skips writer call), writer revision path (Editorial_Revision_Caller invoked on 'rejected' verdict). All 523 tests GREEN on VPS PHP 8.3.
+
+### Updated
+- `ARCHITECTURE.md` — Editorial_Loop added to Phase 2b file tree, options table (`prautoblogger_editorial_max_rounds`), and pipeline data flow note.
+- `CONVENTIONS.md` — Loop-bounded editorial pattern documented.
+- `CONTEXT.md` — New P2b.2 glossary section: editorial loop, editorial_max_rounds, round record, Review Queue escalation.
+
 ## [0.28.0] - 2026-06-23
 
 ### Added
@@ -27,14 +44,6 @@ and this project uses [Semantic Versioning](https://semver.org/).
 - **P2-2:** Wrapped `batch->execute()` + results loop + `settle()` in `try/finally` so the cost-governor reservation is ALWAYS settled/released even if an unexpected exception is thrown, preventing phantom `reserved_usd` in the run ledger.
 - **P2-1:** Added `test_ceiling_breach_exception_aborts_before_dispatch()` to `ResearchFanoutTest` — asserts that when `open_amount_reservation()` throws `PRAutoBlogger_Cost_Ceiling_Exception`, `batch->execute()` is never called (enforces cost-governance contract).
 - **P2-3:** Raised `MIN_AGENTS` from 1 to 2 in `Research_Fanout` — with quorum=⌈N/2⌉+1, N=1 makes quorum=2 which can never be satisfied; floor of 2 ensures the minimum fan-out can actually succeed.
-
-### Fixed (VPS testfix — prab-phase2b-1-vps-testfix)
-- **ResearchFanoutTest — test_quorum_formula_for_n_5:** `make_fanout()` re-stubbed `get_option` with hardcoded `agent_count=3`, silently overriding the test's `stub_get_option(agent_count=5)`. Fanout dispatched 3 agents but `make_valid_raw_results(5)` returned 5 results → `$roles[3]` undefined. Fix: removed the `get_option` stub from `make_fanout()`; tests now rely solely on `stub_get_option()` in setUp/individual tests.
-- **ResearchFanoutTest — test_ceiling_breach_exception_aborts_before_dispatch:** Three compounding harness bugs: (1) `get_var` not stubbed → `Run_State::is_available()` returned false → governor short-circuited to null (no throw). (2) `ceiling_usd=0.0` → governor's zero-ceiling guard returned null (disabled). (3) `get_row` returned an object, not an array → `get_run()` `is_array()` check returned null → null-run early-return. Fix: stub `get_var` to return `'wp_prautoblogger_runs'` (enabling is_available), set `ceiling_usd=0.01` + `reserved_usd=0.01` (at limit, any reserve fails), and return an `array` from `get_row` (matching `ARRAY_A` mode).
-- **ResearchJudgeTest — test_sources_over_max_written_as_discarded + test_kept_sources_written_with_kept_1:** `$this->inserted_rows` captured ALL `$wpdb->insert()` calls including Logger `event_log` rows. Logger rows have no `'kept'` key → "Undefined array key" when filtering. Fix: changed mock callback to track inserts keyed by table name suffix; assertions now read `$this->inserted_rows['run_sources']` only.
-- **ResearchJudgeTest — test_no_db_writes_when_tables_absent:** `assertEmpty($this->inserted_rows)` failed because the Logger writes an `event_log` row even when audit tables are absent (Logger only skips when `$wpdb` is null). Fix: assertions now specifically check `$this->inserted_rows['run_sources']` and `$this->inserted_rows['run_decisions']` — the production behaviour under test — leaving Logger rows out of scope.
-- **Dedup decision:** The `count(kw) >= 3` guard in `deduplicate()` is retained. It is the correct semantic: sparse keyword sets (under 3 words, e.g. a two-word title) have insufficient signal for overlap comparison and must pass through unconditionally; URL-exact dedup already covers true same-URL duplicates. The root cause of the test failures was not the guard itself but the test harness (Logger inserts in `inserted_rows`).
-- **300-line trim:** Extracted write_run_sources + extract_doi from Research_Judge into new PRAutoBlogger_Research_Source_Writer (class-research-source-writer.php, 88 lines). Judge reduced to 264 lines; writer injected via optional constructor param (defaults to new instance). Behavior and all 515 tests unchanged. ARCHITECTURE.md file-tree updated.
 
 ## [0.27.1] - 2026-06-23
 
@@ -1631,66 +1640,4 @@ swap with no user-visible change in article quality.
 ### Changed
 - **CI/CD pipeline now runs PHPCS and PHPUnit** before deploying.
   Added `shivammathur/setup-php@v2` for PHP 8.1, Composer install,
-  WordPress Coding Standards check, and full PHPUnit test suite.
-  PHPCS runs in report-only mode (`|| true`) while codebase is
-  brought into full compliance; PHPUnit failures block deploy.
-- Removed stub source providers (TikTok, Instagram, YouTube).
-  These were dead code — not registered in Source_Collector, threw
-  RuntimeException if enabled, and confused AI agents reading the
-  codebase. The `Source_Provider_Interface` remains the contract for
-  adding future platforms (see CONVENTIONS.md).
-- Removed "coming soon" checkboxes from Enabled Sources setting.
-- Updated ARCHITECTURE.md: removed stub file references, added
-  cross-system LLM budget coordination section documenting how
-  PRAutoBlogger and Peptide News share an OpenRouter account.
-
-### Improved
-- **PublisherTest rewritten with real behavioral assertions.**
-  Now tests: post_status ('publish' vs 'draft'), generation metadata
-  storage, title from idea, taxonomy assignment, tag assignment,
-  run_id-based log linking, RuntimeException on WP_Error, action/filter
-  hook firing. Replaces previous method-existence-only checks.
-
-
-## [0.2.1] — 2026-04-12
-
-### Changed
-- **Reddit data source switched to RSS primary, .json fallback.**
-  PullPush.io was frequently stale/unavailable. Reddit RSS/Atom feeds work
-  reliably from datacenter IPs (Hostinger) where .json gets 403. Comments
-  are still fetched via .json (unavailable in RSS).
-- Updated "Enabled Sources" checkbox label to "Reddit (RSS + .json)".
-- Updated "Test Connections" to show RSS + .json status.
-- Source status indicator now shows Reddit RSS (Primary) and .json (Fallback).
-
-### Removed
-- `class-pull-push-client.php` — replaced by RSS feeds in `class-reddit-json-client.php`.
-- All PullPush.io references from admin UI, docs, and provider code.
-
-### Fixed
-- Generate Now button now always sends `force: '1'` to clear stale generation locks.
-- Fixed encryption double-encryption bug with `enc:` prefix detection.
-
-## [0.2.0] — 2026-04-12
-
-### Changed
-- **Reddit data source migrated from OAuth to RSS + .json (no auth required).**
-  Reddit rejected our API application; RSS feeds and .json endpoints are free
-  and require no authentication.
-- Removed Reddit Client ID and Client Secret fields from admin API Keys tab.
-- Updated "Test Connections" results to show Reddit source status.
-
-### Added
-- Source status indicator in API Keys tab showing RSS and .json
-  availability with live status dots and last-collection timestamp.
-- Configurable research cache TTL (1–72 hours) in Sources tab.
-- Reddit time window selector (24h / week / month) in Sources tab.
-- Posts-per-subreddit limit (5–100) in Sources tab.
-- LiteSpeed cache purge step in CI/CD deploy pipeline.
-
-## [0.1.0] — 2026-04-10
-
-### Added
-- Initial plugin scaffold with WordPress-native architecture.
-- OpenRouter LLM provider with configurable model selection and retry logic.
-- Reddit API source provider (OAuth2 script app) for collecting posts and comments
+  WordPress Coding Standards check, and f
