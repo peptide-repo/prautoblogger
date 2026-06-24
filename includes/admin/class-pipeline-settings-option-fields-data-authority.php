@@ -38,12 +38,22 @@ class PRAutoBlogger_Pipeline_Settings_Option_Fields_Data_Authority {
 
 	/**
 	 * Curate step context fields (P2b.5).
-	 * No extra option fields: the model + prompt editors in the step panel suffice.
+	 * The model picker and prompt editors in the step panel handle the main
+	 * configuration. This textarea exposes optional override instructions
+	 * that are appended to the curate stage system prompt.
 	 *
 	 * @return array<int, array<string, mixed>>
 	 */
 	private static function curate_fields(): array {
-		return array();
+		return array(
+			array(
+				'id'          => 'prautoblogger_curate_instructions',
+				'label'       => __( 'Curate Instructions', 'prautoblogger' ),
+				'type'        => 'textarea',
+				'default'     => '',
+				'description' => __( 'Optional custom instructions appended to the research judge (curate) system prompt. Authority tier only.', 'prautoblogger' ),
+			),
+		);
 	}
 
 	/**
@@ -68,7 +78,7 @@ class PRAutoBlogger_Pipeline_Settings_Option_Fields_Data_Authority {
 	 * Controls the master switch, citation gate, and per-category tier map.
 	 * The tier-map textarea is a special read/write surface: the renderer
 	 * converts prautoblogger_category_tiers (serialised array) back to
-	 * "slug: tier" lines; the save handler calls parse_and_save_category_tiers()
+	 * 'slug: tier' lines; the save handler calls parse_and_save_category_tiers()
 	 * to convert the textarea back to the array — see Save_Handler::handle_step_settings_save().
 	 *
 	 * @return array<int, array<string, mixed>>
@@ -80,7 +90,7 @@ class PRAutoBlogger_Pipeline_Settings_Option_Fields_Data_Authority {
 				'label'       => __( 'Authority Pipeline', 'prautoblogger' ),
 				'type'        => 'toggle',
 				'default'     => '0',
-				'description' => __( 'When ON, categories mapped to Authority tier use the full 6-stage pipeline (research → curate → draft → editorial → SEO → publish). Leave OFF until you have reviewed the configuration.', 'prautoblogger' ),
+				'description' => __( 'When ON, categories mapped to Authority tier use the full 6-stage pipeline (research to curate to draft to editorial to SEO to publish). Leave OFF until you have reviewed the configuration.', 'prautoblogger' ),
 			),
 			array(
 				'id'          => 'prautoblogger_citation_score_threshold',
@@ -89,14 +99,14 @@ class PRAutoBlogger_Pipeline_Settings_Option_Fields_Data_Authority {
 				'default'     => 0,
 				'min'         => 0,
 				'max'         => 100,
-				'description' => __( 'Minimum source quality score (0–100) for auto-publish. Set 0 to skip the gate while calibrating. Calibrate after ~10 Authority runs.', 'prautoblogger' ),
+				'description' => __( 'Minimum source quality score (0-100) for auto-publish. Set 0 to skip the gate while calibrating. Calibrate after ~10 Authority runs.', 'prautoblogger' ),
 			),
 			array(
 				'id'          => 'prautoblogger_category_tiers_input',
 				'label'       => __( 'Category Tier Map', 'prautoblogger' ),
 				'type'        => 'textarea',
 				'default'     => '',
-				'description' => __( "One line per category slug. Format: `slug: authority` or `slug: economy`. New, YMYL, and unclassified categories default to Authority.", 'prautoblogger' ),
+				'description' => __( 'One line per category slug. Format: slug: authority or slug: economy. New, YMYL, and unclassified categories default to Authority.', 'prautoblogger' ),
 			),
 		);
 	}

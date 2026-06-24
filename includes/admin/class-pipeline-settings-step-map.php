@@ -113,7 +113,7 @@ class PRAutoBlogger_Pipeline_Settings_Step_Map {
 				'label'        => __( 'Authority', 'prautoblogger' ),
 				'icon'         => 'dashicons-admin-site-alt3',
 				'model_option' => null,
-				'capability'   => null,
+				'capability'   => 'settings',
 				'system_key'   => null,
 				'agent_keys'   => array(),
 				'description'  => __( 'Master switch and per-category tier assignments for the Authority pipeline.', 'prautoblogger' ),
