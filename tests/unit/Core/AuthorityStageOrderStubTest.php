@@ -1,13 +1,11 @@
 <?php
-declare(strict_types=1);
-
 /**
- * Placeholder: Authority pipeline stage-order coverage.
+ * Authority pipeline stage vocabulary and admin integration tests.
  *
- * This test will be expanded in P2b.1–P2b.4 once those branches merge.
- * P2-1 carryover: verifies seo + publish-gate appear in the stage order
- * accumulator. The full test lives in AuthorityPipelineTest.php which ships
- * with the Authority pipeline classes.
+ * Tests 1–3 were originally stubs shipping before the Authority pipeline classes.
+ * Since P2b.4 + P2b.5 are now on main, test 1 is upgraded to a real assertion:
+ * Stage_Display_Map must return non-empty labels for every v2 Authority stage.
+ * Tests 2–4 exercise live admin classes (step rail + model option allowlist).
  *
  * @package PRAutoBlogger\Tests\Core
  * @group authority
@@ -20,16 +18,40 @@ use PRAutoBlogger\Tests\BaseTestCase;
 class AuthorityStageOrderStubTest extends BaseTestCase {
 
 	/**
-	 * Canonical stage vocabulary includes all 6 Authority stages + publish.
-	 * This confirms the stage enum is complete when the Authority pipeline loads.
+	 * Stage_Display_Map must return non-empty, distinct labels for the six
+	 * canonical Authority v2 stages: research, curate, draft, editorial, seo, publish.
+	 *
+	 * This replaces the tautological "$stage is a string" stub shipped in P2b.5.
+	 * We verify the map has real entries (not the humanized fallback) for every stage
+	 * so the audit/dossier UI never renders a blank or auto-generated label.
 	 */
 	public function test_authority_stage_vocabulary_is_defined(): void {
-		$expected_stages = array( 'research', 'curate', 'draft', 'editorial', 'seo', 'publish' );
-		// When the Authority pipeline is live, confirm all stages appear in
-		// Stage_Display_Map or equivalent. This stub passes until then.
-		foreach ( $expected_stages as $stage ) {
-			$this->assertIsString( $stage, "Stage '{$stage}' is a valid string identifier." );
+		$v2_stages = array( 'research', 'curate', 'draft', 'editorial', 'seo', 'publish' );
+
+		// All 6 must be registered as known (avoids the humanize fallback).
+		foreach ( $v2_stages as $stage ) {
+			$this->assertTrue(
+				\PRAutoBlogger_Stage_Display_Map::is_known( $stage ),
+				"Stage '$stage' must be known to Stage_Display_Map (not falling through to humanizer)."
+			);
 		}
+
+		// Each must have a non-empty label returned by the map.
+		foreach ( $v2_stages as $stage ) {
+			$label = \PRAutoBlogger_Stage_Display_Map::label( $stage );
+			$this->assertNotSame( '', $label, "Stage '$stage' must produce a non-empty label." );
+		}
+
+		// Labels must be distinct (no two stages share the same display label).
+		$labels = array_map(
+			static fn( string $s ) => \PRAutoBlogger_Stage_Display_Map::label( $s ),
+			$v2_stages
+		);
+		$this->assertCount(
+			count( $v2_stages ),
+			array_unique( $labels ),
+			'Every Authority stage must have a unique display label.'
+		);
 	}
 
 	/**

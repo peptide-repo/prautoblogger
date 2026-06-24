@@ -109,7 +109,16 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 		$fields = PRAutoBlogger_Pipeline_Settings_Option_Fields::get_fields_for_context( $context );
 
 		foreach ( $fields as $field ) {
-			$id  = (string) $field['id'];
+			$id = (string) $field['id'];
+
+			// Virtual display fields are not persisted directly — they are parsed
+			// into a canonical option by a dedicated handler. Skip them here.
+			// prautoblogger_category_tiers_input is the textarea that parse_and_save_category_tiers()
+			// converts to the prautoblogger_category_tiers serialised array.
+			if ( str_ends_with( $id, '_input' ) ) {
+				continue;
+			}
+
 			$raw = isset( $_POST[ $id ] ) ? wp_unslash( $_POST[ $id ] ) : ( $field['default'] ?? '' );
 			// For checkboxes the POST value is an array (or absent = empty array).
 			if ( 'checkboxes' === ( $field['type'] ?? '' ) ) {
