@@ -724,7 +724,7 @@ Stored on every PRAutoBlogger-generated post:
 | `_prautoblogger_analysis_id`          | FK to ab_analysis_results.id                  |
 | `_prautoblogger_source_ids`           | JSON array of source data IDs used            |
 | `_prautoblogger_model_used`           | Model that generated the content              |
-| `_prautoblogger_pipeline_mode`        | 'single_pass' or 'multi_step'                 |
+| `_prautoblogger_pipeline_mode`        | 'single_pass', 'multi_step', or 'authority'   |
 | `_prautoblogger_total_cost`           | Total USD cost for this post                  |
 | `_prautoblogger_total_tokens`         | Total tokens consumed for this post           |
 | `_prautoblogger_editor_verdict`       | 'approved', 'revised', 'rejected'             |

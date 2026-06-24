@@ -12,21 +12,21 @@ declare(strict_types=1);
  *       beyond what the individual stage classes already require.
  *
  * Who triggers it: PRAutoBlogger_Authority_Pipeline (P2b.4).
- * Dependencies: All P2b.1–P2b.3 stage classes + Content_Generator,
+ * Dependencies: All P2b.1-P2b.3 stage classes + Content_Generator,
  *       Publisher, Image_Pipeline, Run_Stage_State, Audit_Writer.
  *
- * @see core/class-authority-pipeline.php — Orchestrator that calls these helpers.
- * @see ARCHITECTURE.md                   — Phase 2b data flow.
+ * @see core/class-authority-pipeline.php -- Orchestrator that calls these helpers.
+ * @see ARCHITECTURE.md                   -- Phase 2b data flow.
  */
 class PRAutoBlogger_Authority_Pipeline_Stages {
 
 	/**
 	 * Run the research fan-out stage.
 	 *
-	 * @param string                       $run_id       Pipeline run UUID.
-	 * @param string                       $item_key     Article-scoped item key.
-	 * @param PRAutoBlogger_Article_Idea   $idea         The idea being researched.
-	 * @param PRAutoBlogger_Cost_Tracker   $cost_tracker Pipeline cost tracker.
+	 * @param string                        $run_id       Pipeline run UUID.
+	 * @param string                        $item_key     Article-scoped item key.
+	 * @param PRAutoBlogger_Article_Idea    $idea         The idea being researched.
+	 * @param PRAutoBlogger_Cost_Tracker    $cost_tracker Pipeline cost tracker.
 	 * @param PRAutoBlogger_Research_Fanout $fanout       Fan-out instance.
 	 * @return array<int, array{sources: array, agent_role: string}> Per-agent results, or empty on quorum miss.
 	 */
@@ -37,7 +37,7 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 		PRAutoBlogger_Cost_Tracker $cost_tracker,
 		PRAutoBlogger_Research_Fanout $fanout
 	): array {
-		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: running specialist research fan-out…', 'prautoblogger' ) );
+		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: running specialist research fan-out...', 'prautoblogger' ) );
 		PRAutoBlogger_Run_Stage_State::start( $run_id, 'research', 'researcher', $item_key );
 		$results = $fanout->dispatch( $run_id, $item_key, $idea, $cost_tracker );
 		if ( ! empty( $results ) ) {
@@ -51,10 +51,10 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 	/**
 	 * Run the curate (Research_Judge) stage.
 	 *
-	 * @param string                      $run_id       Pipeline run UUID.
-	 * @param string                      $item_key     Article-scoped item key.
-	 * @param array                       $fanout_results Results from research stage.
-	 * @param PRAutoBlogger_Research_Judge $judge        Judge instance.
+	 * @param string                       $run_id         Pipeline run UUID.
+	 * @param string                       $item_key       Article-scoped item key.
+	 * @param array                        $fanout_results Results from research stage.
+	 * @param PRAutoBlogger_Research_Judge $judge          Judge instance.
 	 * @return array<int, array{url: string, title: string, quality_score?: float}> Kept sources.
 	 */
 	public static function run_curate(
@@ -63,18 +63,18 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 		array $fanout_results,
 		PRAutoBlogger_Research_Judge $judge
 	): array {
-		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: curating research sources…', 'prautoblogger' ) );
+		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: curating research sources...', 'prautoblogger' ) );
 		return $judge->curate( $run_id, $item_key, $fanout_results );
 	}
 
 	/**
 	 * Run the draft (Content_Generator) stage.
 	 *
-	 * @param string                                   $run_id       Pipeline run UUID.
-	 * @param string                                   $item_key     Article-scoped item key.
-	 * @param PRAutoBlogger_Article_Idea               $idea         The idea to draft.
-	 * @param PRAutoBlogger_Cost_Tracker               $cost_tracker Pipeline cost tracker.
-	 * @param PRAutoBlogger_Content_Generator|null     $generator    Optional override (tests).
+	 * @param string                               $run_id       Pipeline run UUID.
+	 * @param string                               $item_key     Article-scoped item key.
+	 * @param PRAutoBlogger_Article_Idea           $idea         The idea to draft.
+	 * @param PRAutoBlogger_Cost_Tracker           $cost_tracker Pipeline cost tracker.
+	 * @param PRAutoBlogger_Content_Generator|null $generator    Optional override (tests).
 	 * @return string Draft HTML content.
 	 */
 	public static function run_draft(
@@ -84,7 +84,7 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 		PRAutoBlogger_Cost_Tracker $cost_tracker,
 		?PRAutoBlogger_Content_Generator $generator = null
 	): string {
-		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: generating article draft…', 'prautoblogger' ) );
+		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: generating article draft...', 'prautoblogger' ) );
 		if ( null === $generator ) {
 			$llm       = new PRAutoBlogger_OpenRouter_Provider();
 			$generator = new PRAutoBlogger_Content_Generator( $llm, $cost_tracker );
@@ -96,12 +96,12 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 	/**
 	 * Run the editorial loop stage.
 	 *
-	 * @param string                          $run_id       Pipeline run UUID.
-	 * @param string                          $item_key     Article-scoped item key.
-	 * @param string                          $content      Draft HTML.
-	 * @param PRAutoBlogger_Article_Idea      $idea         The idea under review.
-	 * @param PRAutoBlogger_Cost_Tracker      $cost_tracker Pipeline cost tracker.
-	 * @param PRAutoBlogger_Editorial_Loop    $editorial    Editorial loop instance.
+	 * @param string                       $run_id       Pipeline run UUID.
+	 * @param string                       $item_key     Article-scoped item key.
+	 * @param string                       $content      Draft HTML.
+	 * @param PRAutoBlogger_Article_Idea   $idea         The idea under review.
+	 * @param PRAutoBlogger_Cost_Tracker   $cost_tracker Pipeline cost tracker.
+	 * @param PRAutoBlogger_Editorial_Loop $editorial    Editorial loop instance.
 	 * @return array{content: string, escalated: bool} Result: content and escalation flag.
 	 */
 	public static function run_editorial(
@@ -112,7 +112,7 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 		PRAutoBlogger_Cost_Tracker $cost_tracker,
 		PRAutoBlogger_Editorial_Loop $editorial
 	): array {
-		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: running editorial loop…', 'prautoblogger' ) );
+		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: running editorial loop...', 'prautoblogger' ) );
 		$reviewed = $editorial->run( $run_id, $item_key, $content, $idea, $cost_tracker );
 		return array(
 			'content'   => '' === $reviewed ? $content : $reviewed,
@@ -123,9 +123,9 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 	/**
 	 * Run the SEO stage.
 	 *
-	 * @param string $run_id      Pipeline run UUID.
-	 * @param string $item_key    Article-scoped item key.
-	 * @param int    $post_id     Published/draft post ID.
+	 * @param string $run_id       Pipeline run UUID.
+	 * @param string $item_key     Article-scoped item key.
+	 * @param int    $post_id      Published/draft post ID.
 	 * @param array  $kept_sources Kept research sources from curate stage.
 	 * @param array  $peptide_ids  Related peptide post IDs.
 	 * @return float The computed citation_score.
@@ -137,25 +137,36 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 		array $kept_sources,
 		array $peptide_ids
 	): float {
-		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: writing SEO meta…', 'prautoblogger' ) );
+		PRAutoBlogger_Pipeline_Status::broadcast( __( 'Authority: writing SEO meta...', 'prautoblogger' ) );
 		$seo_stage = new PRAutoBlogger_Seo_Stage();
 		return $seo_stage->run( $run_id, $item_key, $post_id, $kept_sources, $peptide_ids );
 	}
 
 	/**
-	 * Hold an article as draft (citation gate, escalation, or cost ceiling).
+	 * Hold an article (citation gate, escalation, or cost ceiling).
 	 *
-	 * Creates the draft post and suppresses image generation on it. Writes
-	 * a run_decisions row for the hold reason. Returns the decision verdict
-	 * string suitable for the result 'status' key.
+	 * Behaviour depends on whether draft content is available:
 	 *
-	 * @param string                     $run_id       Pipeline run UUID.
-	 * @param string                     $item_key     Article-scoped item key.
-	 * @param string                     $content      Draft HTML content.
-	 * @param PRAutoBlogger_Article_Idea $idea         The article idea.
-	 * @param string                     $hold_reason  Short human-readable hold reason.
-	 * @param string                     $verdict      Decision verdict for audit row.
-	 * @param string                     $run_id_for_publisher Run ID passed to Publisher.
+	 * - NO content (empty after tag-strip): quorum miss or other pre-draft
+	 *   failure. No post is created. The hold is recorded as a run_decisions
+	 *   row and logged. This path never calls Publisher (avoids the
+	 *   empty-content RuntimeException introduced in v0.18.1).
+	 *
+	 * - WITH content (editorial escalation, citation gate, or cost ceiling
+	 *   after draft stage): saves a draft post, suppresses imagery, and
+	 *   records the decision row. Behaviour unchanged from pre-v0.32.2.
+	 *
+	 * Side effects (no-content path): Logger info + Audit_Writer decision row.
+	 * Side effects (content path):    Logger info + Publisher draft + post-meta
+	 *   (_prautoblogger_imagery_suppressed) + Audit_Writer decision row.
+	 *
+	 * @param string                     $run_id              Pipeline run UUID.
+	 * @param string                     $item_key            Article-scoped item key.
+	 * @param string                     $content             Draft HTML ('' = pre-draft hold).
+	 * @param PRAutoBlogger_Article_Idea $idea                The article idea.
+	 * @param string                     $hold_reason         Short human-readable hold reason.
+	 * @param string                     $verdict             Decision verdict for audit row.
+	 * @param string                     $run_id_for_publisher Run ID passed to Publisher (content path).
 	 * @return void
 	 */
 	public static function hold_as_draft(
@@ -172,7 +183,17 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 			'authority-pipeline'
 		);
 
-		// Save as draft with a neutral editorial review stub.
+		// v0.32.2: when there is no draft content yet (quorum miss or other
+		// pre-draft failure), skip Publisher entirely -- Publisher::save_as_draft()
+		// throws RuntimeException on empty content (v0.18.1 guard). Record the
+		// hold decision only; the run state is returned as 'held' by the caller.
+		if ( '' === trim( wp_strip_all_tags( $content ) ) ) {
+			PRAutoBlogger_Audit_Writer::record_decision( $run_id, 'publish-gate', $verdict, $hold_reason );
+			return;
+		}
+
+		// Content is present: save as draft and suppress imagery (editorial
+		// escalation, citation gate, or cost ceiling after the draft stage).
 		$publisher = new PRAutoBlogger_Publisher();
 		$review    = new PRAutoBlogger_Editorial_Review(
 			array(
@@ -184,7 +205,7 @@ class PRAutoBlogger_Authority_Pipeline_Stages {
 				'issues'          => array(),
 			)
 		);
-		$post_id = $publisher->save_as_draft( $content, $idea, $review, $run_id_for_publisher, null );
+		$post_id = $publisher->save_as_draft( $content, $idea, $review, $run_id_for_publisher, null, 'authority' );
 
 		// Imagery gate: suppress image generation on held articles.
 		if ( $post_id > 0 ) {

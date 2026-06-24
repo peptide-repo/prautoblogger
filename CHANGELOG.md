@@ -5,6 +5,38 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.32.2] - 2026-06-24
+
+### Fixed
+- **P1 (canary) — quorum-miss HOLD no longer crashes as `failed`** (`class-authority-pipeline-stages.php`).
+  `hold_as_draft()` now branches on whether draft content is present:
+  - **No content** (quorum miss, pre-draft failure): records the hold decision to `run_decisions`
+    only — Publisher is never called. Eliminates the `RuntimeException("Refusing to create draft
+    post")` thrown by the v0.18.1 empty-content guard, which was causing the run to land as
+    `failed` instead of `held`. No post is created; HOLD decision row is written; operator sees
+    the run in the Review Queue (status `held-quorum`).
+  - **With content** (editorial escalation, citation gate, cost ceiling after draft): saves draft
+    post + suppresses imagery — behaviour unchanged from pre-fix.
+- **P2 — Authority posts now carry `_prautoblogger_pipeline_mode = 'authority'`** (`class-publisher.php`,
+  `class-authority-pipeline.php`, `class-authority-pipeline-stages.php`). `Publisher::save_as_draft()`
+  and `publish()` accept an optional `string $pipeline_mode = ''` parameter. When '' the value falls
+  back to `get_option('prautoblogger_writing_pipeline', ...)` (Economy/single-pass unchanged). The
+  Authority pipeline passes `'authority'` explicitly on every post creation call. Economy path is
+  unaffected — callers that omit the param still read the option.
+
+### Tests (PHPUnit — 556 tests, 0 failures)
+- `AuthorityPipelineTest::test_quorum_miss_hold_records_decision_no_post_created` — no post, HOLD
+  decision row written, status=held-quorum.
+- `AuthorityPipelineTest::test_quorum_miss_does_not_throw` — run() must not throw on quorum miss.
+- `AuthorityPipelineTest::test_editorial_escalation_hold_saves_draft_with_content` — content-present
+  path unchanged: draft post created, imagery suppressed.
+- `AuthorityPipelineTest::test_authority_published_post_gets_authority_pipeline_mode` — meta value is
+  `authority`, not `single_pass`.
+- `PublisherTest::test_publish_pipeline_mode_defaults_to_option_value` — Economy omits param; option
+  value (`single_pass`) written to meta.
+- `PublisherTest::test_publish_explicit_pipeline_mode_overrides_option` — Authority passes `'authority'`;
+  meta = `authority` regardless of option.
+
 ## [0.32.1] - 2026-06-24
 
 ### Fixed

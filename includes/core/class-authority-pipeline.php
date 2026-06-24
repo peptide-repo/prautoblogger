@@ -222,7 +222,7 @@ class PRAutoBlogger_Authority_Pipeline implements PRAutoBlogger_Authority_Pipeli
 			)
 		);
 		$auto_publish = in_array( get_option( 'prautoblogger_auto_publish', '0' ), array( '1', 'yes' ), true );
-		$post_id = $publisher->save_as_draft( $final_content, $idea, $stub_review, $run_id, null );
+		$post_id = $publisher->save_as_draft( $final_content, $idea, $stub_review, $run_id, null, 'authority' );
 		PRAutoBlogger_Run_Stage_State::start( $run_id, 'publish', (string) PRAutoBlogger_Stage_Display_Map::default_agent_role( 'publish' ), $item_key );
 
 		// Stage 5: SEO.
