@@ -39,7 +39,8 @@ class PRAutoBlogger_Seo_Stage implements PRAutoBlogger_Seo_Stage_Interface {
 	 * + stores citation_score, records run_stages start→done and a
 	 * run_decisions row for the 'seo' stage.
 	 *
-	 * Side effects: update_post_meta() calls (7 keys max), run_stages DB
+	 * Side effects: update_post_meta() calls (7 keys max — 6 written here;
+	 * `_prab_reviewed_by` is P2b.4/human-approval only), run_stages DB
 	 * write (start + done), run_decisions DB insert, Logger::info() calls.
 	 *
 	 * @param string $run_id      Pipeline run UUID.

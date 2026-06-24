@@ -69,6 +69,10 @@ foreach ( $options as $option ) {
 $wpdb->query(
 	"DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '\\_prautoblogger\\_%'"
 );
+// P2b.3 (v0.30.0): SEO stage writes _prab_* keys (different prefix — covered separately).
+$wpdb->query(
+	"DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '\\_prab\\_%'"
+);
 
 /*
 |--------------------------------------------------------------------------

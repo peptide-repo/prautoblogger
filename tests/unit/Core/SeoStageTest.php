@@ -191,6 +191,26 @@ class SeoStageTest extends BaseTestCase {
 	}
 
 	/**
+	 * Non-empty $peptide_ids must be JSON-encoded as a plain integer array in _prab_about_peptides.
+	 * Covers the populated path of write_post_meta (array_values + wp_json_encode).
+	 */
+	public function test_peptide_ids_encoded_as_json_int_array(): void {
+		$stage = new \PRAutoBlogger_Seo_Stage();
+		$stage->run( 'run-5b', 'idea:abc', 42, $this->make_sources( 1 ), array( 0 => 10, 1 => 20, 2 => 30 ) );
+
+		$this->assertArrayHasKey( '_prab_about_peptides', $this->meta );
+		$decoded = json_decode( $this->meta['_prab_about_peptides'], true );
+		$this->assertIsArray( $decoded );
+		$this->assertCount( 3, $decoded );
+		// Values must be the original integer IDs.
+		$this->assertSame( 10, $decoded[0] );
+		$this->assertSame( 20, $decoded[1] );
+		$this->assertSame( 30, $decoded[2] );
+		// Array keys must be sequential (array_values re-indexes).
+		$this->assertSame( array( 0, 1, 2 ), array_keys( $decoded ) );
+	}
+
+	/**
 	 * When kept_sources is empty the citation_score must be 0.0 (never divide-by-zero).
 	 */
 	public function test_empty_sources_score_is_zero(): void {

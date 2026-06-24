@@ -7,6 +7,11 @@ and this project uses [Semantic Versioning](https://semver.org/).
 
 ## [0.30.0] - 2026-06-24
 
+### Fixed (QA P1/P2 sweep — post-a39fb75)
+- **P1 (uninstall purge):** Added second `_prab_%` DELETE to `uninstall.php` §3. The existing `_prautoblogger_%` wildcard does not match the six `_prab_*` keys written by the SEO stage. All six keys (`_prab_schema_version`, `_prab_citations`, `_prab_about_peptides`, `_prab_review_mode`, `_prab_reviewed_at`, `_prab_citation_score`) are now purged on plugin deletion.
+- **P2-2 (docblock clarity):** Updated `run()` side-effects note in `class-seo-stage.php` from "7 keys max" to "7 keys max — 6 written here; `_prab_reviewed_by` is P2b.4/human-approval only".
+- **P2-3 (test coverage):** Added `test_peptide_ids_encoded_as_json_int_array()` to `SeoStageTest` — asserts that a non-empty `$peptide_ids` array is JSON-encoded as a sequential integer array in `_prab_about_peptides`. Total: 9 tests GREEN on VPS PHP 8.3.
+
 ### Added
 - **P2b.3 — SEO stage: _prab_* meta writer + citation_score** — additive Authority-tier only; not wired into the live Economy (single-pass) path until P2b.4 (tier routing).
   - `PRAutoBlogger_Seo_Stage` (`core/class-seo-stage.php`, 173 lines) — deterministic (no LLM calls) meta-writer. Writes all keys from the ratified JSON-LD contract v1 (`convo/prcore/decisions/2026-06-11-jsonld-contract-v1.md`) to the published post so prcore can emit Drug/MedicalWebPage schema. Computes `citation_score` = average `quality_score` of kept sources (0.0–1.0). Records `run_stages` start→done (`agent_role=seo`) and a `run_decisions` row (`stage=seo, verdict=scored`). Reads `prautoblogger_citation_score_threshold` option (default `0.0`) and logs it — the publish gate acting on this score is P2b.4. Economy single-pass path untouched.
