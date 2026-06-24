@@ -9,7 +9,7 @@
  * Plugin Name:       PRAutoBlogger
  * Plugin URI:        https://peptiderepo.com/prautoblogger
  * Description:       Monitors social media for trending topics, generates SEO-friendly blog posts using AI, and publishes them on a daily schedule with full cost tracking and self-improvement metrics.
- * Version:           0.27.1
+ * Version:           0.28.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            PeptideRepo
@@ -35,8 +35,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 | Defined here so every file in the plugin can reference paths, versions,
 | and limits without magic strings.
 */
-define( 'PRAUTOBLOGGER_VERSION', '0.27.1' );
-define( 'PRAUTOBLOGGER_DB_VERSION', '1.4.0' );
+define( 'PRAUTOBLOGGER_VERSION', '0.28.0' );
+define( 'PRAUTOBLOGGER_DB_VERSION', '1.4.0' );  // No schema change in v0.28.0 (Research_Fanout/Judge are additive code only).
 define( 'PRAUTOBLOGGER_DEFAULT_RUN_CEILING_USD', 0.50 );
 define( 'PRAUTOBLOGGER_DEFAULT_REQUEST_JSON_RETENTION_DAYS', 14 );
 // Default max cards shown per board column and per ideas-browser page.

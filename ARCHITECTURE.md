@@ -221,6 +221,12 @@ prautoblogger/
 │   │   ├── class-rerun-job-support.php # M3 queue/lock/budget/status-transient plumbing (v0.20.0)
 │   │   ├── class-request-recorder.php # B1: process-scoped outbound request-body stash -> generation_log.request_json (v0.20.0)
 │   │   ├── class-run-reaper.php       # Stuck-run sweep + audit-payload retention (rides the #19 cron)
+│   │   ├── class-research-fanout.php   # P2b.1: parallel specialist research agents (N×curl_multi, quorum, cost-reserve) — Authority only (v0.28.0)
+│   │   ├── class-research-batch.php    # P2b.1: curl_multi execution layer for research agents (extracted from fanout, v0.28.0)
+│   │   ├── class-research-judge.php    # P2b.1: curate stage — dedup+score fan-out results, write run_sources keep/discard (v0.28.0; dedup extracted to class-research-dedup.php)
+│   │   ├── class-research-dedup.php    # P2b.1: URL-exact + semantic/keyword deduplication for the curate stage; extracted from judge to satisfy 300-line rule (v0.28.0)
+│   │   ├── class-research-source-scorer.php # P2b.1: source authority weighting for the judge (v0.28.0)
+│   │   ├── class-research-source-writer.php  # P2b.1: run_sources DB writer for the curate stage; extracted from judge to satisfy 300-line rule (v0.28.0)
 │   │   ├── class-audit-writer.php     # run_sources / run_decisions insert layer
 │   │   ├── class-pipeline-status.php  # Status-transient + summary helpers (extracted from runner/worker)
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)
@@ -238,6 +244,8 @@ prautoblogger/
 │   │   ├── interface-source-provider.php # Contract for any social media source
 │   │   ├── class-reddit-json-client.php  # Reddit HTTP client — RSS (primary) + .json (fallback)
 │   │   ├── class-llm-research-provider.php # LLM deep research source (reasoning models)
+│   │   ├── interface-research-fanout.php   # P2b.1: contract for parallel research fan-out (v0.28.0)
+│   │   ├── interface-research-judge.php    # P2b.1: contract for the curate stage judge (v0.28.0)
 │   │   ├── class-reddit-provider.php     # Reddit data collection orchestrator (RSS primary)
 │   │   ├── interface-image-provider.php  # Contract for any image generation provider (incl. batch)
 │   │   ├── class-open-router-image-provider.php  # OpenRouter image gen (single + batch dispatch)
