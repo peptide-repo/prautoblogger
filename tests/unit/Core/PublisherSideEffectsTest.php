@@ -176,4 +176,12 @@ class PublisherSideEffectsTest extends BaseTestCase {
 
         Filters\expectApplied( 'prautoblogger_filter_post_data' )->once();
 
-     
+        $wpdb = $this->create_mock_wpdb();
+        $wpdb->method( 'query' )->willReturn( 0 );
+        $wpdb->method( 'prepare' )->willReturn( '' );
+        $GLOBALS['wpdb'] = $wpdb;
+
+        $publisher = new \PRAutoBlogger_Publisher();
+        $publisher->publish( '<p>Content</p>', $this->idea, $this->review );
+    }
+}
