@@ -50,6 +50,10 @@ class PublisherSideEffectsTest extends BaseTestCase {
         Functions\when( 'wp_insert_term' )->justReturn( [ 'term_id' => 5 ] );
         Functions\when( 'wp_set_post_categories' )->justReturn( true );
         Functions\when( 'wp_set_post_tags' )->justReturn( true );
+        // P2-2: get_post_meta is called by Post_Assembler::attach_generated_images()
+        // to check the imagery-suppression flag. Return '' so imagery is not skipped
+        // in Publisher-level tests (image pipeline errors are caught downstream).
+        Functions\when( 'get_post_meta' )->justReturn( '' );
     }
 
     /**
@@ -172,12 +176,4 @@ class PublisherSideEffectsTest extends BaseTestCase {
 
         Filters\expectApplied( 'prautoblogger_filter_post_data' )->once();
 
-        $wpdb = $this->create_mock_wpdb();
-        $wpdb->method( 'query' )->willReturn( 0 );
-        $wpdb->method( 'prepare' )->willReturn( '' );
-        $GLOBALS['wpdb'] = $wpdb;
-
-        $publisher = new \PRAutoBlogger_Publisher();
-        $publisher->publish( '<p>Content</p>', $this->idea, $this->review );
-    }
-}
+     

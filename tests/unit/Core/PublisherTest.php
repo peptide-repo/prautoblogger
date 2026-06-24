@@ -46,6 +46,10 @@ class PublisherTest extends BaseTestCase {
         Functions\when( 'wp_insert_term' )->justReturn( [ 'term_id' => 5 ] );
         Functions\when( 'wp_set_post_categories' )->justReturn( true );
         Functions\when( 'wp_set_post_tags' )->justReturn( true );
+        // P2-2: get_post_meta is called by Post_Assembler::attach_generated_images()
+        // to check the imagery-suppression flag. Return '' so imagery is not skipped
+        // in Publisher-level tests (image pipeline errors are caught downstream).
+        Functions\when( 'get_post_meta' )->justReturn( '' );
     }
 
     /**
@@ -190,13 +194,4 @@ class PublisherTest extends BaseTestCase {
      * once tags and whitespace are stripped (an empty HTML shell).
      */
     public function test_publish_refuses_whitespace_only_html_content(): void {
-        Functions\expect( 'wp_insert_post' )->never();
-
-        $publisher = new \PRAutoBlogger_Publisher();
-
-        $this->expectException( \RuntimeException::class );
-        $this->expectExceptionMessage( 'generated content is empty' );
-
-        $publisher->publish( "<p> \n\t </p>", $this->idea, $this->review );
-    }
-}
+        Fu
