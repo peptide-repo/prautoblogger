@@ -226,6 +226,7 @@ prautoblogger/
 │   │   ├── class-research-judge.php    # P2b.1: curate stage — dedup+score fan-out results, write run_sources keep/discard (v0.28.0; dedup extracted to class-research-dedup.php)
 │   │   ├── class-research-dedup.php    # P2b.1: URL-exact + semantic/keyword deduplication for the curate stage; extracted from judge to satisfy 300-line rule (v0.28.0)
 │   │   ├── class-research-source-scorer.php # P2b.1: source authority weighting for the judge (v0.28.0)
+│   │   ├── class-research-source-writer.php  # P2b.1: run_sources DB writer for the curate stage; extracted from judge to satisfy 300-line rule (v0.28.0)
 │   │   ├── class-audit-writer.php     # run_sources / run_decisions insert layer
 │   │   ├── class-pipeline-status.php  # Status-transient + summary helpers (extracted from runner/worker)
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)

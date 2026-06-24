@@ -12,11 +12,13 @@ declare(strict_types=1);
  *       Semantic_Dedup pattern) with keyword-overlap fallback. Assigns
  *       a quality_score to each source (relevance × source-type weight).
  *       Writes one run_sources row per source (kept=1 or kept=0) with
- *       reason + quality_score via PRAutoBlogger_Audit_Writer. Returns
- *       the kept, scored list for the draft stage.
+ *       reason + quality_score via PRAutoBlogger_Research_Source_Writer.
+ *       Returns the kept, scored list for the draft stage.
  * Who triggers it: PRAutoBlogger_Authority_Pipeline (Phase 2b.4, the
  *       tier router). NOT wired into the Economy path — additive only.
- * Dependencies: PRAutoBlogger_Audit_Writer (run_sources writes),
+ * Dependencies: PRAutoBlogger_Research_Source_Writer (run_sources writes),
+ *       PRAutoBlogger_Research_Source_Scorer (quality scoring),
+ *       PRAutoBlogger_Audit_Writer (run_decisions write),
  *       PRAutoBlogger_OpenRouter_Embedding_Provider (semantic dedup),
  *       PRAutoBlogger_Run_Stage_State (curate stage row),
  *       PRAutoBlogger_Stage_Display_Map (default agent role),
@@ -24,9 +26,9 @@ declare(strict_types=1);
  *
  * @see providers/interface-research-judge.php       — Interface.
  * @see core/class-research-fanout.php               — Produces the input.
- * @see core/class-audit-writer.php                  — Writes run_sources rows.
- * @see core/class-semantic-dedup.php                — Embedding pattern reference.
+ * @see core/class-research-source-writer.php        — Writes run_sources rows.
  * @see core/class-research-source-scorer.php        — Source-type weighting delegate.
+ * @see core/class-semantic-dedup.php                — Embedding pattern reference.
  * @see ARCHITECTURE.md                              — Phase 2b curate stage.
  */
 class PRAutoBlogger_Research_Judge implements PRAutoBlogger_Research_Judge_Interface {
@@ -40,11 +42,19 @@ class PRAutoBlogger_Research_Judge implements PRAutoBlogger_Research_Judge_Inter
 	/** @var PRAutoBlogger_Research_Source_Scorer Scores source authority. */
 	private PRAutoBlogger_Research_Source_Scorer $scorer;
 
+	/** @var PRAutoBlogger_Research_Source_Writer Persists run_sources rows. */
+	private PRAutoBlogger_Research_Source_Writer $writer;
+
 	/**
 	 * @param PRAutoBlogger_Research_Source_Scorer|null $scorer Optional scorer override.
+	 * @param PRAutoBlogger_Research_Source_Writer|null $writer Optional writer override.
 	 */
-	public function __construct( ?PRAutoBlogger_Research_Source_Scorer $scorer = null ) {
+	public function __construct(
+		?PRAutoBlogger_Research_Source_Scorer $scorer = null,
+		?PRAutoBlogger_Research_Source_Writer $writer = null
+	) {
 		$this->scorer = $scorer ?? new PRAutoBlogger_Research_Source_Scorer();
+		$this->writer = $writer ?? new PRAutoBlogger_Research_Source_Writer();
 	}
 
 	/**
@@ -88,7 +98,7 @@ class PRAutoBlogger_Research_Judge implements PRAutoBlogger_Research_Judge_Inter
 		$kept      = array_slice( $scored, 0, self::MAX_KEPT_SOURCES );
 		$discarded = array_slice( $scored, self::MAX_KEPT_SOURCES );
 
-		$this->write_run_sources( $run_id, $kept, $discarded );
+		$this->writer->write( $run_id, $kept, $discarded );
 
 		PRAutoBlogger_Audit_Writer::record_decision(
 			$run_id,
@@ -220,55 +230,6 @@ class PRAutoBlogger_Research_Judge implements PRAutoBlogger_Research_Judge_Inter
 	}
 
 	/**
-	 * Write run_sources rows for kept (kept=1) and discarded (kept=0) sources.
-	 *
-	 * @param string $run_id    Run UUID.
-	 * @param array  $kept      Scored kept sources.
-	 * @param array  $discarded Scored discarded sources (over max).
-	 * @return void Side effects: DB inserts; no-op when audit tables absent.
-	 */
-	private function write_run_sources( string $run_id, array $kept, array $discarded ): void {
-		if ( ! PRAutoBlogger_Audit_Writer::is_available() ) {
-			return;
-		}
-		global $wpdb;
-		$table   = $wpdb->prefix . 'prautoblogger_run_sources';
-		$now     = current_time( 'mysql' );
-		$sources = array_merge(
-			array_map(
-				static fn( $s ) => $s + array(
-					'is_kept' => 1,
-					'discard_reason' => '',
-				),
-				$kept
-			),
-			array_map(
-				static fn( $s ) => $s + array(
-					'is_kept' => 0,
-					'discard_reason' => 'Exceeded maximum kept sources per run',
-				),
-				$discarded
-			)
-		);
-		foreach ( $sources as $s ) {
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-			$wpdb->insert(
-				$table,
-				array(
-					'run_id'        => $run_id,
-					'agent_role'    => $s['agent_role'] ?? 'curator',
-					'source_url'    => $s['url'],
-					'doi'           => $this->extract_doi( $s['url'] ),
-					'kept'          => $s['is_kept'],
-					'reason'        => $s['is_kept'] ? sprintf( 'Quality %.3f (relevance=%.2f)', $s['quality_score'], $s['relevance'] ) : $s['discard_reason'],
-					'quality_score' => $s['quality_score'],
-					'created_at'    => $now,
-				)
-			);
-		}
-	}
-
-	/**
 	 * Canonical URL: lowercase scheme+host+path, no query/fragment.
 	 *
 	 * @param string $url Raw URL.
@@ -283,19 +244,6 @@ class PRAutoBlogger_Research_Judge implements PRAutoBlogger_Research_Judge_Inter
 			return strtolower( $url );
 		}
 		return strtolower( ( $parts['scheme'] ?? 'https' ) . '://' . ( $parts['host'] ?? '' ) . rtrim( $parts['path'] ?? '', '/' ) );
-	}
-
-	/**
-	 * Extract a DOI from a URL if one is present.
-	 *
-	 * @param string $url Source URL.
-	 * @return string|null DOI, or null.
-	 */
-	private function extract_doi( string $url ): ?string {
-		if ( preg_match( '#10\.\d{4,}/\S+#', $url, $matches ) ) {
-			return rtrim( $matches[0], '.' );
-		}
-		return null;
 	}
 
 	/**
