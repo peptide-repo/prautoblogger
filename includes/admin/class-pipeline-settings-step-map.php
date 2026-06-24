@@ -49,6 +49,16 @@ class PRAutoBlogger_Pipeline_Settings_Step_Map {
 				'description'  => __( 'LLM deep-research call. The user-side research brief is a setting below, not a registry prompt.', 'prautoblogger' ),
 			),
 			array(
+				'id'           => 'curate',
+				'label'        => __( 'Curate', 'prautoblogger' ),
+				'icon'         => 'dashicons-filter',
+				'model_option' => 'prautoblogger_curate_model',
+				'capability'   => 'text→text',
+				'system_key'   => 'curate.system',
+				'agent_keys'   => array(),
+				'description'  => __( 'Research judge: deduplicates and scores fan-out results. Authority tier only.', 'prautoblogger' ),
+			),
+			array(
 				'id'           => 'analysis',
 				'label'        => __( 'Analysis', 'prautoblogger' ),
 				'icon'         => 'dashicons-chart-bar',
@@ -79,6 +89,16 @@ class PRAutoBlogger_Pipeline_Settings_Step_Map {
 				'description'  => __( 'Single-pass editorial review — approves, revises, or rejects the draft.', 'prautoblogger' ),
 			),
 			array(
+				'id'           => 'seo',
+				'label'        => __( 'SEO', 'prautoblogger' ),
+				'icon'         => 'dashicons-chart-line',
+				'model_option' => 'prautoblogger_seo_model',
+				'capability'   => 'text→text',
+				'system_key'   => 'seo.system',
+				'agent_keys'   => array(),
+				'description'  => __( 'Writes post-meta SEO fields and computes citation score for the publish gate. Authority tier only.', 'prautoblogger' ),
+			),
+			array(
 				'id'           => 'image',
 				'label'        => __( 'Image', 'prautoblogger' ),
 				'icon'         => 'dashicons-format-image',
@@ -87,6 +107,16 @@ class PRAutoBlogger_Pipeline_Settings_Step_Map {
 				'system_key'   => 'image.rewriter_system',
 				'agent_keys'   => array( 'image.style_template' ),
 				'description'  => __( 'Image prompt rewriter + diffusion generation. The rewriter LLM uses the Analysis model.', 'prautoblogger' ),
+			),
+			array(
+				'id'           => 'authority',
+				'label'        => __( 'Authority', 'prautoblogger' ),
+				'icon'         => 'dashicons-admin-site-alt3',
+				'model_option' => null,
+				'capability'   => 'settings',
+				'system_key'   => null,
+				'agent_keys'   => array(),
+				'description'  => __( 'Master switch and per-category tier assignments for the Authority pipeline.', 'prautoblogger' ),
 			),
 		);
 	}

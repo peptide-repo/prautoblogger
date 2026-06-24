@@ -862,3 +862,45 @@ guarantees zero behaviour change in production on deploy.
   `_prautoblogger_imagery_suppressed = 1` post-meta. Image pipeline checks this key
   before running. Publish-gate-passed articles never have this key set.
 
+---
+
+## Authority Pipeline Options (P2b.5, v0.32.0)
+
+### Option naming pattern
+
+All Authority-pipeline controls follow the `prautoblogger_` prefix convention:
+
+| Option | Type | Notes |
+|--------|------|-------|
+| `prautoblogger_authority_pipeline_enabled` | toggle (`'0'`/`'1'`) | Master switch; default `'0'` (OFF) |
+| `prautoblogger_citation_score_threshold` | int 0–100 | Publish gate; 0 = skip gate while calibrating |
+| `prautoblogger_category_tiers` | serialized PHP array | `[slug => 'economy']`; managed via parse_and_save_category_tiers() |
+| `prautoblogger_category_tiers_input` | virtual textarea | Display-only; not a stored wp_option — see renderer special-case |
+| `prautoblogger_research_agent_count` | int 1–5 | Fan-out agent count; default 3 |
+| `prautoblogger_editorial_max_rounds` | int 1–5 | Editorial loop bound; default 3 |
+| `prautoblogger_curate_model` | string | Model for the Curate step (research judge) |
+| `prautoblogger_seo_model` | string | Model for the SEO stage LLM call |
+| `prautoblogger_seo_instructions` | textarea | Custom instructions for SEO stage |
+
+### parse_and_save_category_tiers() pattern
+
+The category tier map is a special two-key surface:
+
+1. **Display** (`prautoblogger_category_tiers_input`): The renderer reads
+   `prautoblogger_category_tiers` (a serialized array) and converts it to
+   `"slug: tier"` lines for the textarea. This textarea key is NOT a stored option.
+2. **Save** (`prautoblogger_category_tiers`): After the normal field loop,
+   `Save_Handler::handle_step_settings_save()` calls `parse_and_save_category_tiers()`
+   which reads the `prautoblogger_category_tiers_input` POST value, splits on newlines,
+   validates each line, and writes the array to `prautoblogger_category_tiers`.
+3. **Additive-safety rule**: any tier value other than `'economy'` is stored as
+   `'authority'`. This means a typo or empty tier always chooses the more conservative
+   path (more vetting, not less).
+
+### contexts() extension rule
+
+Adding a new Authority-pipeline admin step requires:
+1. Add the step to `PRAutoBlogger_Pipeline_Settings_Step_Map::steps()`.
+2. Add the context string to `PRAutoBlogger_Pipeline_Settings_Option_Fields::contexts()`.
+3. Add the field data to `PRAutoBlogger_Pipeline_Settings_Option_Fields_Data_Authority::fields_for()`.
+4. Update ARCHITECTURE.md options table and this section.

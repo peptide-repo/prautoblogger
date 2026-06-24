@@ -29,7 +29,7 @@ class PRAutoBlogger_Pipeline_Settings_Option_Fields {
 	 * @return string[]
 	 */
 	public static function contexts(): array {
-		return array( 'global', 'research', 'analysis', 'writer', 'editorial' );
+		return array( 'global', 'research', 'analysis', 'writer', 'editorial', 'curate', 'seo', 'authority' );
 	}
 
 	/**

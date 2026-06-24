@@ -5,6 +5,16 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.32.0] - 2026-06-24
+### Added
+- P2b.5: Authority pipeline admin controls in Pipeline Settings — master toggle (`prautoblogger_authority_pipeline_enabled`), citation score gate (`prautoblogger_citation_score_threshold`), per-category tier map editor (`prautoblogger_category_tiers_input`/`prautoblogger_category_tiers`)
+- P2b.5: New pipeline steps in step rail: Curate (research judge model/prompts, Authority only) and SEO (post-meta model/prompts, Authority only) and Authority Settings step (master switch + tier map)
+- P2b.5: Research step gains Agent Count field (1–5, default 3, `prautoblogger_research_agent_count`); Editorial step gains Max Rounds field (1–5, default 3, `prautoblogger_editorial_max_rounds`)
+- P2b.5: New companion file `class-pipeline-settings-option-fields-data-authority.php` (curate/seo/authority field arrays, split for 300-line compliance)
+- P2-2: `Post_Assembler::attach_generated_images()` checks `_prautoblogger_imagery_suppressed` post meta and short-circuits when set; prevents imagery leaking on held Authority articles (citation gate miss, quorum miss, editorial escalation, or cost ceiling halt)
+- P2-1: Authority stage vocabulary + step rail integration tests (full Authority pipeline tests ship with P2b.1–P2b.4 classes; these stubs extend to admin integration)
+- P2-3: ARCHITECTURE.md file-tree entries for all P2b.5 changes in proper `├──` format
+
 ## [0.31.0] - 2026-06-24
 
 ### Added

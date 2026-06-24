@@ -8,6 +8,10 @@ declare(strict_types=1);
  *
  * What: After wp_insert_post, assigns categories/tags, links generation logs,
  *       generates and attaches images, and sanitizes raw LLM content.
+ *       P2-2: attach_generated_images() checks _prautoblogger_imagery_suppressed
+ *       post meta and returns early when set, preventing imagery leaking on
+ *       held Authority articles (citation gate miss, quorum miss, editorial
+ *       escalation, or cost ceiling halt).
  * Who calls it: PRAutoBlogger_Publisher::create_post().
  * Dependencies: WordPress taxonomy/meta APIs, PRAutoBlogger_Image_Pipeline, PRAutoBlogger_Logger.
  *
@@ -235,6 +239,10 @@ class PRAutoBlogger_Post_Assembler {
 	/**
 	 * Generate and attach images to a published post.
 	 * Non-blocking — logs errors but doesn't re-throw since the post is already created.
+	 * P2-2: Checks _prautoblogger_imagery_suppressed before entering the image
+	 * pipeline. When set, skips image generation entirely so held Authority
+	 * articles (citation gate miss, quorum miss, editorial escalation, or cost
+	 * ceiling halt) don't accidentally receive images.
 	 *
 	 * @param int                        $post_id      Post ID.
 	 * @param PRAutoBlogger_Article_Idea $idea         Article idea (contains source IDs).
@@ -242,6 +250,16 @@ class PRAutoBlogger_Post_Assembler {
 	 * @param ?PRAutoBlogger_Cost_Tracker $cost_tracker Optional cost tracker for image generation cost logging.
 	 */
 	public static function attach_generated_images( int $post_id, PRAutoBlogger_Article_Idea $idea, array $post_data, ?PRAutoBlogger_Cost_Tracker $cost_tracker = null ): void {
+		// Honour the imagery-suppressed flag: skip image generation for held articles
+		// (citation gate miss, quorum miss, editorial escalation, or cost ceiling halt).
+		if ( '1' === get_post_meta( $post_id, '_prautoblogger_imagery_suppressed', true ) ) {
+			PRAutoBlogger_Logger::instance()->info(
+				sprintf( 'Image generation skipped: post %d has _prautoblogger_imagery_suppressed set.', $post_id ),
+				'publisher'
+			);
+			return;
+		}
+
 		// Fetch the original Reddit source data for Image B's source-driven prompt.
 		// The idea's source_ids point to rows in the source_data table collected
 		// during the pipeline's collection step.

@@ -168,7 +168,13 @@ prautoblogger/
 │   │   ├── class-review-queue.php     # Approve/edit/reject queue for generated drafts
 │   │   ├── class-log-viewer.php       # Activity log viewer with level filtering
 │   │   ├── class-gen-history-page.php # M4: Generation History hidden page (options.php parent, priority 14)
-│   │   └── class-gen-history-query.php # M4: Paginated run list + per-run I/O extraction queries
+│   │   ├── class-gen-history-query.php # M4: Paginated run list + per-run I/O extraction queries
+│   │   ├── class-pipeline-settings-step-map.php # P2b.5: step rail (research/curate/analysis/writer/editorial/seo/image/authority) + key allowlists
+│   │   ├── class-pipeline-settings-option-fields.php # P2b.5: contexts() (now includes curate/seo/authority) + sanitizer
+│   │   ├── class-pipeline-settings-option-fields-data.php # P2b.5: core context field arrays (delegates curate/seo/authority to Authority companion)
+│   │   ├── class-pipeline-settings-option-fields-data-authority.php # P2b.5 NEW: curate/seo/authority field arrays (split for 300-line rule)
+│   │   ├── class-pipeline-settings-save-handler.php # P2b.5: adds authority context + parse_and_save_category_tiers()
+│   │   └── class-pipeline-settings-renderer.php # P2b.5: special-cases prautoblogger_category_tiers_input in build_option_field_values()
 │   │
 │   ├── ajax/
 │   │   ├── class-model-registry-refresh.php # AJAX: refresh OpenRouter model registry (manual trigger)
@@ -189,7 +195,7 @@ prautoblogger/
 │   │   ├── class-peptide-linker.php   # Deterministic post-processor: hyperlinks peptide mentions to /peptides/ pages
 │   │   ├── class-chief-editor.php     # Editor agent — LLM-powered editorial review
 │   │   ├── class-publisher.php        # Creates WordPress posts from approved content
-│   │   ├── class-post-assembler.php   # Post-creation helpers: taxonomy, log linking, images, sanitization
+│   │   ├── class-post-assembler.php   # Post-creation helpers: taxonomy, log linking, images, sanitization. P2-2: imagery-suppressed guard in attach_generated_images()
 │   │   ├── class-image-pipeline.php   # Orchestrates A/B image generation (parallel via batch)
 │   │   ├── class-image-prompt-builder.php # Generates visual prompts from article/source data
 │   │   ├── class-image-template-filler.php # Fills the editorial style template's {{ topic_summary }} slot (v0.16.0)
@@ -703,6 +709,10 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_citation_score_threshold` | Authority-tier SEO stage: minimum citation_score to pass the publish gate (float, default 0.0 — intentionally uncalibrated; calibrate after first ~10 Authority runs). P2b.3 (v0.30.0). |
 | `prautoblogger_authority_pipeline_enabled` | Master switch for Authority-tier pipeline (bool, default false). OFF = all generation uses Economy path (zero behaviour change). P2b.4 v0.31.0. |
 | `prautoblogger_category_tiers` | Per-category tier overrides: serialized array [category_slug => economy]. Economy is an explicit demote; default is Authority. P2b.4 v0.31.0. |
+| `prautoblogger_research_agent_count` | Authority fan-out agent count (int, default 3, range 1–5). Exposed in Research step panel. P2b.5 (v0.32.0). |
+| `prautoblogger_curate_model` | Model for the Curate (research judge) step. Exposed in Curate step panel. P2b.5 (v0.32.0). |
+| `prautoblogger_seo_model` | Model for the SEO stage LLM call. Exposed in SEO step panel. P2b.5 (v0.32.0). |
+| `prautoblogger_seo_instructions` | Custom instructions for the SEO stage LLM call (textarea). Exposed in SEO step panel. P2b.5 (v0.32.0). |
 
 ### Post Meta
 

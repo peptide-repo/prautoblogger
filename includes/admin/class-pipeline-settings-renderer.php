@@ -15,6 +15,9 @@ declare(strict_types=1);
  *       M3 additions: passes preview/history nonces and version-list data per
  *       prompt panel so the Template/Preview toggle and version history
  *       accordion have everything they need server-side.
+ *       P2b.5 addition: build_option_field_values() has a special case for
+ *       prautoblogger_category_tiers_input — converts the stored serialised
+ *       array back to "slug: tier" lines for the textarea.
  * Who calls it: PRAutoBlogger_Pipeline_Settings_Page::render_page() after save.
  * Dependencies: PRAutoBlogger_Pipeline_Settings_Step_Map (step list),
  *               PRAutoBlogger_Pipeline_Settings_Option_Fields (step option defs),
@@ -79,12 +82,27 @@ class PRAutoBlogger_Pipeline_Settings_Renderer {
 	/**
 	 * Build current option values for all fields in a context.
 	 *
+	 * Special case: prautoblogger_category_tiers_input is a virtual field whose
+	 * value is derived from the serialised prautoblogger_category_tiers array —
+	 * not a stored string option. The renderer converts the array back to
+	 * "slug: tier" textarea lines here so the template needs no extra logic.
+	 *
 	 * @param string $context Step context identifier.
 	 * @return array<int, array<string, mixed>>
 	 */
 	public function build_option_field_values( string $context ): array {
 		$fields = PRAutoBlogger_Pipeline_Settings_Option_Fields::get_fields_for_context( $context );
 		foreach ( $fields as &$field ) {
+			if ( 'prautoblogger_category_tiers_input' === $field['id'] ) {
+				// Convert the stored array back to "slug: tier" lines for the textarea.
+				$tiers = get_option( 'prautoblogger_category_tiers', array() );
+				$lines = array();
+				foreach ( $tiers as $slug => $tier ) {
+					$lines[] = esc_attr( $slug ) . ': ' . esc_attr( $tier );
+				}
+				$field['current'] = implode( "\n", $lines );
+				continue;
+			}
 			$field['current'] = get_option( $field['id'], $field['default'] ?? '' );
 		}
 		unset( $field );

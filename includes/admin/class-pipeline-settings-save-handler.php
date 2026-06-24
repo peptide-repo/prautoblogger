@@ -13,7 +13,10 @@ declare(strict_types=1);
  *         - save_prompt  — creates a new immutable prompt version in the registry.
  *         - reset_prompt — creates a new version with the canonical default body.
  *         - save_step_settings — persists one or more relocated option fields for
- *           a step context (global/research/analysis/writer/editorial).
+ *           a step context (global/research/analysis/writer/editorial/curate/seo/authority).
+ *           For the authority context, also parses the tier-map textarea into
+ *           prautoblogger_category_tiers (serialised array) via
+ *           parse_and_save_category_tiers().
  *       Saving a prompt NEVER mutates the existing version — the registry's core
  *       invariant. Model + step-option values read from POST keys matching the
  *       option name. Prompt keys are slug-matched against the allowlist.
@@ -89,6 +92,7 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 	 * context reads the corresponding POST value, sanitizes via
 	 * PRAutoBlogger_Pipeline_Settings_Option_Fields::sanitize_option(), and
 	 * calls update_option(). Only allowlisted option names are written.
+	 * For the authority context, also parses the tier-map textarea.
 	 *
 	 * @return array{status: string, message: string}
 	 */
@@ -116,10 +120,47 @@ class PRAutoBlogger_Pipeline_Settings_Save_Handler {
 			update_option( $id, $sanitized );
 		}
 
+		// For the authority context, also parse the category-tier textarea into the tiers array.
+		if ( 'authority' === $context ) {
+			self::parse_and_save_category_tiers();
+		}
+
 		return array(
 			'status'  => 'saved',
 			'message' => __( 'Settings saved.', 'prautoblogger' ),
 		);
+	}
+
+	/**
+	 * Parse the prautoblogger_category_tiers_input textarea and persist
+	 * the result as the prautoblogger_category_tiers serialised array.
+	 *
+	 * Format: one line per category, "slug: authority|economy".
+	 * Invalid tier values default to 'authority' (additive-safety rule).
+	 *
+	 * @return void
+	 */
+	private static function parse_and_save_category_tiers(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified by caller
+		$raw = isset( $_POST['prautoblogger_category_tiers_input'] )
+			? wp_unslash( $_POST['prautoblogger_category_tiers_input'] )
+			: '';
+		$raw   = sanitize_textarea_field( $raw );
+		$lines = array_filter( array_map( 'trim', explode( "\n", $raw ) ) );
+		$tiers = array();
+		foreach ( $lines as $line ) {
+			if ( ! str_contains( $line, ':' ) ) {
+				continue;
+			}
+			[ $slug, $tier ] = explode( ':', $line, 2 );
+			$slug = sanitize_key( trim( $slug ) );
+			$tier = sanitize_key( trim( $tier ) );
+			if ( '' === $slug ) {
+				continue;
+			}
+			$tiers[ $slug ] = ( 'economy' === $tier ) ? 'economy' : 'authority';
+		}
+		update_option( 'prautoblogger_category_tiers', $tiers );
 	}
 
 	/**
