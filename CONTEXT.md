@@ -176,3 +176,17 @@ into the live Economy path until P2b.4).
 | **quality_score** | A composite score for a source: `relevance × authority_weight`. `relevance` comes from the agent's self-reported score (0.0–1.0). `authority_weight` is the source-type multiplier from `Research_Source_Scorer`. Higher scores sort the source closer to the top-12 kept set. Stored in `run_sources.quality_score`. |
 | **authority weight** | A source-type multiplier applied by `PRAutoBlogger_Research_Source_Scorer` to produce `quality_score`. Values: DOI/PubMed/NCBI peer-reviewed → 1.0; .gov/.edu/WHO/FDA institutional → 0.85; preprint → 0.70; HTTPS → 0.60; HTTP → 0.40. Reflects the editorial preference for peer-reviewed sources in Authority-tier articles. |
 | **MIN_AGENTS floor** | `Research_Fanout::MIN_AGENTS = 2`. The minimum configurable agent count. Set to 2 (not 1) because quorum = ⌈N/2⌉+1 = 2 for N=1, making a single-agent dispatch mathematically impossible to satisfy. Clamping to 2 ensures at least a 2-agent fan-out where quorum=2 is achievable (both must succeed). |
+
+## Phase 2b P2b.2 — Editorial_Loop (v0.29.0)
+
+These terms are introduced by the Authority-tier bounded editorial loop (additive; not wired
+into the live Economy path until P2b.4).
+
+| Term | Definition |
+|------|-----------|
+| **editorial loop** | The iterative editor↔writer review pattern used in the Authority tier. Each round: `Chief_Editor::review()` critiques the draft → if approved, loop exits; if not, the writer revises the draft via `Editorial_Revision_Caller::call()` → repeat. After max rounds without approval the article is **escalated to the Review Queue**. Contrasts with the Economy single-pass where `Chief_Editor::review()` runs once, no revision loop. |
+| **editorial_max_rounds** | The `prautoblogger_editorial_max_rounds` WordPress option (int, default 3, clamped to [1, 10]). Controls how many editor↔writer rounds may occur before escalation. Configurable without a code change. |
+| **round record** | An instance of `PRAutoBlogger_Editorial_Round` capturing one completed loop iteration. Fields: `round_number` (1-based), `editor_notes` (critique), `editor_verdict` ('approved'/'revised'/'rejected'), `revised_content` (writer output for that round, '' on approval), `quality_score`, `seo_score`. Serialised via `to_array()` for JSON audit snapshots in `run_stages` and the loop escalation record. |
+| **Review Queue escalation** | When `editorial_max_rounds` are exhausted without the editor approving, the article is saved as a WordPress draft (Review Queue) rather than published. `Editorial_Loop::run()` returns `''` and `was_escalated()` returns `true`. One `run_decisions` row is written with `verdict='escalated'` and a rationale noting the max rounds exhausted. |
+| **inline revision** | When `Chief_Editor::review()` returns a non-null `revised_content` in the `PRAutoBlogger_Editorial_Review` object (verdict='revised'), that content is used directly for the next round without invoking `Editorial_Revision_Caller`. Reduces LLM calls when the editor can self-correct. |
+| **Editorial_Revision_Caller** | `PRAutoBlogger_Editorial_Revision_Caller` — the extracted writer revision step. Builds revision prompts via `Content_Prompts::build_revision_system/user()`, dispatches the writer LLM call (model from `prautoblogger_writing_model`), manages `run_stages` start→done for `role='writer'`, and logs cost. Extracted from `Editorial_Loop` to keep both classes under 300 lines. |

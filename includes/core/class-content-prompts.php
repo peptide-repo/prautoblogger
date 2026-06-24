@@ -14,8 +14,8 @@ declare(strict_types=1);
  * Dependencies: PRAutoBlogger_Prompt_Registry (versioned prompt bodies),
  *               WordPress query functions (get_posts, get_the_title, get_permalink).
  *
- * @see core/class-content-generator.php — Consumer of these prompts.
- * @see models/class-content-request.php — Data bag passed to every builder.
+ * @see core/class-content-generator.php -- Consumer of these prompts.
+ * @see models/class-content-request.php -- Data bag passed to every builder.
  */
 class PRAutoBlogger_Content_Prompts {
 
@@ -136,6 +136,43 @@ class PRAutoBlogger_Content_Prompts {
 	}
 
 	/**
+	 * Build the system prompt for an Authority-tier editorial revision call.
+	 *
+	 * Used by Editorial_Revision_Caller when asking the writer to revise a
+	 * draft given the chief editor's critique. Keeps the revision focused on
+	 * applying specific feedback rather than a full re-draft.
+	 *
+	 * @param PRAutoBlogger_Article_Idea $idea The article idea under revision.
+	 * @return string System prompt for the revision call.
+	 */
+	public static function build_revision_system( PRAutoBlogger_Article_Idea $idea ): string {
+		$niche        = (string) get_option( 'prautoblogger_niche_description', '' );
+		$niche_clause = '' !== $niche ? " specializing in {$niche}" : '';
+
+		return sprintf(
+			"You are an expert writer%s. You have written a draft article and received feedback from your chief editor. Your task is to revise the article to address EVERY point raised in the editor's critique. Do NOT rewrite sections that were not criticised. Return ONLY the revised HTML article with no commentary, preamble, or metadata. Topic: %s. Title: %s.",
+			$niche_clause,
+			$idea->get_topic(),
+			$idea->get_suggested_title()
+		);
+	}
+
+	/**
+	 * Build the user prompt for an Authority-tier editorial revision call.
+	 *
+	 * @param string $current_draft Current HTML draft to be revised.
+	 * @param string $editor_notes  Critique notes from the chief editor.
+	 * @return string User prompt for the revision call.
+	 */
+	public static function build_revision_user( string $current_draft, string $editor_notes ): string {
+		return sprintf(
+			"EDITOR CRITIQUE:\n%s\n\n---\nCURRENT DRAFT:\n%s\n\n---\nPlease revise the draft above to address every point in the editor critique. Return the complete revised article as HTML only.",
+			$editor_notes,
+			$current_draft
+		);
+	}
+
+	/**
 	 * Build the linking rules section (internal articles + peptide database).
 	 *
 	 * Fetches published blog posts and peptide pages, formats them as a
@@ -148,7 +185,7 @@ class PRAutoBlogger_Content_Prompts {
 		$rules .= "NEVER fabricate or invent URLs. You do NOT have access to external sources.\n";
 		$rules .= "Only use the internal links listed below when linking within the article.\n";
 		$rules .= "If no listed article is relevant to a section, do not insert a link.\n";
-		$rules .= "Do NOT add links for peptide names — those are injected automatically after generation.\n\n";
+		$rules .= "Do NOT add links for peptide names -- those are injected automatically after generation.\n\n";
 
 		$rules .= self::build_article_links();
 

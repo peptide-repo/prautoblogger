@@ -752,3 +752,41 @@ PRAutoBlogger_Cost_Governor::settle( $reservation, $actual_total );
 
 Never reserve inside the per-agent loop — that creates a race between the ceiling
 check and concurrent call dispatch.
+
+---
+
+## How To: Add a Bounded Editorial Loop Caller (P2b.2+)
+
+The Authority-tier editorial pipeline uses a bounded editor<->writer loop
+(`PRAutoBlogger_Editorial_Loop`) instead of the single-pass `Chief_Editor::review()`.
+
+### Key patterns
+
+- **Loop bound** is driven by `get_option('prautoblogger_editorial_max_rounds', 3)`,
+  clamped to `[1, 10]`. Never hardcode round counts.
+- **Escalation**: when max rounds are exhausted without approval, `run()` returns `''`
+  and `was_escalated()` is `true`. The caller must handle this (save as draft to Review Queue).
+- **Inline revision path**: if the editor's `PRAutoBlogger_Editorial_Review` object
+  carries a non-null `revised_content`, use it directly without calling the writer LLM.
+- **Writer revision**: when no inline content is available, delegate to
+  `PRAutoBlogger_Editorial_Revision_Caller::call()`. Never put writer LLM logic inside
+  `Editorial_Loop` itself -- keeps it under 300 lines.
+- **Round recording**: every round (including escalation) writes one `run_decisions` row
+  via `PRAutoBlogger_Audit_Writer::record_decision()`. Round rows carry `stage='editorial'`,
+  `verdict='approved'|'revised'|'rejected'`, `rationale='Round N: <notes>'`. Escalation
+  rows carry `verdict='escalated'`.
+- **Stage lifecycle**: each editor check opens `run_stages` with `role='editor'` via
+  `Run_Stage_State::start()`; each writer revision opens with `role='writer'`. Both close
+  on `Run_Stage_State::done()` after their respective result is available.
+- **Cost**: all LLM calls flow through the existing provider seam; cost governor reserves
+  are handled per-call inside `Chief_Editor::review()` and `Editorial_Revision_Caller::call()`.
+  No additional reservation needed in `Editorial_Loop::run()`.
+
+### Splits to preserve the 300-line cap
+
+| Class | Responsibility |
+|---|---|
+| `PRAutoBlogger_Editorial_Loop` | Loop orchestration, verdict routing, round recording, escalation |
+| `PRAutoBlogger_Editorial_Revision_Caller` | Writer LLM call, stage lifecycle for 'writer' role |
+| `PRAutoBlogger_Content_Prompts` | Static `build_revision_system()` + `build_revision_user()` |
+| `PRAutoBlogger_Editorial_Round` | Immutable value object (one round snapshot) |
