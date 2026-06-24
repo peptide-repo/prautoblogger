@@ -203,4 +203,65 @@ class PublisherTest extends BaseTestCase {
 
         $publisher->publish( "<p> \n\t </p>", $this->idea, $this->review );
     }
+    /**
+     * P2 fix (v0.32.2): Publisher::publish() called without an explicit
+     * pipeline_mode must record the option value (Economy / single-pass
+     * path). Verifies the fallback behaviour is unchanged.
+     */
+    public function test_publish_pipeline_mode_defaults_to_option_value(): void {
+        $this->stub_get_option( [
+            'prautoblogger_writing_pipeline' => 'single_pass',
+            'prautoblogger_writing_model'    => 'openai/gpt-4o-mini',
+            'prautoblogger_default_author'   => 1,
+        ] );
+
+        $captured_meta = null;
+        Functions\when( 'wp_insert_post' )->alias( function ( $args ) use ( &$captured_meta ) {
+            $captured_meta = $args['meta_input'] ?? [];
+            return 99;
+        } );
+
+        $wpdb = $this->create_mock_wpdb();
+        $wpdb->method( 'query' )->willReturn( 0 );
+        $wpdb->method( 'prepare' )->willReturn( '' );
+        $GLOBALS['wpdb'] = $wpdb;
+
+        $publisher = new \PRAutoBlogger_Publisher();
+        $publisher->publish( '<p>Content</p>', $this->idea, $this->review, 'run-economy' );
+
+        $this->assertArrayHasKey( '_prautoblogger_pipeline_mode', $captured_meta );
+        $this->assertSame( 'single_pass', $captured_meta['_prautoblogger_pipeline_mode'],
+            'Economy path (no explicit pipeline_mode) must use the option value' );
+    }
+
+    /**
+     * P2 fix (v0.32.2): when an explicit pipeline_mode is passed (Authority
+     * path), it overrides the option value and is stored as post meta.
+     */
+    public function test_publish_explicit_pipeline_mode_overrides_option(): void {
+        $this->stub_get_option( [
+            'prautoblogger_writing_pipeline' => 'single_pass',
+            'prautoblogger_writing_model'    => 'openai/gpt-4o-mini',
+            'prautoblogger_default_author'   => 1,
+        ] );
+
+        $captured_meta = null;
+        Functions\when( 'wp_insert_post' )->alias( function ( $args ) use ( &$captured_meta ) {
+            $captured_meta = $args['meta_input'] ?? [];
+            return 100;
+        } );
+
+        $wpdb = $this->create_mock_wpdb();
+        $wpdb->method( 'query' )->willReturn( 0 );
+        $wpdb->method( 'prepare' )->willReturn( '' );
+        $GLOBALS['wpdb'] = $wpdb;
+
+        $publisher = new \PRAutoBlogger_Publisher();
+        $publisher->publish( '<p>Content</p>', $this->idea, $this->review, 'run-authority', null, 'authority' );
+
+        $this->assertArrayHasKey( '_prautoblogger_pipeline_mode', $captured_meta );
+        $this->assertSame( 'authority', $captured_meta['_prautoblogger_pipeline_mode'],
+            'Explicit pipeline_mode must override the option (Authority path)' );
+    }
+
 }

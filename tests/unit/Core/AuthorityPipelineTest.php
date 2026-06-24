@@ -323,6 +323,138 @@ class AuthorityPipelineTest extends BaseTestCase {
 		$this->assertArrayHasKey( "status", $result );
 	}
 
+
+	// -- P1: Quorum-miss hold (no content) --------------------------------
+
+	/**
+	 * When fanout returns empty (quorum miss), the pipeline must record a
+	 * HOLD decision row and return status='held-quorum'. No post must be
+	 * created (wp_insert_post must NOT be called), and no exception must
+	 * be thrown.
+	 *
+	 * Regression: before v0.32.2, hold_as_draft('') called Publisher which
+	 * threw RuntimeException, causing the run to land as 'failed' instead.
+	 */
+	public function test_quorum_miss_hold_records_decision_no_post_created(): void {
+		// Fanout returns empty -- quorum miss.
+		$fanout   = $this->make_fanout_stub( array() );
+		$tracker  = $this->make_cost_tracker_stub();
+		$pipeline = new \PRAutoBlogger_Authority_Pipeline( $tracker, $fanout );
+
+		// wp_insert_post must never be called on a quorum-miss hold.
+		Functions\expect( "wp_insert_post" )->never();
+
+		$result = $pipeline->run( "run-quorum", $this->make_idea(), $tracker );
+
+		$this->assertSame( "held-quorum", $result["status"] );
+		$this->assertSame( 0, $result["published"] );
+		$this->assertEmpty( $this->published_posts );
+
+		// A run_decisions row must be written for the hold.
+		$hold_decisions = array_filter(
+			$this->decision_rows,
+			static fn( $row ) => "quorum-miss" === $row["verdict"]
+		);
+		$this->assertNotEmpty( $hold_decisions, "Expected a quorum-miss decision row in run_decisions" );
+	}
+
+	/**
+	 * When fanout returns empty (quorum miss), the run state must be
+	 * 'held-quorum', not 'failed'. The P1 bug caused an uncaught
+	 * RuntimeException which Article_Worker caught and marked 'failed'.
+	 */
+	public function test_quorum_miss_does_not_throw(): void {
+		$fanout   = $this->make_fanout_stub( array() );
+		$tracker  = $this->make_cost_tracker_stub();
+		$pipeline = new \PRAutoBlogger_Authority_Pipeline( $tracker, $fanout );
+
+		// No exception must propagate out of run().
+		$exception_thrown = false;
+		try {
+			$result = $pipeline->run( "run-nothrow", $this->make_idea(), $tracker );
+		} catch ( \Throwable $e ) {
+			$exception_thrown = true;
+		}
+
+		$this->assertFalse( $exception_thrown, "run() must not throw on quorum miss (was RuntimeException before v0.32.2)" );
+	}
+
+	// -- P1: Hold WITH content (editorial escalation) ---------------------
+
+	/**
+	 * When the editorial loop escalates with content present, hold_as_draft
+	 * must save a draft post (wp_insert_post called once) and suppress
+	 * imagery. Verifies the content-present path is unchanged by the fix.
+	 */
+	public function test_editorial_escalation_hold_saves_draft_with_content(): void {
+		$sources   = array( array( "url" => "https://a.com", "title" => "A", "quality_score" => 0.9 ) );
+		$fanout    = $this->make_fanout_stub( $this->make_fanout_results( $sources ) );
+		$judge     = $this->make_judge_stub( $sources );
+		$loop      = $this->make_editorial_loop_stub( "<p>escalated draft content</p>", true );
+		$generator = $this->make_generator_stub( "<p>draft content</p>" );
+		$tracker   = $this->make_cost_tracker_stub();
+		$pipeline  = new \PRAutoBlogger_Authority_Pipeline( $tracker, $fanout, $judge, $loop, $generator );
+
+		$posts_inserted = 0;
+		$original_when  = null;
+		Functions\when( "wp_insert_post" )->alias(
+			function ( $args ) use ( &$posts_inserted ) {
+				++$posts_inserted;
+				return 55;
+			}
+		);
+
+		$result = $pipeline->run( "run-escalated", $this->make_idea(), $tracker );
+
+		$this->assertSame( "held-escalated", $result["status"] );
+		$this->assertGreaterThanOrEqual( 1, $posts_inserted, "wp_insert_post must be called for escalated hold with content" );
+		$this->assertArrayHasKey( "_prautoblogger_imagery_suppressed", $this->meta_written );
+		$this->assertSame( "1", $this->meta_written["_prautoblogger_imagery_suppressed"] );
+	}
+
+	// -- P2: pipeline_mode label ------------------------------------------
+
+	/**
+	 * Authority published posts must carry _prautoblogger_pipeline_mode='authority'.
+	 * The Economy single-pass label is validated separately in PublisherTest.
+	 */
+	public function test_authority_published_post_gets_authority_pipeline_mode(): void {
+		$this->stub_get_option( array(
+			"prautoblogger_log_level"                => "error",
+			"prautoblogger_auto_publish"             => "0",
+			"prautoblogger_citation_score_threshold" => 0.0,
+			"prautoblogger_writing_pipeline"         => "single_pass",
+			"prautoblogger_writing_model"            => "openai/gpt-4o-mini",
+			"prautoblogger_default_author"           => 1,
+		) );
+
+		$sources   = array( array( "url" => "https://a.com", "title" => "A", "quality_score" => 0.8 ) );
+		$fanout    = $this->make_fanout_stub( $this->make_fanout_results( $sources ) );
+		$judge     = $this->make_judge_stub( $sources );
+		$loop      = $this->make_editorial_loop_stub( "<p>approved content</p>", false );
+		$generator = $this->make_generator_stub( "<p>draft content</p>" );
+		$tracker   = $this->make_cost_tracker_stub();
+		$pipeline  = new \PRAutoBlogger_Authority_Pipeline( $tracker, $fanout, $judge, $loop, $generator );
+
+		$captured_meta = null;
+		Functions\when( "wp_insert_post" )->alias(
+			function ( $args ) use ( &$captured_meta ) {
+				$captured_meta = $args["meta_input"] ?? array();
+				return 66;
+			}
+		);
+
+		$result = $pipeline->run( "run-pmode", $this->make_idea(), $tracker );
+
+		$this->assertNotNull( $captured_meta, "wp_insert_post must have been called" );
+		$this->assertArrayHasKey( "_prautoblogger_pipeline_mode", $captured_meta );
+		$this->assertSame(
+			"authority",
+			$captured_meta["_prautoblogger_pipeline_mode"],
+			"Authority pipeline posts must carry pipeline_mode=authority, not single_pass"
+		);
+	}
+
 	// -- Helpers ----------------------------------------------------------
 
 	private function make_idea(): \PRAutoBlogger_Article_Idea {

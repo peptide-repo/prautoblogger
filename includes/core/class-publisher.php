@@ -13,22 +13,23 @@ declare(strict_types=1);
  * Dependencies: PRAutoBlogger_Post_Assembler (taxonomy, images, sanitization),
  *               WordPress wp_insert_post(), post meta API.
  *
- * @see core/class-post-assembler.php   — Post-creation helpers (taxonomy, images, logs).
- * @see core/class-peptide-linker.php   — Injects peptide database hyperlinks into content.
- * @see core/class-chief-editor.php     — Produces the editorial review we consume.
- * @see core/class-content-generator.php — Produces the content we publish.
- * @see ARCHITECTURE.md                  — Data flow step 6.
+ * @see core/class-post-assembler.php   -- Post-creation helpers (taxonomy, images, logs).
+ * @see core/class-peptide-linker.php   -- Injects peptide database hyperlinks into content.
+ * @see core/class-chief-editor.php     -- Produces the editorial review we consume.
+ * @see core/class-content-generator.php -- Produces the content we publish.
+ * @see ARCHITECTURE.md                  -- Data flow step 6.
  */
 class PRAutoBlogger_Publisher {
 
 	/**
 	 * Publish an editor-approved article.
 	 *
-	 * @param string                        $content The final HTML content.
-	 * @param PRAutoBlogger_Article_Idea      $idea    The original article idea.
-	 * @param PRAutoBlogger_Editorial_Review  $review  The editor's review.
-	 * @param string|null                   $run_id  Pipeline run ID for log linking.
-	 * @param ?PRAutoBlogger_Cost_Tracker $cost_tracker Optional cost tracker for image generation cost logging.
+	 * @param string                          $content       The final HTML content.
+	 * @param PRAutoBlogger_Article_Idea      $idea          The original article idea.
+	 * @param PRAutoBlogger_Editorial_Review  $review        The editor's review.
+	 * @param string|null                     $run_id        Pipeline run ID for log linking.
+	 * @param PRAutoBlogger_Cost_Tracker|null $cost_tracker  Optional cost tracker for imagery.
+	 * @param string                          $pipeline_mode Override pipeline_mode meta ('' = option).
 	 * @return int The created post ID.
 	 * @throws \RuntimeException If post creation fails.
 	 */
@@ -37,19 +38,21 @@ class PRAutoBlogger_Publisher {
 		PRAutoBlogger_Article_Idea $idea,
 		PRAutoBlogger_Editorial_Review $review,
 		?string $run_id = null,
-		?PRAutoBlogger_Cost_Tracker $cost_tracker = null
+		?PRAutoBlogger_Cost_Tracker $cost_tracker = null,
+		string $pipeline_mode = ''
 	): int {
-		return $this->create_post( $content, $idea, $review, 'publish', $run_id, $cost_tracker );
+		return $this->create_post( $content, $idea, $review, 'publish', $run_id, $cost_tracker, $pipeline_mode );
 	}
 
 	/**
 	 * Save an editor-rejected article as a draft for human review.
 	 *
-	 * @param string                        $content The generated HTML content (pre-revision).
-	 * @param PRAutoBlogger_Article_Idea      $idea    The original article idea.
-	 * @param PRAutoBlogger_Editorial_Review  $review  The editor's review with rejection notes.
-	 * @param string|null                   $run_id  Pipeline run ID for log linking.
-	 * @param ?PRAutoBlogger_Cost_Tracker $cost_tracker Optional cost tracker for image generation cost logging.
+	 * @param string                          $content       The generated HTML content (pre-revision).
+	 * @param PRAutoBlogger_Article_Idea      $idea          The original article idea.
+	 * @param PRAutoBlogger_Editorial_Review  $review        The editor's review with rejection notes.
+	 * @param string|null                     $run_id        Pipeline run ID for log linking.
+	 * @param PRAutoBlogger_Cost_Tracker|null $cost_tracker  Optional cost tracker for imagery.
+	 * @param string                          $pipeline_mode Override pipeline_mode meta ('' = option).
 	 * @return int The created post ID.
 	 * @throws \RuntimeException If post creation fails.
 	 */
@@ -58,21 +61,24 @@ class PRAutoBlogger_Publisher {
 		PRAutoBlogger_Article_Idea $idea,
 		PRAutoBlogger_Editorial_Review $review,
 		?string $run_id = null,
-		?PRAutoBlogger_Cost_Tracker $cost_tracker = null
+		?PRAutoBlogger_Cost_Tracker $cost_tracker = null,
+		string $pipeline_mode = ''
 	): int {
-		return $this->create_post( $content, $idea, $review, 'draft', $run_id, $cost_tracker );
+		return $this->create_post( $content, $idea, $review, 'draft', $run_id, $cost_tracker, $pipeline_mode );
 	}
 
 	/**
 	 * Create a WordPress post with generation metadata.
 	 *
-	 * @param string                        $content     HTML content.
-	 * @param PRAutoBlogger_Article_Idea      $idea        Article idea.
-	 * @param PRAutoBlogger_Editorial_Review  $review      Editorial review.
-	 * @param string                        $post_status 'publish' or 'draft'.
-	 * @param string|null                   $run_id      Pipeline run ID for log linking.
+	 * @param string                          $content       HTML content.
+	 * @param PRAutoBlogger_Article_Idea      $idea          Article idea.
+	 * @param PRAutoBlogger_Editorial_Review  $review        Editorial review.
+	 * @param string                          $post_status   'publish' or 'draft'.
+	 * @param string|null                     $run_id        Pipeline run ID.
+	 * @param PRAutoBlogger_Cost_Tracker|null $cost_tracker  Cost tracker for imagery.
+	 * @param string                          $pipeline_mode Override pipeline_mode meta ('' = option).
 	 * @return int Post ID.
-	 * @throws \RuntimeException If wp_insert_post fails.
+	 * @throws \RuntimeException On wp_insert_post failure or empty content (v0.18.1 guard).
 	 */
 	private function create_post(
 		string $content,
@@ -80,10 +86,11 @@ class PRAutoBlogger_Publisher {
 		PRAutoBlogger_Editorial_Review $review,
 		string $post_status,
 		?string $run_id = null,
-		?PRAutoBlogger_Cost_Tracker $cost_tracker = null
+		?PRAutoBlogger_Cost_Tracker $cost_tracker = null,
+		string $pipeline_mode = ''
 	): int {
 		// v0.18.1 belt-and-braces: never create a post whose content is
-		// empty once tags and whitespace are stripped — an empty "draft
+		// empty once tags and whitespace are stripped -- an empty "draft
 		// for human review" (2026-06-11 incident, post 921) reviews
 		// nothing and hides the underlying generation failure. The
 		// provider/writer guards make this unreachable on OpenRouter
@@ -110,7 +117,7 @@ class PRAutoBlogger_Publisher {
 				// v0.20.0: a re-run's regenerated content must land on the
 				// existing UNPUBLISHED post (otherwise re-runs silently
 				// discard their output). Published posts stay frozen
-				// (CPO guardrail 5) — refresh skips them untouched.
+				// (CPO guardrail 5) -- refresh skips them untouched.
 				return $this->refresh_unpublished_post( $existing_id, $content, $idea, $review );
 			}
 		}
@@ -127,10 +134,10 @@ class PRAutoBlogger_Publisher {
 			'post_status'  => $post_status,
 			'post_type'    => 'post',
 			'post_author'  => PRAutoBlogger_Post_Assembler::get_default_author_id(),
-			'meta_input'   => $this->build_meta( $idea, $review, $run_id, $idea_hash ),
+			'meta_input'   => $this->build_meta( $idea, $review, $run_id, $idea_hash, $pipeline_mode ),
 		);
 
-		/** @see class-prautoblogger.php — listeners registered in main loader. */
+		/** @see class-prautoblogger.php -- listeners registered in main loader. */
 		$post_data = apply_filters( 'prautoblogger_filter_post_data', $post_data, $idea, $review );
 
 		$post_id = wp_insert_post( $post_data, true );
@@ -158,15 +165,11 @@ class PRAutoBlogger_Publisher {
 	}
 
 	/**
-	 * Refresh an existing post from re-run output — unpublished only.
+	 * Refresh an existing post from re-run output -- unpublished only.
 	 *
-	 * Idempotent-resume calls land here too (same content in = same
-	 * content out, so behavior is unchanged for plain resumes). The post
-	 * keeps its CURRENT status: a re-run never publishes an unpublished
-	 * post — publication stays an explicit Review Queue / WP editor
-	 * action. Published (and scheduled/private) posts are returned
-	 * untouched: the run is frozen (CPO guardrail 5).
-	 *
+	 * Idempotent-resume: same content in = same content out. The post keeps
+	 * its CURRENT status -- a re-run never publishes an unpublished post.
+	 * Published/scheduled/private posts are returned untouched (CPO guardrail 5).
 	 * Side effects: wp_update_post + post meta updates (unpublished only).
 	 *
 	 * @param int                            $post_id Existing post ID.
@@ -179,7 +182,7 @@ class PRAutoBlogger_Publisher {
 		$post = get_post( $post_id );
 		if ( PRAutoBlogger_Rerun_Eligibility::post_frozen( $post ) ) {
 			PRAutoBlogger_Logger::instance()->info(
-				sprintf( 'Post %d already exists and is published — frozen, skipping content refresh.', $post_id ),
+				sprintf( 'Post %d already exists and is published -- frozen, skipping content refresh.', $post_id ),
 				'publisher'
 			);
 			return $post_id;
@@ -214,28 +217,35 @@ class PRAutoBlogger_Publisher {
 	/**
 	 * Build post_meta array for generation metadata.
 	 *
-	 * The `_prautoblogger_run_id` key (added v0.8.1) lets the orphan-research
-	 * reaper attribute an orphan `llm_research` row back to its sibling
-	 * articles without re-walking the gen_log table. See
-	 * core/class-research-reaper.php.
+	 * `_prautoblogger_run_id` lets the orphan-research reaper attribute an orphan
+	 * `llm_research` row back to its article without re-walking gen_log.
+	 * `_prautoblogger_pipeline_mode`: Authority passes 'authority'; Economy passes
+	 * '' (falls back to the option). See core/class-research-reaper.php.
 	 *
-	 * @param PRAutoBlogger_Article_Idea     $idea
-	 * @param PRAutoBlogger_Editorial_Review $review
-	 * @param string|null                    $run_id Pipeline run UUID, or null in legacy paths.
+	 * @param PRAutoBlogger_Article_Idea     $idea          Article idea.
+	 * @param PRAutoBlogger_Editorial_Review $review        Editorial review.
+	 * @param string|null                    $run_id        Pipeline run UUID, or null in legacy paths.
+	 * @param string                         $idea_hash     Idea hash ('' when not yet computed).
+	 * @param string                         $pipeline_mode Explicit pipeline mode ('' = read option).
 	 * @return array<string, mixed>
 	 */
 	private function build_meta(
 		PRAutoBlogger_Article_Idea $idea,
 		PRAutoBlogger_Editorial_Review $review,
 		?string $run_id = null,
-		string $idea_hash = ''
+		string $idea_hash = '',
+		string $pipeline_mode = ''
 	): array {
+		$mode = '' !== $pipeline_mode
+			? $pipeline_mode
+			: get_option( 'prautoblogger_writing_pipeline', 'multi_step' );
+
 		$meta = array(
 			'_prautoblogger_generated'       => '1',
 			'_prautoblogger_analysis_id'     => $idea->get_analysis_id(),
 			'_prautoblogger_source_ids'      => wp_json_encode( $idea->get_source_ids() ),
 			'_prautoblogger_model_used'      => get_option( 'prautoblogger_writing_model', PRAUTOBLOGGER_DEFAULT_WRITING_MODEL ),
-			'_prautoblogger_pipeline_mode'   => get_option( 'prautoblogger_writing_pipeline', 'multi_step' ),
+			'_prautoblogger_pipeline_mode'   => $mode,
 			'_prautoblogger_editor_verdict'  => $review->get_verdict(),
 			'_prautoblogger_editor_notes'    => $review->get_notes(),
 			'_prautoblogger_quality_score'   => $review->get_quality_score(),
@@ -257,7 +267,7 @@ class PRAutoBlogger_Publisher {
 	/**
 	 * Find a post already created for this (run, idea) pair.
 	 *
-	 * Direct postmeta self-join (any post_status, including trash) — the
+	 * Direct postmeta self-join (any post_status, including trash) -- the
 	 * idempotency check must see drafts and pending posts too.
 	 *
 	 * @param string $run_id    Pipeline run UUID.
