@@ -1,6 +1,4 @@
 <?php
-declare(strict_types=1);
-
 /**
  * Tier Router Interface
  *
@@ -9,6 +7,8 @@ declare(strict_types=1);
  * @package PRAutoBlogger
  * @since 0.31.0
  */
+
+declare(strict_types=1);
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
