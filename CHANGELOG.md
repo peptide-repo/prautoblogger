@@ -5,6 +5,27 @@ All notable changes to PRAutoBlogger will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project uses [Semantic Versioning](https://semver.org/).
 
+## [0.31.0] - 2026-06-24
+
+### Added
+- **P2b.4 — tier routing + Authority pipeline orchestrator + citation/imagery gates**
+  - `PRAutoBlogger_Tier_Router` (`core/class-tier-router.php`, 100 lines): resolves Authority vs Economy per-category. Master switch `prautoblogger_authority_pipeline_enabled` defaults FALSE — flag OFF means ALL generation uses the Economy single-pass path, byte-identical to pre-P2b.4.
+  - `PRAutoBlogger_Tier_Router_Interface` (`providers/interface-tier-router.php`).
+  - `PRAutoBlogger_Authority_Pipeline` (`core/class-authority-pipeline.php`, 247 lines): 6-stage orchestrator: research -> curate -> draft -> editorial -> seo -> publish gate. Cost-governor reserve/settle on every stage; `PRAutoBlogger_Cost_Ceiling_Exception` -> HOLD as draft (never force-complete). Citation gate: `citation_score >= threshold` to publish (default threshold 0.0, gate always passes until calibrated).
+  - `PRAutoBlogger_Authority_Pipeline_Stages` (`core/class-authority-pipeline-stages.php`, 195 lines): stage helpers extracted for 300-line rule.
+  - `PRAutoBlogger_Authority_Pipeline_Interface` (`providers/interface-authority-pipeline.php`).
+  - **Article_Worker wired**: 3-line tier check before Economy path. Economy path unchanged.
+  - **Imagery gate**: held articles get `_prautoblogger_imagery_suppressed = 1`; image pipeline skipped. Published articles proceed normally.
+  - New options: `prautoblogger_authority_pipeline_enabled` (bool, default false), `prautoblogger_category_tiers` (serialized array, default empty = all Authority).
+- PHPUnit: `TierRouterTest` (6 tests) + `AuthorityPipelineTest` (6 tests). All 544 tests GREEN on VPS PHP 8.3.
+
+### Updated
+- `ARCHITECTURE.md` — new files, options, post-meta, generation flow note (additions only).
+- `CONVENTIONS.md` — tier routing + master flag pattern.
+- `CONTEXT.md` — P2b.4 glossary section.
+- `prautoblogger.php` — version bumped to 0.31.0.
+- `uninstall.php` — new options covered by existing wildcard; `_prab_*` purge already present.
+
 ## [0.30.0] - 2026-06-24
 
 ### Fixed (QA P1/P2 sweep — post-a39fb75)

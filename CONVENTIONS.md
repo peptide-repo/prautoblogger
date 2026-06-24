@@ -828,3 +828,37 @@ post-meta writes and DB audit rows. It is the contract point between PRAB (write
 | `_prab_reviewed_at` | string | ISO 8601 datetime |
 | `_prab_reviewed_by` | int | WP user ID — written only by P2b.4 on human approval |
 | `_prab_citation_score` | string (float) | Avg quality_score of kept sources; publish gate in P2b.4 |
+
+---
+
+## Tier Routing + Master Flag Pattern (P2b.4, v0.31.0)
+
+### Design rules
+
+The master flag `prautoblogger_authority_pipeline_enabled` (default `false`) gates
+the entire Authority pipeline. When OFF, `PRAutoBlogger_Tier_Router::resolve()` MUST
+return `economy` unconditionally — no category-map reads, no secondary checks. This
+guarantees zero behaviour change in production on deploy.
+
+### Key patterns
+
+- **Master flag check first**: always the first branch in `resolve()`. If false, return
+  economy immediately without reading the category map.
+- **Economy is the safe default**: if the category map is empty, absent, or corrupt,
+  the tier defaults to authority (the additive default when flag is ON); but the flag
+  being OFF is the primary safety gate.
+- **Per-category demotion**: the `prautoblogger_category_tiers` option stores a
+  serialized PHP array `[category_slug => economy]`. Only economy is a meaningful
+  explicit value — other values fall through to the Authority default.
+- **Article_Worker integration**: three-line check before the Economy path:
+  ```php
+  $tier = ( new PRAutoBlogger_Tier_Router() )->resolve( $idea );
+  if ( authority === $tier ) {
+      return ( new PRAutoBlogger_Authority_Pipeline( $cost_tracker ) )->run( $run_id, $idea, $cost_tracker );
+  }
+  ```
+  The Economy path below the check is UNCHANGED — the branch is additive-only.
+- **Imagery gate**: held articles (citation gate miss, escalation, or cost ceiling) get
+  `_prautoblogger_imagery_suppressed = 1` post-meta. Image pipeline checks this key
+  before running. Publish-gate-passed articles never have this key set.
+

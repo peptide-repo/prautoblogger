@@ -210,3 +210,15 @@ into the live Economy path until P2b.4).
 | **_prab_reviewed_by** | WP user ID of the Review Queue approver. **NOT written by P2b.3**. Set exclusively by P2b.4 on human approval. |
 | **_prab_citations** | JSON-encoded array of kept research sources: `[{url, title, doi?, quality_score?}]`. Derived from the `$kept_sources` array passed by the curate stage. |
 | **_prab_about_peptides** | JSON-encoded array of related peptide post IDs. Populated from P2b.4 peptide linkage; defaults to `[]` in P2b.3 (the SEO stage accepts the array as a parameter for future-compatibility). |
+
+## P2b.4 Glossary (Tier Router + Authority Pipeline Orchestrator)
+
+| Term | Definition |
+|------|-----------|
+| **Tier routing** | The process of routing an article idea to Authority or Economy (single-pass) path. Implemented in `PRAutoBlogger_Tier_Router::resolve()`. |
+| **Master flag** | `prautoblogger_authority_pipeline_enabled` (default `false`). When OFF, ALL generation uses Economy path — zero behaviour change from pre-P2b.4. Must be explicitly enabled by an operator. |
+| **Category tier map** | `prautoblogger_category_tiers` — serialized array `[category_slug => economy]`. Only `economy` is a meaningful explicit demote; unclassified categories default to Authority. |
+| **Authority Pipeline** | `PRAutoBlogger_Authority_Pipeline` — 6-stage orchestrator: research -> curate -> draft -> editorial -> seo -> publish gate. Wires together P2b.1+P2b.2+P2b.3 subsystems. |
+| **Citation gate** | Publish gate in the Authority pipeline: `citation_score >= threshold` to publish; else hold as draft with imagery suppressed. Default threshold `0.0` (gate always passes until calibrated). |
+| **Imagery gate** | `_prautoblogger_imagery_suppressed = 1` written on held articles. Signals image pipeline to skip generation. Not set on published articles. |
+| **Cost ceiling halt** | `PRAutoBlogger_Cost_Ceiling_Exception` caught at Authority pipeline top level. Article saved as draft with status `halted`; never force-completed. |

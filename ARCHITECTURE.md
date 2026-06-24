@@ -229,6 +229,9 @@ prautoblogger/
 │   │   ├── class-editorial-loop.php    # P2b.2: bounded editorial loop — editor↔writer ≤editorial_max_rounds — Authority only (v0.29.0)
 │   │   ├── class-editorial-revision-caller.php # P2b.2: writer revision LLM step (extracted from editorial-loop for 300-line rule) (v0.29.0)
 │   │   ├── class-seo-stage.php         # P2b.3: SEO stage — writes _prab_* post-meta (JSON-LD contract) + computes citation_score — Authority only (v0.30.0)
+											# P2b.4: class-authority-pipeline.php  Authority pipeline orchestrator 6-stage (v0.31.0)
+											# P2b.4: class-authority-pipeline-stages.php stage helpers (v0.31.0)
+											# P2b.4: class-tier-router.php per-category tier router (v0.31.0)
 │   │   ├── class-audit-writer.php     # run_sources / run_decisions insert layer
 │   │   ├── class-pipeline-status.php  # Status-transient + summary helpers (extracted from runner/worker)
 │   │   ├── class-logger.php           # Structured logging singleton (error/warning/info/debug)
@@ -250,6 +253,8 @@ prautoblogger/
 │   │   ├── interface-research-judge.php    # P2b.1: contract for the curate stage judge (v0.28.0)
 │   │   ├── interface-editorial-loop.php    # P2b.2: contract for bounded editorial loop (v0.29.0)
 │   │   ├── interface-seo-stage.php         # P2b.3: contract for the SEO stage (v0.30.0)
+											# P2b.4: interface-tier-router.php contract for tier router (v0.31.0)
+											# P2b.4: interface-authority-pipeline.php contract for Authority pipeline (v0.31.0)
 │   │   ├── class-reddit-provider.php     # Reddit data collection orchestrator (RSS primary)
 │   │   ├── interface-image-provider.php  # Contract for any image generation provider (incl. batch)
 │   │   ├── class-open-router-image-provider.php  # OpenRouter image gen (single + batch dispatch)
@@ -696,6 +701,8 @@ All prefixed with `prautoblogger_`:
 | `prautoblogger_board_published_window_days` | Days back to show in the Published column (default 7). |
 | `prautoblogger_editorial_max_rounds`    | Authority-tier editorial loop: max editor↔writer rounds before Review Queue escalation (int, default 3, range 1–10). P2b.2 (v0.29.0). |
 | `prautoblogger_citation_score_threshold` | Authority-tier SEO stage: minimum citation_score to pass the publish gate (float, default 0.0 — intentionally uncalibrated; calibrate after first ~10 Authority runs). P2b.3 (v0.30.0). |
+| `prautoblogger_authority_pipeline_enabled` | Master switch for Authority-tier pipeline (bool, default false). OFF = all generation uses Economy path (zero behaviour change). P2b.4 v0.31.0. |
+| `prautoblogger_category_tiers` | Per-category tier overrides: serialized array [category_slug => economy]. Economy is an explicit demote; default is Authority. P2b.4 v0.31.0. |
 
 ### Post Meta
 
@@ -723,6 +730,7 @@ Stored on every PRAutoBlogger-generated post:
 | `_prab_review_mode`                  | `editorial-system` (automated SEO stage) or `human` (set in P2b.4 on Review Queue approval). |
 | `_prab_reviewed_at`                  | ISO 8601 datetime of when the SEO stage ran (P2b.3 v0.30.0). |
 | `_prab_citation_score`               | Float (stored as string): average quality_score of kept sources. Publish gate in P2b.4. |
+| `_prautoblogger_imagery_suppressed`   | Set to 1 on articles held by citation gate or editorial escalation (P2b.4 v0.31.0). Suppresses image generation until human-approved. |
 
 Composed-variant **attachment** meta (v0.17.0): every pipeline attachment gets
 `_prautoblogger_image_role` (`featured`/`og`/`square`); OG/square variants also

@@ -83,6 +83,14 @@ class PRAutoBlogger_Article_Worker {
 			return $result;
 		}
 
+		// P2b.4: tier routing — flag OFF always returns 'economy' (zero behaviour change).
+		$tier = ( new PRAutoBlogger_Tier_Router() )->resolve( $idea );
+		if ( 'authority' === $tier ) {
+			$pipeline = new PRAutoBlogger_Authority_Pipeline( $this->cost_tracker );
+			return $pipeline->run( $run_id, $idea, $this->cost_tracker );
+		}
+		// Economy path continues unchanged below...
+
 		// Initialize Opik trace context for this article generation.
 		$opik = $this->should_trace_with_opik();
 		if ( $opik ) {
