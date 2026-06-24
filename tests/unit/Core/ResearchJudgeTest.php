@@ -19,7 +19,7 @@ class ResearchJudgeTest extends BaseTestCase {
 	/** @var \PHPUnit\Framework\MockObject\MockObject Mock $wpdb. */
 	private $wpdb;
 
-	/** @var array<int, array> Rows inserted into run_sources. */
+	/** @var array<string, array<int, array>> Rows inserted, keyed by table name suffix (e.g. 'run_sources'). */
 	private array $inserted_rows = array();
 
 	protected function setUp(): void {
@@ -35,11 +35,14 @@ class ResearchJudgeTest extends BaseTestCase {
 			}
 		);
 
-		// Capture insert calls.
+		// Capture insert calls keyed by table name suffix (strip prefix) so tests
+		// can distinguish run_sources rows from Logger event_log rows, etc.
 		$test = $this;
 		$this->wpdb->method( 'insert' )->willReturnCallback(
 			function ( $table, $data ) use ( $test ) {
-				$test->inserted_rows[] = $data;
+				// Strip the 'wp_prautoblogger_' prefix to get a short key.
+				$key = preg_replace( '/^wp_prautoblogger_/', '', (string) $table );
+				$test->inserted_rows[ $key ][] = $data;
 				return 1;
 			}
 		);
@@ -113,7 +116,9 @@ class ResearchJudgeTest extends BaseTestCase {
 
 		$this->assertCount( 12, $kept );
 
-		$discarded_rows = array_filter( $this->inserted_rows, static fn( $r ) => 0 === (int) $r['kept'] );
+		// Only examine run_sources rows (keyed by table); Logger rows are separate.
+		$run_source_rows = $this->inserted_rows['run_sources'] ?? array();
+		$discarded_rows  = array_filter( $run_source_rows, static fn( $r ) => 0 === (int) $r['kept'] );
 		$this->assertCount( 2, array_values( $discarded_rows ) );
 	}
 
@@ -151,7 +156,9 @@ class ResearchJudgeTest extends BaseTestCase {
 		$judge = $this->make_judge_with_available_tables();
 		$judge->curate( 'run-5', 'idea:abc', $this->make_fanout_results( 2, 0 ) );
 
-		$kept_rows = array_filter( $this->inserted_rows, static fn( $r ) => 1 === (int) $r['kept'] );
+		// Only examine run_sources rows; Logger rows have no 'kept' key.
+		$run_source_rows = $this->inserted_rows['run_sources'] ?? array();
+		$kept_rows       = array_filter( $run_source_rows, static fn( $r ) => 1 === (int) $r['kept'] );
 		$this->assertCount( 2, array_values( $kept_rows ) );
 
 		foreach ( $kept_rows as $row ) {
@@ -169,7 +176,11 @@ class ResearchJudgeTest extends BaseTestCase {
 		$kept   = $judge->curate( 'run-6', 'idea:abc', $fanout );
 
 		$this->assertCount( 3, $kept );
-		$this->assertEmpty( $this->inserted_rows );
+		// When audit tables are absent, run_sources and run_decisions must be empty.
+		// The Logger may still write to event_log (wpdb->insert check skips only when
+		// $wpdb is null) — that is expected behaviour and NOT tested here.
+		$this->assertEmpty( $this->inserted_rows['run_sources'] ?? array() );
+		$this->assertEmpty( $this->inserted_rows['run_decisions'] ?? array() );
 	}
 
 	// ── Helpers ──────────────────────────────────────────────────────────

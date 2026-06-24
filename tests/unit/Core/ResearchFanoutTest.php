@@ -158,10 +158,28 @@ class ResearchFanoutTest extends BaseTestCase {
 		$batch->expects( $this->never() )->method( 'execute' );
 
 		// ceiling_usd=0.0: any reservation attempt breaches → UPDATE affects 0 rows → exception.
-		$this->wpdb->method( 'get_row' )->willReturn( (object) array(
+		// get_var must return the table name so Run_State::is_available() returns true;
+		// without this, open_amount_reservation() short-circuits (returns null, no throw).
+		$this->wpdb->method( 'get_var' )->willReturnCallback(
+			static function ( $sql ) {
+				// Run_State::table_name() = 'wp_prautoblogger_runs' (not run_states).
+				// is_available() does SHOW TABLES LIKE %s where %s = wp_prautoblogger_runs.
+				if ( false !== strpos( (string) $sql, 'prautoblogger_runs' ) ) {
+					return 'wp_prautoblogger_runs';
+				}
+				return null;
+			}
+		);
+		// ceiling_usd must be > 0; 0.0 means 'ceiling disabled' (governor returns null, no throw).
+		// Set ceiling=0.01, already reserved=0.01 (at limit) so any additional reserve
+		// fails — query() returns 0 rows affected → on_breach() → throws.
+		// get_row() is called with ARRAY_A mode; get_run() does is_array() check.
+		// Return an array (not an object) so get_run() returns the row instead of null.
+		// ceiling=0.01, reserved=0.01 → at limit; any further reserve fails (query→0).
+		$this->wpdb->method( 'get_row' )->willReturn( array(
 			'run_id'       => 'run-ceiling',
-			'ceiling_usd'  => 0.0,
-			'reserved_usd' => 0.0,
+			'ceiling_usd'  => 0.01,
+			'reserved_usd' => 0.01,
 			'settled_usd'  => 0.0,
 			'status'       => 'running',
 		) );
@@ -199,18 +217,10 @@ class ResearchFanoutTest extends BaseTestCase {
 	 * @return \PRAutoBlogger_Research_Fanout
 	 */
 	private function make_fanout( $batch ): \PRAutoBlogger_Research_Fanout {
-		// Stub prompt registry render.
-		Functions\when( 'get_option' )->alias(
-			function ( $name, $default = false ) {
-				$opts = array(
-					'prautoblogger_per_run_cost_ceiling_usd' => 0.50,
-					'prautoblogger_research_agent_count'      => 3,
-					'prautoblogger_research_model'            => 'google/gemini-2.5-flash-lite',
-					'prautoblogger_log_level'                 => 'error',
-				);
-				return $opts[ $name ] ?? $default;
-			}
-		);
+		// NOTE: do NOT re-stub get_option here. setUp() and individual tests call
+		// stub_get_option() with the correct agent_count for that test. Re-stubbing
+		// here with hardcoded agent_count=3 silently overrides the test's value and
+		// caused test_quorum_formula_for_n_5 to dispatch 3 agents against 5 results.
 		return new \PRAutoBlogger_Research_Fanout( $batch );
 	}
 
